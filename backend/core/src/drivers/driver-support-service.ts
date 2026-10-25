@@ -1,3 +1,4 @@
+import { rideSupportContext, type RideSupportDependencies } from '../rides/ride-support-context.js';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -11,6 +12,7 @@ import type {
 export class DriverSupportError extends Error {
   constructor(
     public readonly code:
+      | 'SUPPORT_RIDE_UNAVAILABLE'
       | 'INVALID_SUPPORT_CATEGORY'
       | 'INVALID_SUPPORT_SUBJECT'
       | 'INVALID_SUPPORT_MESSAGE'
@@ -60,6 +62,7 @@ export function supportTicketView(
 ) {
   return {
     id: ticket.id,
+    ...(ticket.rideId == null ? {} : {rideId: ticket.rideId}),
     category: ticket.category,
     subject: ticket.subject,
     message: ticket.message,
@@ -82,6 +85,8 @@ export async function createDriverSupportTicket(input: {
   subject: unknown;
   message: unknown;
   now?: Date;
+  rideId?: unknown;
+  rideDependencies?: RideSupportDependencies;
 }) {
   const category =
     typeof input.category === 'string'
@@ -96,9 +101,12 @@ export async function createDriverSupportTicket(input: {
 
   const now = input.now ?? new Date();
   const instant = now.toISOString();
+  if (input.rideId != null && input.rideDependencies == null) throw new DriverSupportError('SUPPORT_RIDE_UNAVAILABLE', 'Corrida indisponível para este atendimento.');
+  const context = input.rideDependencies == null ? undefined : await rideSupportContext({...input.rideDependencies, rideId: input.rideId, requesterType: 'driver', requesterId: input.driverId, ...(input.now == null ? {} : {now: input.now})});
   const ticket: DriverSupportTicketRecord = {
     id: randomUUID(),
     requesterType: 'driver',
+    ...(context == null ? {} : {rideId: context.rideId, rideContext: context}),
     driverId: input.driverId,
     category: category as DriverSupportCategory,
     subject: cleanText(
@@ -130,6 +138,8 @@ export async function createPassengerSupportTicket(input: {
   subject: unknown;
   message: unknown;
   now?: Date;
+  rideId?: unknown;
+  rideDependencies?: RideSupportDependencies;
 }) {
   const category =
     typeof input.category === 'string' ? input.category.trim() : '';
@@ -144,9 +154,12 @@ export async function createPassengerSupportTicket(input: {
   }
 
   const instant = (input.now ?? new Date()).toISOString();
+  if (input.rideId != null && input.rideDependencies == null) throw new DriverSupportError('SUPPORT_RIDE_UNAVAILABLE', 'Corrida indisponível para este atendimento.');
+  const context = input.rideDependencies == null ? undefined : await rideSupportContext({...input.rideDependencies, rideId: input.rideId, requesterType: 'passenger', requesterId: input.passengerId, ...(input.now == null ? {} : {now: input.now})});
   const ticket: DriverSupportTicketRecord = {
     id: randomUUID(),
     requesterType: 'passenger',
+    ...(context == null ? {} : {rideId: context.rideId, rideContext: context}),
     passengerId: input.passengerId,
     category: category as DriverSupportCategory,
     subject: cleanText(
@@ -175,11 +188,13 @@ export async function listPassengerSupportTickets(input: {
   repository: DriverSupportRepository;
   passengerId: string;
   limit?: number;
+  rideId?: string;
 }) {
   const limit = Math.max(1, Math.min(100, input.limit ?? 30));
   const tickets = await input.repository.listByPassenger(
     input.passengerId,
     limit,
+    input.rideId,
   );
   return { tickets: tickets.map(supportTicketView) };
 }
@@ -188,11 +203,13 @@ export async function listDriverSupportTickets(input: {
   repository: DriverSupportRepository;
   driverId: string;
   limit?: number;
+  rideId?: string;
 }) {
   const limit = Math.max(1, Math.min(100, input.limit ?? 30));
   const tickets = await input.repository.listByDriver(
     input.driverId,
     limit,
+    input.rideId,
   );
   return {
     tickets: tickets.map(supportTicketView),
@@ -226,6 +243,7 @@ export async function listSupportTicketsForAdmin(input: {
           ? ticket.passengerId
           : null,
       ...supportTicketView(ticket),
+      ...(ticket.rideContext == null ? {} : {rideContext: ticket.rideContext}),
     })),
     nextCursor:
       page.hasMore && last != null
@@ -284,6 +302,6 @@ export async function respondToSupportTicket(input: {
       updated.requesterType === 'passenger'
         ? updated.passengerId
         : null,
-    ticket: supportTicketView(updated),
+    ticket: {...supportTicketView(updated), ...(updated.rideContext == null ? {} : {rideContext: updated.rideContext})},
   };
 }

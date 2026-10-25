@@ -1,3 +1,4 @@
+import '../../rides/domain/passenger_activity.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../guide/data/local_guide_service.dart';
@@ -32,6 +33,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.accessToken,
     required this.tourService,
     this.guideService,
+    this.onResumeRide,
     this.supportService,
     this.privacyService,
     this.socialLinksService,
@@ -45,6 +47,8 @@ class PassengerMainShell extends StatefulWidget {
     ValueListenable<RamoPlace?> destination,
   )
   homeBuilder;
+  final Future<void> Function(BuildContext context, PassengerActivityRide ride)?
+  onResumeRide;
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
   final PassengerPaymentService? paymentService;
@@ -160,7 +164,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
               NavigationDestination(
                 icon: Icon(Icons.receipt_long_outlined),
                 selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Atividade',
+                label: 'Atividades',
               ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline_rounded),
@@ -188,7 +192,16 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
                 _guideDestination.value = destination;
               },
             ),
-      PassengerActivityScreen(service: widget.activityService),
+      PassengerActivityScreen(
+        service: widget.activityService,
+        visible: _index == 2,
+        onResume: widget.onResumeRide == null
+            ? null
+            : (ride) => widget.onResumeRide!(context, ride),
+        support: widget.supportService is RamoRideSupportApi
+            ? widget.supportService as RamoRideSupportApi
+            : null,
+      ),
       PassengerProfileScreen(
         authService: widget.authService,
         accessToken: widget.accessToken,

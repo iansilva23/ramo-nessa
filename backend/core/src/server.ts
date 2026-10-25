@@ -2955,6 +2955,7 @@ const server = createServer(async (request, response) => {
         response,
         200,
         await passengerActivityForApp({
+          registry: driverRegistryRepository,
           rides: rideRepository,
           passengerId: session.subjectId,
           limit,
@@ -6852,12 +6853,14 @@ const server = createServer(async (request, response) => {
         sessions: authSessionRepository,
         identities: authOtpRepository,
       });
+      if(requestUrl.searchParams.has('rideId') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestUrl.searchParams.get('rideId')!)){json(response,400,{error:'INVALID_RIDE_ID',message:'Corrida inválida.'});return;}
       json(
         response,
         200,
         await listPassengerSupportTickets({
           repository: driverSupportRepository,
           passengerId,
+          ...(requestUrl.searchParams.has('rideId') ? {rideId: requestUrl.searchParams.get('rideId')!} : {}),
           limit: 50,
         }),
       );
@@ -6881,6 +6884,8 @@ const server = createServer(async (request, response) => {
       const ticket = await createPassengerSupportTicket({
         repository: driverSupportRepository,
         passengerId,
+        rideId: value.rideId,
+        rideDependencies: {rides: rideRepository, finance: financeRepository, drivers: driverSupplyRepository, registry: driverRegistryRepository},
         category: value.category,
         subject: value.subject,
         message: value.message,
@@ -7013,12 +7018,14 @@ const server = createServer(async (request, response) => {
         sessions: authSessionRepository,
         identities: authOtpRepository,
       });
+      if(requestUrl.searchParams.has('rideId') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestUrl.searchParams.get('rideId')!)){json(response,400,{error:'INVALID_RIDE_ID',message:'Corrida inválida.'});return;}
       json(
         response,
         200,
         await listDriverSupportTickets({
           repository: driverSupportRepository,
           driverId,
+          ...(requestUrl.searchParams.has('rideId') ? {rideId: requestUrl.searchParams.get('rideId')!} : {}),
           limit: 50,
         }),
       );
@@ -7042,6 +7049,8 @@ const server = createServer(async (request, response) => {
       const ticket = await createDriverSupportTicket({
         repository: driverSupportRepository,
         driverId,
+        rideId: value.rideId,
+        rideDependencies: {rides: rideRepository, finance: financeRepository, drivers: driverSupplyRepository, registry: driverRegistryRepository},
         category: value.category,
         subject: value.subject,
         message: value.message,

@@ -12,6 +12,8 @@ export function driverRideView(ride: RideRecord) {
   return {
     id: ride.id,
     state: ride.state,
+    totalAmountCents: ride.quote.totalAmountCents,
+    paymentStatus: ride.paymentStatus,
     driverHoldExpiresAt: ride.driverHoldExpiresAt,
     category: ride.category,
     passengers: ride.passengers,

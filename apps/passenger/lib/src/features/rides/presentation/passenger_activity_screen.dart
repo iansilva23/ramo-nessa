@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
-
 import '../data/passenger_activity_service.dart';
 import '../domain/passenger_activity.dart';
 
@@ -8,295 +8,297 @@ class PassengerActivityScreen extends StatefulWidget {
   const PassengerActivityScreen({
     super.key,
     required this.service,
+    this.onResume,
+    this.support,
+    this.visible = true,
   });
-
   final PassengerActivityService? service;
-
+  final Future<void> Function(PassengerActivityRide ride)? onResume;
+  final RamoRideSupportApi? support;
+  final bool visible;
   @override
   State<PassengerActivityScreen> createState() =>
       _PassengerActivityScreenState();
 }
 
-class _PassengerActivityScreenState
-    extends State<PassengerActivityScreen> {
+class _PassengerActivityScreenState extends State<PassengerActivityScreen>
+    with WidgetsBindingObserver {
   PassengerActivitySnapshot? _activity;
-  bool _loading = true;
-  String? _error;
-
+  bool _loading = false, _history = false;
+  String? _error, _opening;
+  Timer? _timer;
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_load);
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_load());
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (widget.visible) unawaited(_load());
+    });
+  }
+
+  @override
+  void didUpdateWidget(PassengerActivityScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.visible && !old.visible) unawaited(_load());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.visible) {
+      unawaited(_load());
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _load() async {
-    final service = widget.service;
-    if (service == null) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = 'Histórico indisponível neste modo.';
-      });
+    if (_loading) return;
+    if (widget.service == null) {
+      setState(
+        () => _error = 'Suas atividades estão indisponíveis neste modo.',
+      );
       return;
     }
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
+    setState(() => _loading = true);
     try {
-      final activity = await service.fetch();
-      if (!mounted) return;
-      setState(() {
-        _activity = activity;
-        _loading = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = error.toString();
-      });
+      final activity = await widget.service!.fetch();
+      if (mounted) {
+        setState(() {
+          _activity = activity;
+          _loading = false;
+          _error = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error =
+              'Não conseguimos atualizar. Os últimos registros continuam visíveis.';
+        });
+      }
+    }
+  }
+
+  Future<void> _help(PassengerActivityRide ride) async {
+    final api = widget.support;
+    if (api == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            RamoRideSupportScreen(api: api, ride: ride.activityData),
+      ),
+    );
+    if (mounted) unawaited(_load());
+  }
+
+  Future<void> _open(PassengerActivityRide ride) async {
+    if (_opening != null) return;
+    if (ride.activityData.terminal) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => RamoRideDetailsScreen(
+            ride: ride.activityData,
+            onHelp: widget.support == null ? null : () => _help(ride),
+          ),
+        ),
+      );
+      return;
+    }
+    if (widget.onResume == null) return;
+    setState(() => _opening = ride.id);
+    try {
+      await widget.onResume!(ride);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não conseguimos abrir a corrida. Tente novamente; nenhum pagamento foi criado.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _opening = null);
+        unawaited(_load());
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final activity = _activity;
-
+    final all = _activity?.rides ?? const <PassengerActivityRide>[];
+    final active = all.where((r) => !r.activityData.terminal).toList();
+    final rides = _history
+        ? all.where((r) => r.activityData.terminal).toList()
+        : active;
+    final colors = Theme.of(context).colorScheme;
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            RamoSpacing.lg,
-            RamoSpacing.lg,
-            RamoSpacing.lg,
-            RamoSpacing.xxl,
-          ),
+          padding: const EdgeInsets.fromLTRB(22, 24, 22, 30),
           children: [
-            Text(
-              'Atividade',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1,
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Atividades',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -1,
+                            ),
+                      ),
+                      Text(
+                        'Suas corridas, sempre por aqui.',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Suas corridas e viagens recentes.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: RamoColors.brandYellow,
+                    borderRadius: BorderRadius.circular(13),
                   ),
-            ),
-            const SizedBox(height: RamoSpacing.lg),
-            if (_loading && activity == null)
-              const Padding(
-                padding: EdgeInsets.only(top: 56),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null && activity == null)
-              _ActivityMessage(
-                icon: Icons.cloud_off_rounded,
-                title: 'Não foi possível carregar',
-                subtitle: _error!,
-              )
-            else if (activity != null) ...[
-              _ActivitySummary(activity: activity),
-              const SizedBox(height: RamoSpacing.xl),
-              Text(
-                'Corridas recentes',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
+                  child: const Text(
+                    'rn.',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
                     ),
-              ),
-              const SizedBox(height: RamoSpacing.sm),
-              if (activity.rides.isEmpty)
-                const _ActivityMessage(
-                  icon: Icons.route_rounded,
-                  title: 'Nenhuma corrida ainda',
-                  subtitle:
-                      'Quando você fizer uma viagem, ela aparecerá aqui.',
-                )
-              else
-                ...activity.rides.map(
-                  (ride) => Padding(
-                    padding:
-                        const EdgeInsets.only(bottom: RamoSpacing.sm),
-                    child: _RideActivityCard(ride: ride),
                   ),
                 ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivitySummary extends StatelessWidget {
-  const _ActivitySummary({required this.activity});
-
-  final PassengerActivitySnapshot activity;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      ('Total', activity.total.toString()),
-      ('Concluídas', activity.completed.toString()),
-      ('Canceladas', activity.cancelled.toString()),
-      ('Ativas', activity.active.toString()),
-    ];
-
-    final width = (MediaQuery.sizeOf(context).width -
-            (RamoSpacing.lg * 2) -
-            RamoSpacing.sm) /
-        2;
-
-    return Wrap(
-      spacing: RamoSpacing.sm,
-      runSpacing: RamoSpacing.sm,
-      children: items
-          .map(
-            (item) => SizedBox(
-              width: width,
-              child: Container(
-                padding: const EdgeInsets.all(RamoSpacing.md),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(RamoRadius.md),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _tab('Em andamento · ${active.length}', false),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(width: 16),
+                Expanded(flex: 2, child: _tab('Histórico', true)),
+              ],
+            ),
+            const Divider(height: 1),
+            const SizedBox(height: 22),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
                   children: [
-                    Text(
-                      item.$1,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
+                    const Icon(Icons.cloud_off_outlined, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.$2,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
-                      ),
+                    IconButton(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Tentar novamente',
                     ),
                   ],
                 ),
               ),
-            ),
-          )
-          .toList(growable: false),
-    );
-  }
-}
-
-class _RideActivityCard extends StatelessWidget {
-  const _RideActivityCard({required this.ride});
-
-  final PassengerActivityRide ride;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(RamoRadius.md),
-      child: Padding(
-        padding: const EdgeInsets.all(RamoSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              child: Icon(
-                ride.state == 'COMPLETED'
-                    ? Icons.check_rounded
-                    : ride.state.startsWith('CANCELLED_')
-                        ? Icons.close_rounded
-                        : Icons.route_rounded,
-              ),
-            ),
-            const SizedBox(width: RamoSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${ride.origin} → ${ride.destination}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${ride.categoryLabel} · ${ride.stateLabel}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
+            if (_loading && _activity == null)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (rides.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 36),
+                child: Column(
+                  children: [
+                    Icon(
+                      _history ? Icons.history : Icons.route_outlined,
+                      size: 38,
+                      color: colors.onSurfaceVariant,
                     ),
+                    const SizedBox(height: 14),
+                    Text(
+                      _history
+                          ? 'Nenhuma corrida no histórico'
+                          : 'Nenhuma corrida em andamento',
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _history
+                          ? 'Suas viagens concluídas aparecerão aqui.'
+                          : 'Quando você pedir uma corrida, acompanhe por aqui.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...rides.map(
+                (ride) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: RamoRideActivityCard(
+                    ride: ride.activityData,
+                    busy: _opening == ride.id,
+                    onOpen:
+                        widget.onResume == null && !ride.activityData.terminal
+                        ? null
+                        : () => _open(ride),
+                    onHelp: widget.support == null ? null : () => _help(ride),
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: RamoSpacing.sm),
-            Text(
-              _formatCents(ride.totalAmountCents),
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
+            if (!_history && active.isNotEmpty)
+              Text(
+                'Fechou e voltou? Sua corrida continua aqui para acompanhar ou pedir ajuda.',
+                style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+              ),
           ],
         ),
       ),
     );
   }
-}
 
-class _ActivityMessage extends StatelessWidget {
-  const _ActivityMessage({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 38),
-      child: Column(
-        children: [
-          Icon(icon, size: 44, color: Theme.of(context).colorScheme.onSurfaceVariant),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 17,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-        ],
+  Widget _tab(String label, bool history) => TextButton(
+    onPressed: () => setState(() => _history = history),
+    style: TextButton.styleFrom(
+      foregroundColor: Theme.of(context).colorScheme.onSurface,
+      textStyle: const TextStyle(fontSize: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      minimumSize: const Size(0, 48),
+      shape: const RoundedRectangleBorder(),
+      side: BorderSide(
+        color: _history == history
+            ? Theme.of(context).colorScheme.onSurface
+            : Colors.transparent,
+        width: 2,
       ),
-    );
-  }
-}
-
-
-String _formatCents(int cents) {
-  final value = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
-  return 'R\$ $value';
+    ),
+    child: Text(label),
+  );
 }

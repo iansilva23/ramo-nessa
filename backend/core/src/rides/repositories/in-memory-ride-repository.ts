@@ -49,7 +49,8 @@ export class InMemoryRideRepository implements RideRepository {
 
   async findRecoverableByPassengerId(passengerId: string): Promise<RideRecord | null> {
     const matches=[...this.rides.values()].filter(r=>r.passengerId===passengerId && (RECOVERABLE_RIDE_STATES as readonly string[]).includes(r.state));
-    matches.sort((a,b)=>Number(b.state==='IN_PROGRESS')-Number(a.state==='IN_PROGRESS')||b.updatedAt.localeCompare(a.updatedAt)||b.id.localeCompare(a.id));
+    const priority=(state:string)=>state==='IN_PROGRESS'?0:['DRIVER_ARRIVED','DRIVER_ASSIGNED','DRIVER_ARRIVING'].includes(state)?1:['PAID','SEARCHING_DRIVER','NO_DRIVER_FOUND'].includes(state)?2:3;
+    matches.sort((a,b)=>priority(a.state)-priority(b.state)||b.updatedAt.localeCompare(a.updatedAt)||b.id.localeCompare(a.id));
     return matches[0]?structuredClone(matches[0]):null;
   }
 
@@ -69,7 +70,7 @@ export class InMemoryRideRepository implements RideRepository {
         (ride) =>
           ride.driverId === driverId && activeStates.has(ride.state),
       )
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      .sort((a, b) => Number(a.state === 'COMPLETED') - Number(b.state === 'COMPLETED') || Number(b.state === 'IN_PROGRESS') - Number(a.state === 'IN_PROGRESS') || b.updatedAt.localeCompare(a.updatedAt));
 
     return rides[0] == null ? null : structuredClone(rides[0]);
   }

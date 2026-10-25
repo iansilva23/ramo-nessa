@@ -12,8 +12,9 @@ export async function boardingRoutes(i:{url:URL;method:string;store:PostgresBoar
  if(!passenger&&!driver&&!override&&!['/v1/passenger/me/ride','/v1/admin/boarding-policy'].includes(path))return false;
  try{
   if(path==='/v1/passenger/me/ride'&&i.method==='GET'){
-   const id=await i.passenger(),last=i.url.searchParams.get('lastRideId');
-   i.json(200,await resumePassengerRide({rides:i.rides,finance:i.finance,boarding:i.store,passengerId:id,...(last&&/^[0-9a-f-]{36}$/i.test(last)?{lastRideId:last}:{})}));return true;
+   const id=await i.passenger(),last=i.url.searchParams.get('lastRideId'),selected=i.url.searchParams.get('rideId');
+   if(selected && !/^[0-9a-f-]{36}$/i.test(selected))throw new BoardingError('RIDE_NOT_FOUND','Corrida não encontrada.',404);
+   i.json(200,await resumePassengerRide({rides:i.rides,finance:i.finance,boarding:i.store,passengerId:id,...(selected?{rideId:selected}:{}),...(last&&/^[0-9a-f-]{36}$/i.test(last)?{lastRideId:last}:{})}));return true;
   }
   if((passenger||driver)&&i.method==='GET'){
    const role=!!passenger,id=role?await i.passenger():await i.driver(),ride=await i.rides.findById((passenger??driver)![1]!);

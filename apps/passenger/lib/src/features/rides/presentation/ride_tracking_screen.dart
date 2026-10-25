@@ -48,7 +48,8 @@ class RideTrackingScreen extends StatefulWidget {
   State<RideTrackingScreen> createState() => _RideTrackingScreenState();
 }
 
-class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBindingObserver {
+class _RideTrackingScreenState extends State<RideTrackingScreen>
+    with WidgetsBindingObserver {
   final RamoMapController _mapController = RamoMapController();
   Timer? _timer;
   StreamSubscription<PassengerRideTrackingSnapshot>? _realtimeSubscription;
@@ -78,10 +79,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     unawaited(RideRecoveryMemory.remember(widget.rideId));
     _refresh();
     _startRealtime();
-    _timer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _refresh(),
-    );
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
   }
 
   @override
@@ -94,26 +92,31 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)unawaited(_refresh());}
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refresh());
+  }
 
   void _startRealtime() {
     final service = widget.realtimeService;
     if (service == null) return;
 
-    _realtimeSubscription = service.watch(widget.rideId).listen(
-      (snapshot) {
-        if (!mounted || !TrackingMapTransitionPolicy.isExpectedRide(
-          expectedRideId: widget.rideId,
-          receivedRideId: snapshot.rideId,
-        )) {
-          return;
-        }
-        _applySnapshot(snapshot);
-      },
-      onError: (_) {
-        // HTTP periódico continua como fallback.
-      },
-    );
+    _realtimeSubscription = service
+        .watch(widget.rideId)
+        .listen(
+          (snapshot) {
+            if (!mounted ||
+                !TrackingMapTransitionPolicy.isExpectedRide(
+                  expectedRideId: widget.rideId,
+                  receivedRideId: snapshot.rideId,
+                )) {
+              return;
+            }
+            _applySnapshot(snapshot);
+          },
+          onError: (_) {
+            // HTTP periódico continua como fallback.
+          },
+        );
   }
 
   String _routeStage(PassengerRideTrackingSnapshot snapshot) =>
@@ -126,25 +129,28 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     final snapshot = _snapshot;
     final route = _route;
     final driver = snapshot?.driverLocation;
-    if (snapshot == null || route == null || driver == null ||
+    if (snapshot == null ||
+        route == null ||
+        driver == null ||
         !TrackingMapTransitionPolicy.isUsableGps(
-          driver.latitude, driver.longitude,
+          driver.latitude,
+          driver.longitude,
         )) {
       return;
     }
     final stage = _routeStage(snapshot);
     final isDropoff = stage == 'to-dropoff';
     final targetLat = isDropoff
-        ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
+        ? snapshot.dropoffLatitude
+        : snapshot.pickupLatitude;
     final targetLng = isDropoff
-        ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
+        ? snapshot.dropoffLongitude
+        : snapshot.pickupLongitude;
     if (!TrackingMapTransitionPolicy.shouldFrameRoute(
       mapReady: _mapReady,
       terminal: snapshot.isTerminal,
       hasDriver: true,
-      hasTarget: TrackingMapTransitionPolicy.isUsableGps(
-        targetLat, targetLng,
-      ),
+      hasTarget: TrackingMapTransitionPolicy.isUsableGps(targetLat, targetLng),
       routePointCount: route.points.length,
       stage: stage,
       lastFramedStage: _framedRouteStage,
@@ -154,15 +160,17 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
 
     _framedRouteStage = stage;
     _hasCenteredMap = true;
-    unawaited(_mapController.fitCoordinates(
-      coordinates: [
-        LatLng(driver.latitude, driver.longitude),
-        ...route.points,
-        LatLng(targetLat!, targetLng!),
-      ],
-      edgePadding: 20,
-      maxZoom: 16.5,
-    ));
+    unawaited(
+      _mapController.fitCoordinates(
+        coordinates: [
+          LatLng(driver.latitude, driver.longitude),
+          ...route.points,
+          LatLng(targetLat!, targetLng!),
+        ],
+        edgePadding: 20,
+        maxZoom: 16.5,
+      ),
+    );
   }
 
   void _applySnapshot(PassengerRideTrackingSnapshot snapshot) {
@@ -171,8 +179,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     final old = _snapshot;
     final previousStage = old == null ? null : _routeStage(old);
     final currentStage = _routeStage(snapshot);
-    final stageChanged =
-        previousStage != null && previousStage != currentStage;
+    final stageChanged = previousStage != null && previousStage != currentStage;
 
     if (stageChanged) {
       // Invalidate an in-flight route to the old pickup when the passenger
@@ -197,19 +204,19 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     }
 
     final driver = snapshot.driverLocation;
-    final center = driver != null &&
+    final center =
+        driver != null &&
             TrackingMapTransitionPolicy.isUsableGps(
-              driver.latitude, driver.longitude,
+              driver.latitude,
+              driver.longitude,
             )
         ? LatLng(driver.latitude, driver.longitude)
         : TrackingMapTransitionPolicy.isUsableGps(
-            snapshot.pickupLatitude, snapshot.pickupLongitude,
+            snapshot.pickupLatitude,
+            snapshot.pickupLongitude,
           )
-            ? LatLng(
-                snapshot.pickupLatitude!,
-                snapshot.pickupLongitude!,
-              )
-            : null;
+        ? LatLng(snapshot.pickupLatitude!, snapshot.pickupLongitude!)
+        : null;
 
     if (TrackingMapTransitionPolicy.shouldCenterInitially(
       mapReady: _mapReady,
@@ -225,20 +232,28 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
   Future<void> _refreshRoute(PassengerRideTrackingSnapshot snapshot) async {
     final service = widget.routeService;
     final driver = snapshot.driverLocation;
-    if (service == null || driver == null || driver.stale ||
+    if (service == null ||
+        driver == null ||
+        driver.stale ||
         !TrackingMapTransitionPolicy.isUsableGps(
-          driver.latitude, driver.longitude,
-        ) || _routeRequestInFlight) {
+          driver.latitude,
+          driver.longitude,
+        ) ||
+        _routeRequestInFlight) {
       return;
     }
     final useDropoff = snapshot.state == 'IN_PROGRESS';
-    final targetLatitude =
-        useDropoff ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
-    final targetLongitude =
-        useDropoff ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
-    if (targetLatitude == null || targetLongitude == null ||
+    final targetLatitude = useDropoff
+        ? snapshot.dropoffLatitude
+        : snapshot.pickupLatitude;
+    final targetLongitude = useDropoff
+        ? snapshot.dropoffLongitude
+        : snapshot.pickupLongitude;
+    if (targetLatitude == null ||
+        targetLongitude == null ||
         !TrackingMapTransitionPolicy.isUsableGps(
-          targetLatitude, targetLongitude,
+          targetLatitude,
+          targetLongitude,
         )) {
       return;
     }
@@ -259,7 +274,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
         destination: LatLng(targetLatitude, targetLongitude),
       );
       final latest = _snapshot;
-      if (!mounted || latest == null ||
+      if (!mounted ||
+          latest == null ||
           !TrackingMapTransitionPolicy.isCurrentRouteResponse(
             requestEpoch: requestEpoch,
             latestEpoch: _routeEpoch,
@@ -293,7 +309,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
 
     try {
       final snapshot = await widget.trackingService.tracking(widget.rideId);
-      if (!mounted || revisionAtRequest != _snapshotRevision ||
+      if (!mounted ||
+          revisionAtRequest != _snapshotRevision ||
           !TrackingMapTransitionPolicy.isExpectedRide(
             expectedRideId: widget.rideId,
             receivedRideId: snapshot.rideId,
@@ -467,16 +484,14 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
   String get _status {
     final state = _snapshot?.state;
     return switch (state) {
-      'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' =>
-        'Seu motorista está a caminho',
+      'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Seu motorista está a caminho',
       'DRIVER_ARRIVED' => 'Seu motorista chegou',
       'IN_PROGRESS' => 'Corrida em andamento',
       'COMPLETED' => 'Corrida finalizada',
       'NO_DRIVER_FOUND' => 'Nenhum motorista disponível nesta rodada',
       'CANCELLED_BY_PASSENGER' ||
       'CANCELLED_BY_DRIVER' ||
-      'CANCELLED_BY_ADMIN' =>
-        'Corrida cancelada',
+      'CANCELLED_BY_ADMIN' => 'Corrida cancelada',
       'REFUND_PENDING' => 'Estorno em processamento',
       'REFUNDED' => 'Pagamento devolvido',
       'PAID' || 'SEARCHING_DRIVER' => 'Procurando motorista',
@@ -491,7 +506,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
   RamoPlace? _pickup(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.pickupLatitude;
     final longitude = snapshot?.pickupLongitude;
-    if (latitude == null || longitude == null ||
+    if (latitude == null ||
+        longitude == null ||
         !TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
       return null;
     }
@@ -506,7 +522,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
   RamoPlace? _dropoff(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.dropoffLatitude;
     final longitude = snapshot?.dropoffLongitude;
-    if (latitude == null || longitude == null ||
+    if (latitude == null ||
+        longitude == null ||
         !TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
       return null;
     }
@@ -523,9 +540,11 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     final snapshot = _snapshot;
     final driver = snapshot?.driverLocation;
     final driverProfile = snapshot?.driver;
-    final driverPosition = driver == null ||
+    final driverPosition =
+        driver == null ||
             !TrackingMapTransitionPolicy.isUsableGps(
-              driver.latitude, driver.longitude,
+              driver.latitude,
+              driver.longitude,
             )
         ? null
         : LatLng(driver.latitude, driver.longitude);
@@ -533,7 +552,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sua corrida'),
-        automaticallyImplyLeading: widget.onRecoveryClose==null,
+        automaticallyImplyLeading: widget.onRecoveryClose == null,
+        leading: widget.onRecoveryClose == null
+            ? null
+            : BackButton(onPressed: widget.onRecoveryClose),
       ),
       body: Column(
         children: [
@@ -546,7 +568,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
               routePhase: snapshot == null ? null : _routeStage(snapshot),
               driverPosition: driverPosition,
               driverCategory: snapshot?.category,
-              driverPositionStale: driver?.stale == true ||
+              driverPositionStale:
+                  driver?.stale == true ||
                   (driver != null && driverPosition == null),
               networkTilesEnabled: widget.networkTilesEnabled,
               onMapReady: () {
@@ -573,159 +596,186 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        color: RamoColors.signal,
-                      ),
-                      const SizedBox(width: RamoSpacing.xs),
-                      Expanded(
-                        child: Text(
-                          widget.paymentMethod == 'cash'
-                              ? 'Pagamento em dinheiro'
-                              : _snapshot?.state == 'REFUNDED'
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: RamoColors.signal,
+                          ),
+                          const SizedBox(width: RamoSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              widget.paymentMethod == 'cash'
+                                  ? 'Pagamento em dinheiro'
+                                  : _snapshot?.state == 'REFUNDED'
                                   ? 'Pagamento devolvido'
                                   : _snapshot?.state == 'REFUND_PENDING'
-                                      ? 'Estorno solicitado'
-                                      : 'Pagamento confirmado',
-                          softWrap: true,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
+                                  ? 'Estorno solicitado'
+                                  : 'Pagamento confirmado',
+                              softWrap: true,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: RamoSpacing.sm),
-                  AnimatedRideStatus(label: _status),
-                  if (driverProfile != null) ...[
-                    const SizedBox(height: RamoSpacing.md),
-                    _AssignedDriverCard(driver: driverProfile),
-                  ],
-                  if ({
-                    'DRIVER_ASSIGNED',
-                    'DRIVER_ARRIVING',
-                    'DRIVER_ARRIVED',
-                    'IN_PROGRESS',
-                  }.contains(snapshot?.state)) ...[
-                    const SizedBox(height: RamoSpacing.sm),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _openRideChat,
-                        icon: RamoUnreadChatIcon(
-                          api: widget.trackingService, rideId: widget.rideId,
-                        ),
-                        label: const Text('Mensagem com motorista'),
-                      ),
-                    ),
-                  ],
-                  if (widget.trackingService is PassengerManualCancellationApi)
-                    PassengerCancellationPanel(rideId:widget.rideId,api:widget.trackingService as PassengerManualCancellationApi,onChanged:()=>unawaited(_refresh())),
-                  if(widget.trackingService is PassengerBoardingApi && snapshot!=null && const {'DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED'}.contains(snapshot.state))
-                    PassengerBoardingCard(api:widget.trackingService as PassengerBoardingApi,rideId:widget.rideId,delivery:snapshot.category=='delivery'),
-                  if (snapshot?.state == 'NO_DRIVER_FOUND') ...[
-                    const SizedBox(height: RamoSpacing.md),
-                    Text(
-                      'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente. Se cancelar, acompanhe a devolução pelo app.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: RamoSpacing.sm),
-                    Row(
-                      children: [
-                        Flexible(
-                          flex: 2,
-                          child: OutlinedButton(
-                            onPressed:
-                                _recoveryAction || _recoveryService == null
-                                    ? null
-                                    : _retryDriverSearch,
-                            child: const Text('Tentar novamente'),
-                          ),
-                        ),
-                        const SizedBox(width: RamoSpacing.sm),
-                        if (widget.trackingService is! PassengerManualCancellationApi) Expanded(
-                          flex: 3,
-                          child: FilledButton(
-                            onPressed:
-                                _recoveryAction || _recoveryService == null
-                                    ? null
-                                    : _cancelNoDriverSearch,
-                            child: _recoveryAction
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Cancelar corrida'),
+                      const SizedBox(height: RamoSpacing.sm),
+                      AnimatedRideStatus(label: _status),
+                      if (driverProfile != null) ...[
+                        const SizedBox(height: RamoSpacing.md),
+                        _AssignedDriverCard(driver: driverProfile),
+                      ],
+                      if ({
+                        'DRIVER_ASSIGNED',
+                        'DRIVER_ARRIVING',
+                        'DRIVER_ARRIVED',
+                        'IN_PROGRESS',
+                      }.contains(snapshot?.state)) ...[
+                        const SizedBox(height: RamoSpacing.sm),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _openRideChat,
+                            icon: RamoUnreadChatIcon(
+                              api: widget.trackingService,
+                              rideId: widget.rideId,
+                            ),
+                            label: const Text('Mensagem com motorista'),
                           ),
                         ),
                       ],
-                    ),
-                  ],
-                  if (snapshot?.state == 'COMPLETED' &&
-                      driverProfile != null) ...[
-                    const SizedBox(height: RamoSpacing.md),
-                    _DriverRatingPanel(
-                      stars: _ratingStars,
-                      submitting: _ratingSubmitting,
-                      submitted: _ratingSubmitted,
-                      error: _ratingError,
-                      onChanged: (stars) {
-                        if (_ratingSubmitting || _ratingSubmitted) return;
-                        setState(() => _ratingStars = stars);
-                      },
-                      onSubmit: _submitDriverRating,
-                    ),
-                  ],
-                  if (driver?.stale == true ||
-                      (driver != null && driverPosition == null)) ...[
-                    const SizedBox(height: RamoSpacing.xs),
-                    Text(
-                      driverPosition == null
-                          ? 'A posição do motorista está indisponível no momento.'
-                          : 'A última posição do motorista está desatualizada.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (_error != null) ...[
-                    const SizedBox(height: RamoSpacing.xs),
-                    Text(
-                      _error!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
+                      if (widget.trackingService
+                          is PassengerManualCancellationApi)
+                        PassengerCancellationPanel(
+                          rideId: widget.rideId,
+                          api:
+                              widget.trackingService
+                                  as PassengerManualCancellationApi,
+                          onChanged: () => unawaited(_refresh()),
+                        ),
+                      if (widget.trackingService is PassengerBoardingApi &&
+                          snapshot != null &&
+                          const {
+                            'DRIVER_ASSIGNED',
+                            'DRIVER_ARRIVING',
+                            'DRIVER_ARRIVED',
+                          }.contains(snapshot.state))
+                        PassengerBoardingCard(
+                          api: widget.trackingService as PassengerBoardingApi,
+                          rideId: widget.rideId,
+                          delivery: snapshot.category == 'delivery',
+                        ),
+                      if (snapshot?.state == 'NO_DRIVER_FOUND') ...[
+                        const SizedBox(height: RamoSpacing.md),
+                        Text(
+                          'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente. Se cancelar, acompanhe a devolução pelo app.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: RamoSpacing.sm),
+                        Row(
+                          children: [
+                            Flexible(
+                              flex: 2,
+                              child: OutlinedButton(
+                                onPressed:
+                                    _recoveryAction || _recoveryService == null
+                                    ? null
+                                    : _retryDriverSearch,
+                                child: const Text('Tentar novamente'),
+                              ),
+                            ),
+                            const SizedBox(width: RamoSpacing.sm),
+                            if (widget.trackingService
+                                is! PassengerManualCancellationApi)
+                              Expanded(
+                                flex: 3,
+                                child: FilledButton(
+                                  onPressed:
+                                      _recoveryAction ||
+                                          _recoveryService == null
+                                      ? null
+                                      : _cancelNoDriverSearch,
+                                  child: _recoveryAction
+                                      ? const SizedBox.square(
+                                          dimension: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text('Cancelar corrida'),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (snapshot?.state == 'COMPLETED' &&
+                          driverProfile != null) ...[
+                        const SizedBox(height: RamoSpacing.md),
+                        _DriverRatingPanel(
+                          stars: _ratingStars,
+                          submitting: _ratingSubmitting,
+                          submitted: _ratingSubmitted,
+                          error: _ratingError,
+                          onChanged: (stars) {
+                            if (_ratingSubmitting || _ratingSubmitted) return;
+                            setState(() => _ratingStars = stars);
+                          },
+                          onSubmit: _submitDriverRating,
+                        ),
+                      ],
+                      if (driver?.stale == true ||
+                          (driver != null && driverPosition == null)) ...[
+                        const SizedBox(height: RamoSpacing.xs),
+                        Text(
+                          driverPosition == null
+                              ? 'A posição do motorista está indisponível no momento.'
+                              : 'A última posição do motorista está desatualizada.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      if (_error != null) ...[
+                        const SizedBox(height: RamoSpacing.xs),
+                        Text(
+                          _error!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ],
+                      if (widget.remainingWalletCents != null) ...[
+                        const SizedBox(height: RamoSpacing.sm),
+                        Text(
+                          'Saldo restante: '
+                          '${PreparedRide.formatCents(widget.remainingWalletCents!)}',
+                        ),
+                      ],
+                      if (widget.paymentMethod == 'cash') ...[
+                        const SizedBox(height: RamoSpacing.sm),
+                        Text(
+                          'Pague diretamente ao motorista no fim da corrida.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      if (snapshot?.isTerminal == true ||
+                          snapshot?.state == 'REFUND_PENDING') ...[
+                        const SizedBox(height: RamoSpacing.md),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed:
+                                widget.onRecoveryClose ??
+                                () {
+                                  unawaited(RideRecoveryMemory.clear());
+                                  Navigator.of(
+                                    context,
+                                  ).popUntil((route) => route.isFirst);
+                                },
+                            child: const Text('Voltar ao início'),
                           ),
-                    ),
-                  ],
-                  if (widget.remainingWalletCents != null) ...[
-                    const SizedBox(height: RamoSpacing.sm),
-                    Text(
-                      'Saldo restante: '
-                      '${PreparedRide.formatCents(widget.remainingWalletCents!)}',
-                    ),
-                  ],
-                  if (widget.paymentMethod == 'cash') ...[
-                    const SizedBox(height: RamoSpacing.sm),
-                    Text(
-                      'Pague diretamente ao motorista no fim da corrida.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (snapshot?.isTerminal == true || snapshot?.state=='REFUND_PENDING') ...[
-                    const SizedBox(height: RamoSpacing.md),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: widget.onRecoveryClose ?? () {
-                          unawaited(RideRecoveryMemory.clear());
-                          Navigator.of(context).popUntil((route) => route.isFirst);
-                        },
-                        child: const Text('Voltar ao início'),
-                      ),
-                    ),
-                  ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -737,7 +787,6 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
     );
   }
 }
-
 
 class _DriverRatingPanel extends StatelessWidget {
   const _DriverRatingPanel({
@@ -772,27 +821,26 @@ class _DriverRatingPanel extends StatelessWidget {
         children: [
           Text(
             submitted ? 'Avaliação enviada' : 'Como foi sua corrida?',
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
           const SizedBox(height: 4),
           Text(
             submitted
                 ? 'Obrigado por avaliar seu motorista.'
                 : 'Sua avaliação ajuda a manter a qualidade do Ramo Nessa.',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: RamoSpacing.sm),
           Row(
             children: List.generate(5, (index) {
               final value = index + 1;
               return IconButton(
-                tooltip:
-                    value == 1 ? '1 estrela' : '$value estrelas',
-                onPressed:
-                    submitting || submitted ? null : () => onChanged(value),
+                tooltip: value == 1 ? '1 estrela' : '$value estrelas',
+                onPressed: submitting || submitted
+                    ? null
+                    : () => onChanged(value),
                 icon: Icon(
                   value <= stars
                       ? Icons.star_rounded
@@ -818,8 +866,7 @@ class _DriverRatingPanel extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed:
-                    stars > 0 && !submitting ? onSubmit : null,
+                onPressed: stars > 0 && !submitting ? onSubmit : null,
                 child: submitting
                     ? const SizedBox.square(
                         dimension: 20,
@@ -835,42 +882,135 @@ class _DriverRatingPanel extends StatelessWidget {
   }
 }
 
-
 class _AssignedDriverCard extends StatelessWidget {
- const _AssignedDriverCard({required this.driver});
- final PassengerDriverProfile driver;
- String? get _photoUrl{
-  final path=driver.photoPath?.trim(),base=RamoCoreConfig.baseUri;
-  return path==null||path.isEmpty||base==null?null:base.resolve(path).toString();
- }
- @override Widget build(BuildContext context){
-  final photo=_photoUrl;
-  final vehicle=[driver.vehicleMake,driver.vehicleModel].whereType<String>().where((s)=>s.trim().isNotEmpty).join(' ');
-  final plate=driver.vehiclePlate?.trim();
-  return Container(
-   padding:const EdgeInsets.all(RamoSpacing.md),
-   decoration:BoxDecoration(color:Theme.of(context).colorScheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(18)),
-   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    Row(children:[
-     CircleAvatar(radius:28,backgroundColor:RamoColors.brandYellow,foregroundColor:RamoColors.brandBlack,
-      backgroundImage:photo==null?null:NetworkImage(photo),child:photo==null?const Icon(Icons.person_rounded,size:30):null),
-     const SizedBox(width:12),
-     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text(driver.displayName,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900)),
-      FittedBox(fit:BoxFit.scaleDown,alignment:Alignment.centerLeft,child:Row(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.star_rounded,color:RamoColors.brandYellow,size:19),const SizedBox(width:4),
-       Text(driver.ratingAverage==null?'Novo motorista':driver.ratingAverage!.toStringAsFixed(2),maxLines:1,style:const TextStyle(fontWeight:FontWeight.w800))])),
-     ])),
-     if(plate!=null&&plate.isNotEmpty)...[
-      const SizedBox(width:8),Column(children:[
-       const Text('PLACA',style:TextStyle(fontSize:10,fontWeight:FontWeight.w700)),
-       Container(padding:const EdgeInsets.symmetric(horizontal:9,vertical:7),
-        decoration:BoxDecoration(color:Colors.white,border:Border.all(color:Colors.black,width:1.5),borderRadius:BorderRadius.circular(8)),
-        child:Text(plate,style:const TextStyle(color:Colors.black,fontSize:18,fontWeight:FontWeight.w900))),
-      ]),
-     ],
-    ]),
-    if(vehicle.isNotEmpty)...[const SizedBox(height:10),Text('$vehicle${driver.vehicleColor?.trim().isNotEmpty==true?' · ${driver.vehicleColor!}':''}',style:const TextStyle(fontWeight:FontWeight.w700))],
-    if(plate!=null&&plate.isNotEmpty)...[const SizedBox(height:6),Text('Confira o nome e a placa antes de embarcar.',style:TextStyle(fontSize:12,color:Theme.of(context).colorScheme.onSurfaceVariant))],
-   ]));
- }
+  const _AssignedDriverCard({required this.driver});
+  final PassengerDriverProfile driver;
+  String? get _photoUrl {
+    final path = driver.photoPath?.trim(), base = RamoCoreConfig.baseUri;
+    return path == null || path.isEmpty || base == null
+        ? null
+        : base.resolve(path).toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = _photoUrl;
+    final vehicle = [
+      driver.vehicleMake,
+      driver.vehicleModel,
+    ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' ');
+    final plate = driver.vehiclePlate?.trim();
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.md),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: RamoColors.brandYellow,
+                foregroundColor: RamoColors.brandBlack,
+                backgroundImage: photo == null ? null : NetworkImage(photo),
+                child: photo == null
+                    ? const Icon(Icons.person_rounded, size: 30)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      driver.displayName,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: RamoColors.brandYellow,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            driver.ratingAverage == null
+                                ? 'Novo motorista'
+                                : driver.ratingAverage!.toStringAsFixed(2),
+                            maxLines: 1,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (plate != null && plate.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Column(
+                  children: [
+                    const Text(
+                      'PLACA',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.black, width: 1.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        plate,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          if (vehicle.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              '$vehicle${driver.vehicleColor?.trim().isNotEmpty == true ? ' · ${driver.vehicleColor!}' : ''}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+          if (plate != null && plate.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Confira o nome e a placa antes de embarcar.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

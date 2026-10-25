@@ -23,12 +23,13 @@ export class InMemoryDriverSupportRepository
   async listByDriver(
     driverId: string,
     limit: number,
+    rideId?: string,
   ): Promise<DriverSupportTicketRecord[]> {
     return [...this.tickets.values()]
       .filter(
         (ticket) =>
           ticket.requesterType === 'driver' &&
-          ticket.driverId === driverId,
+          ticket.driverId === driverId && (rideId == null || ticket.rideId === rideId),
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
@@ -38,12 +39,13 @@ export class InMemoryDriverSupportRepository
   async listByPassenger(
     passengerId: string,
     limit: number,
+    rideId?: string,
   ): Promise<DriverSupportTicketRecord[]> {
     return [...this.tickets.values()]
       .filter(
         (ticket) =>
           ticket.requesterType === 'passenger' &&
-          ticket.passengerId === passengerId,
+          ticket.passengerId === passengerId && (rideId == null || ticket.rideId === rideId),
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))

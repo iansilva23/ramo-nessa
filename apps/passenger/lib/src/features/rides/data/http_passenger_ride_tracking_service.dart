@@ -16,6 +16,7 @@ class HttpPassengerRideTrackingService
         PassengerManualCancellationApi,
         PassengerRideTrackingService,
         PassengerRideResumeService,
+        PassengerSelectedRideResumeService,
         PassengerBoardingApi,
         PassengerRideRecoveryService {
   HttpPassengerRideTrackingService({
@@ -33,35 +34,84 @@ class HttpPassengerRideTrackingService
   final String _passengerId;
   final http.Client _client;
 
-  Future<Map<String,dynamic>> _getRecovery(Uri uri) async {
-    final response=await _client.get(uri,headers:_identityHeaders).timeout(RamoCoreConfig.requestTimeout);
-    final decoded=decodeJsonObject(response.body);
-    if(response.statusCode==200&&decoded!=null)return decoded;
-    throw PassengerRideTrackingException(apiErrorMessage(decoded,'Reconectando à sua corrida. Tente novamente.'));
+  Future<Map<String, dynamic>> _getRecovery(Uri uri) async {
+    final response = await _client
+        .get(uri, headers: _identityHeaders)
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) return decoded;
+    throw PassengerRideTrackingException(
+      apiErrorMessage(decoded, 'Reconectando à sua corrida. Tente novamente.'),
+    );
   }
+
   @override
-  Future<Map<String,dynamic>> resumeRide({String? lastRideId}) async {
-    final data=await _getRecovery(_baseUrl.resolve('/v1/passenger/me/ride').replace(queryParameters:lastRideId==null?null:{'lastRideId':lastRideId}));
-    final ride=data['ride'];
+  Future<Map<String, dynamic>> resumeRide({String? lastRideId}) async {
+    final data = await _getRecovery(
+      _baseUrl
+          .resolve('/v1/passenger/me/ride')
+          .replace(
+            queryParameters: lastRideId == null
+                ? null
+                : {'lastRideId': lastRideId},
+          ),
+    );
+    final ride = data['ride'];
     // Only an explicit null from the server means there is no ride to recover.
-    if(!data.containsKey('ride') || (ride!=null &&
-        (ride is! Map<String,dynamic> || ride['id'] is! String || ride['state'] is! String))){
-      throw const PassengerRideTrackingException('Não conseguimos recuperar sua corrida. Tente novamente.');
+    if (!data.containsKey('ride') ||
+        (ride != null &&
+            (ride is! Map<String, dynamic> ||
+                ride['id'] is! String ||
+                ride['state'] is! String))) {
+      throw const PassengerRideTrackingException(
+        'Não conseguimos recuperar sua corrida. Tente novamente.',
+      );
     }
     return data;
   }
-  @override
-  Future<Map<String,dynamic>> boardingStatus(String rideId)=>_getRecovery(_baseUrl.resolve('/v1/rides/$rideId/boarding'));
 
   @override
-  Future<Map<String,dynamic>> cancellationRequest(String rideId,{String method='GET',Map<String,dynamic>? body,bool pix=false}) async {
-    final url=_baseUrl.resolve('/v1/rides/$rideId/${pix?'refund-pix':'cancellation'}');
-    final request=http.Request(method,url)..headers.addAll(_identityHeaders);
-    if(body!=null)request.body=jsonEncode(body);
-    final response=await http.Response.fromStream(await _client.send(request).timeout(RamoCoreConfig.requestTimeout));
-    final decoded=decodeJsonObject(response.body);
-    if(response.statusCode==200&&decoded!=null)return decoded;
-    throw PassengerRideTrackingException(apiErrorMessage(decoded,'Não foi possível atualizar o cancelamento.'));
+  Future<Map<String, dynamic>> resumeSelectedRide(String rideId) async {
+    final data = await _getRecovery(
+      _baseUrl
+          .resolve('/v1/passenger/me/ride')
+          .replace(queryParameters: {'rideId': rideId}),
+    );
+    final ride = data['ride'];
+    if (ride is! Map<String, dynamic> ||
+        ride['id'] != rideId ||
+        ride['state'] is! String) {
+      throw const PassengerRideTrackingException(
+        'Corrida indisponível. Atualize suas atividades.',
+      );
+    }
+    return data;
+  }
+
+  @override
+  Future<Map<String, dynamic>> boardingStatus(String rideId) =>
+      _getRecovery(_baseUrl.resolve('/v1/rides/$rideId/boarding'));
+
+  @override
+  Future<Map<String, dynamic>> cancellationRequest(
+    String rideId, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+    bool pix = false,
+  }) async {
+    final url = _baseUrl.resolve(
+      '/v1/rides/$rideId/${pix ? 'refund-pix' : 'cancellation'}',
+    );
+    final request = http.Request(method, url)..headers.addAll(_identityHeaders);
+    if (body != null) request.body = jsonEncode(body);
+    final response = await http.Response.fromStream(
+      await _client.send(request).timeout(RamoCoreConfig.requestTimeout),
+    );
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) return decoded;
+    throw PassengerRideTrackingException(
+      apiErrorMessage(decoded, 'Não foi possível atualizar o cancelamento.'),
+    );
   }
 
   Map<String, String> get _identityHeaders => {

@@ -26,7 +26,6 @@ import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/http_passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_resume_service.dart';
-import 'features/rides/presentation/ride_recovery_gate.dart';
 import 'features/rides/presentation/resumed_ride_screen.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
 import 'features/tours/data/agency_tour_service.dart';
@@ -67,13 +66,13 @@ class RamoNessaPassengerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coreUri = RamoCoreConfig.baseUri;
-    final preview =
-        RamoCoreConfig.previewMode ? PassengerPreviewDependencies() : null;
+    final preview = RamoCoreConfig.previewMode
+        ? PassengerPreviewDependencies()
+        : null;
     final restoredToken = accessToken?.trim();
-    final initialToken =
-        restoredToken != null && restoredToken.length >= 20
-            ? restoredToken
-            : null;
+    final initialToken = restoredToken != null && restoredToken.length >= 20
+        ? restoredToken
+        : null;
 
     final socialLinksService = coreUri == null
         ? null
@@ -81,8 +80,8 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
     final AgencyTourService tourService =
         RamoCoreConfig.previewMode || coreUri == null
-            ? const PreviewAgencyTourService()
-            : HttpAgencyTourService(baseUrl: coreUri);
+        ? const PreviewAgencyTourService()
+        : HttpAgencyTourService(baseUrl: coreUri);
 
     final authService = coreUri == null
         ? null
@@ -92,10 +91,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
             clientInstanceId: clientInstanceId,
           );
 
-    Widget shell(
-      String? token, [
-      Future<bool> Function()? logout,
-    ]) {
+    Widget shell(String? token, [Future<bool> Function()? logout]) {
       final normalizedToken = token?.trim();
       final services = PassengerSessionServices(
         coreUri: coreUri,
@@ -107,73 +103,103 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
       final resolvedPlaceSearchService =
           placeSearchService ??
-              (RamoCoreConfig.previewMode
-                  ? coreUri == null
-                      ? preview?.places
-                      : CorePlaceSearchService(baseUrl: coreUri)
-                  : coreUri != null &&
-                      normalizedToken != null &&
-                      normalizedToken.length >= 20
-                  ? CorePlaceSearchService(
-                      baseUrl: coreUri,
-                      accessToken: normalizedToken,
-                    )
-                  : null);
-
-      final resolvedRouteService = routeService ??
           (RamoCoreConfig.previewMode
               ? coreUri == null
-                  ? preview?.route
-                  : CoreRouteService(baseUrl: coreUri)
+                    ? preview?.places
+                    : CorePlaceSearchService(baseUrl: coreUri)
+              : coreUri != null &&
+                    normalizedToken != null &&
+                    normalizedToken.length >= 20
+              ? CorePlaceSearchService(
+                  baseUrl: coreUri,
+                  accessToken: normalizedToken,
+                )
               : null);
 
-      final resolvedTracking=rideTrackingService ?? (coreUri!=null && normalizedToken!=null
-          ? HttpPassengerRideTrackingService(baseUrl:coreUri,accessToken:normalizedToken)
-          : preview?.tracking);
-      final shell=PassengerMainShell(
+      final resolvedRouteService =
+          routeService ??
+          (RamoCoreConfig.previewMode
+              ? coreUri == null
+                    ? preview?.route
+                    : CoreRouteService(baseUrl: coreUri)
+              : null);
+
+      final resolvedTracking =
+          rideTrackingService ??
+          (coreUri != null && normalizedToken != null
+              ? HttpPassengerRideTrackingService(
+                  baseUrl: coreUri,
+                  accessToken: normalizedToken,
+                )
+              : preview?.tracking);
+      final shell = PassengerMainShell(
+        key: ValueKey('passenger-shell-$normalizedToken'),
         accessToken: normalizedToken,
         onLogout: logout,
         authService: authService,
         paymentService: services.payments,
         activityService: services.activity,
+        onResumeRide: resolvedTracking is! PassengerSelectedRideResumeService
+            ? null
+            : (context, ride) async {
+                final data =
+                    await (resolvedTracking
+                            as PassengerSelectedRideResumeService)
+                        .resumeSelectedRide(ride.id);
+                if (!context.mounted) return;
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (routeContext) => ResumedRideScreen(
+                      data: data,
+                      onClose: () => Navigator.of(routeContext).pop(),
+                      tracking: resolvedTracking!,
+                      payments: services.payments,
+                      realtime: rideRealtimeService,
+                      routes: resolvedRouteService,
+                      networkTilesEnabled: networkTilesEnabled,
+                    ),
+                  ),
+                );
+              },
         savedPlaceService: services.savedPlaces,
         placeSearchService: resolvedPlaceSearchService,
         socialLinksService: socialLinksService,
         supportService: services.support,
         privacyService: services.privacy,
         tourService: tourService,
-        guideService: coreUri == null ? const EmptyLocalGuideService() : HttpLocalGuideService(baseUrl: coreUri),
+        guideService: coreUri == null
+            ? const EmptyLocalGuideService()
+            : HttpLocalGuideService(baseUrl: coreUri),
         previewMode: RamoCoreConfig.previewMode,
-        homeBuilder: (openProfile, openGuide, guideDestination) => PassengerHomeScreen(
-          onOpenGuideLocal: openGuide,
-          guideDestination: guideDestination,
-          accessToken: normalizedToken,
-          onLogout: logout,
-          onOpenProfile: openProfile,
-          locationService: locationService ?? preview?.location,
-          routeService: resolvedRouteService,
-          placeSearchService: resolvedPlaceSearchService,
-          savedPlaceService: services.savedPlaces,
-          pricingPolicyService: pricingPolicyService,
-          pricingQuoteService: pricingQuoteService,
-          ridePreparationService:
-              ridePreparationService ?? services.preparation,
-          paymentService: services.payments,
-          rideTrackingService: resolvedTracking,
-          rideRealtimeService: rideRealtimeService,
-          networkTilesEnabled: networkTilesEnabled,
-        ),
+        homeBuilder: (openProfile, openGuide, guideDestination) =>
+            PassengerHomeScreen(
+              onOpenGuideLocal: openGuide,
+              guideDestination: guideDestination,
+              accessToken: normalizedToken,
+              onLogout: logout,
+              onOpenProfile: openProfile,
+              locationService: locationService ?? preview?.location,
+              routeService: resolvedRouteService,
+              placeSearchService: resolvedPlaceSearchService,
+              savedPlaceService: services.savedPlaces,
+              pricingPolicyService: pricingPolicyService,
+              pricingQuoteService: pricingQuoteService,
+              ridePreparationService:
+                  ridePreparationService ?? services.preparation,
+              paymentService: services.payments,
+              rideTrackingService: resolvedTracking,
+              rideRealtimeService: rideRealtimeService,
+              networkTilesEnabled: networkTilesEnabled,
+            ),
       );
-      if(resolvedTracking==null || resolvedTracking is! PassengerRideResumeService)return shell;
-      return RideRecoveryGate(key:ValueKey('ride-recovery-$normalizedToken'),service:resolvedTracking as PassengerRideResumeService,child:shell,
-        rideBuilder:(data,close)=>ResumedRideScreen(data:data,onClose:close,tracking:resolvedTracking,payments:services.payments,realtime:rideRealtimeService,
-          routes:resolvedRouteService,networkTilesEnabled:networkTilesEnabled));
+      return shell;
     }
-
 
     Widget permissions(String? token, Widget content) {
       const storage = FlutterSecureStorage();
-      const key = kIsWeb ? 'ramo_nessa_permissions_passenger_web_v2' : 'ramo_nessa_permissions_passenger_v1';
+      const key = kIsWeb
+          ? 'ramo_nessa_permissions_passenger_web_v2'
+          : 'ramo_nessa_permissions_passenger_v1';
 
       Future<bool> requestLocation() async {
         try {
@@ -214,10 +240,13 @@ class RamoNessaPassengerApp extends StatelessWidget {
         saveCompleted: () => storage.write(key: key, value: 'yes'),
         requestLocation: requestLocation,
         requestNotifications: requestNotifications,
-        notificationHelp: FirebasePushRegistrationService.instance.notificationHelp,
-        readNotificationPreference: FirebasePushRegistrationService.instance.readAllNotifications,
+        notificationHelp:
+            FirebasePushRegistrationService.instance.notificationHelp,
+        readNotificationPreference:
+            FirebasePushRegistrationService.instance.readAllNotifications,
         saveNotificationPreference: (all) async {
-          final synced = await FirebasePushRegistrationService.instance.setAllNotifications(all);
+          final synced = await FirebasePushRegistrationService.instance
+              .setAllNotifications(all);
           if (!synced) throw StateError('Preferência dos avisos pendente.');
         },
         child: content,
@@ -235,7 +264,8 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Entre para testar o app. No Preview, o código é exibido na própria tela.',
-        authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
+        authenticatedBuilder: (token, logout) =>
+            permissions(token, shell(token, logout)),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
@@ -251,29 +281,27 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
-        authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
-        onSessionReady: (token) => FirebasePushRegistrationService.instance.restore(
-          baseUrl: coreUri, accessToken: token,
-        ),
-        onSessionEnded:
-            FirebasePushRegistrationService.instance.stop,
+        authenticatedBuilder: (token, logout) =>
+            permissions(token, shell(token, logout)),
+        onSessionReady: (token) => FirebasePushRegistrationService.instance
+            .restore(baseUrl: coreUri, accessToken: token),
+        onSessionEnded: FirebasePushRegistrationService.instance.stop,
       );
     }
 
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: RamoAppearance.instance,
       builder: (context, themeMode, _) => MaterialApp(
-      title: 'Ramo Nessa',
-      debugShowCheckedModeBanner: false,
-      theme: RamoTheme.light,
-      darkTheme: RamoTheme.dark,
-      themeMode: themeMode,
-      home: homeWidget,
+        title: 'Ramo Nessa',
+        debugShowCheckedModeBanner: false,
+        theme: RamoTheme.light,
+        darkTheme: RamoTheme.dark,
+        themeMode: themeMode,
+        home: homeWidget,
       ),
     );
   }
 }
-
 
 class _CoreConfigurationError extends StatelessWidget {
   const _CoreConfigurationError();
@@ -293,10 +321,7 @@ class _CoreConfigurationError extends StatelessWidget {
                 Text(
                   'Aplicativo ainda não está conectado ao servidor.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 SizedBox(height: 10),
                 Text(
@@ -311,4 +336,3 @@ class _CoreConfigurationError extends StatelessWidget {
     );
   }
 }
-
