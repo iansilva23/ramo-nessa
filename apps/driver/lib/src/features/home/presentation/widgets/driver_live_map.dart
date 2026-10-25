@@ -142,6 +142,7 @@ class DriverMapController {
     if (kIsWeb) return;
     if (!_nativeNavigationActive) return;
     _nativeNavigationActive = false;
+    _nativeMapTouches = 0;
     _lastCoursePoint = null;
     _lastCourseBearing = null;
     followPaused.value = false;
@@ -479,8 +480,12 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     }
 
     if (!kIsWeb && oldWidget.navigationMode && !widget.navigationMode) {
-      // Covers trip completion, cancellation and screen restoration too.
-      unawaited(widget.controller.stopNativeNavigation(_driverPoint));
+      // Updating the follow notifier during didUpdateWidget would rebuild
+      // its ValueListenableBuilder mid-frame. Reset after the frame instead.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.navigationMode) return;
+        unawaited(widget.controller.stopNativeNavigation(_driverPoint));
+      });
     }
 
     if (!_sameRoute(oldWidget.route, widget.route)) {
