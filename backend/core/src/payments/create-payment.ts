@@ -23,6 +23,7 @@ export async function createPaymentForRide(
   repository: FinanceRepository,
   input: CreatePaymentInput,
 ): Promise<PaymentRecord> {
+  if (input.ride.occurrenceBonus && !['pix','cash'].includes(input.method)) throw new PaymentDomainError('PAYMENT_METHOD_DISABLED','Esta corrida com adicional está disponível por Pix ou dinheiro.');
   if (!isPaymentMethodEnabled(input.method)) {
     throw new PaymentDomainError(
       'PAYMENT_METHOD_DISABLED',

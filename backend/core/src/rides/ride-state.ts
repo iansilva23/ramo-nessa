@@ -4,6 +4,7 @@ import {
 } from '../payments/payment-state.js';
 
 export type RideState =
+  | 'INTERRUPTED'
   | 'CREATED'
   | 'AWAITING_PAYMENT'
   | 'PAID'
@@ -29,6 +30,7 @@ export class RideStateError extends Error {
 }
 
 const TRANSITIONS: Readonly<Record<RideState, ReadonlySet<RideState>>> = {
+  INTERRUPTED: new Set(['SEARCHING_DRIVER','CANCELLED_BY_DRIVER','CANCELLED_BY_ADMIN']),
   CREATED: new Set(['AWAITING_PAYMENT', 'CANCELLED_BY_PASSENGER']),
   AWAITING_PAYMENT: new Set([
     'CANCELLED_BY_DRIVER',
@@ -67,6 +69,7 @@ const TRANSITIONS: Readonly<Record<RideState, ReadonlySet<RideState>>> = {
     'CANCELLED_BY_ADMIN',
   ]),
   IN_PROGRESS: new Set([
+    'INTERRUPTED',
     'COMPLETED',
     'CANCELLED_BY_DRIVER',
     'CANCELLED_BY_ADMIN',

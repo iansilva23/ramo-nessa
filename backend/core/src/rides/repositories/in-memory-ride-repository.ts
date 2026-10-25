@@ -58,6 +58,7 @@ export class InMemoryRideRepository implements RideRepository {
     driverId: string,
   ): Promise<RideRecord | null> {
     const activeStates = new Set<RideRecord['state']>([
+      'INTERRUPTED',
       'DRIVER_ASSIGNED',
       'DRIVER_ARRIVING',
       'DRIVER_ARRIVED',

@@ -32,7 +32,7 @@ export async function passengerActivityForApp(input: {
       category: ride.category,
       origin: ride.origin,
       destination: ride.destination,
-      totalAmountCents: ride.quote.totalAmountCents,
+      totalAmountCents: ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0),
       paymentStatus: ride.paymentStatus,
       driver: ride.driverId && input.registry ? await (async () => {
         const [profile, vehicle] = await Promise.all([input.registry!.findProfile(ride.driverId!), input.registry!.findVehicleByDriverId(ride.driverId!)]);

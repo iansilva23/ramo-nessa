@@ -910,8 +910,8 @@ export async function createFullyPromotionalPayment(input: {
 }
 
 export function passengerPayableCents(ride: RideRecord): number {
-  return ride.promotion?.passengerPayableCents ??
-    ride.quote.totalAmountCents;
+  return (ride.promotion?.passengerPayableCents ??
+    ride.quote.totalAmountCents) + (ride.occurrenceBonus?.amountCents ?? 0);
 }
 
 export function promotionSubsidyCents(ride: RideRecord): number {

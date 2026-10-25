@@ -31,11 +31,12 @@ export async function rideSupportContext(input: RideSupportDependencies & {
   if (ride == null || (input.requesterType === 'passenger' ? ride.passengerId : ride.driverId) !== input.requesterId) {
     throw new DriverSupportError('SUPPORT_RIDE_UNAVAILABLE', 'Corrida indisponível para este atendimento.');
   }
-  const [payment, events, profile, vehicle] = await Promise.all([
+  const [payment, events, profile, vehicle, supply] = await Promise.all([
     input.finance.findLatestPaymentByRideId(ride.id),
     input.rides.listActivityEvents?.(ride.id) ?? Promise.resolve([]),
     ride.driverId ? input.registry.findProfile(ride.driverId) : null,
     ride.driverId ? input.registry.findVehicleByDriverId(ride.driverId) : null,
+    ride.driverId ? input.drivers.findByDriverId(ride.driverId) : null,
   ]);
   return {
     rideId: ride.id,
@@ -51,6 +52,7 @@ export async function rideSupportContext(input: RideSupportDependencies & {
     vehicle: vehicle ? {id: vehicle.id, plate: vehicle.plateNormalized, make: vehicle.make, model: vehicle.model, color: vehicle.color} : null,
     payment: payment ? {id: payment.id, status: payment.status, method: payment.method,
       amountCents: payment.amountCents, createdAt: payment.createdAt, updatedAt: payment.updatedAt} : null,
+    currentDriverLocation:supply?{latitude:supply.latitude,longitude:supply.longitude,observedAt:supply.locationUpdatedAt}:null,
     events,
     evidenceNote: 'Chegada informada e GPS não comprovam sozinhos a presença física. Localizações são registros do dispositivo, com o horário da observação. Precisão ausente não é estimada. Eventos anteriores à implantação podem não estar disponíveis.',
   };

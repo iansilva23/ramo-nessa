@@ -1,3 +1,4 @@
+import {createOccurrencesAdmin} from './ride-occurrences-admin.js';
 import {renderSupportRideContext} from './support-ride-context.js';
 import { passengerDisplayName } from './passenger-directory.js';
 import {createGuideAdmin} from './guide-admin.js';
@@ -4423,6 +4424,7 @@ async function loadFinance({ announce = true } = {}) {
       state.finance.generatedAt == null
         ? 'Falha ao atualizar · sem dados atuais'
         : `Falha ao atualizar · último dado ${formatDateTime(state.finance.generatedAt)}`;
+    if(hasScope('support:read'))createOccurrencesAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view:'finance'});
     renderPaymentPolicy(state.finance.policy);
     renderFinancePayoutDetail(null);
     handleAuthenticatedError(error);
@@ -10951,6 +10953,7 @@ function initializeRouteView(view) {
 
   if (view === 'support') {
     renderSupport();
+    if(hasScope('support:read'))createOccurrencesAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view:'support',openTicket:async id=>{await loadSupport({announce:false});state.support.selectedId=id;renderSupport();}});
     if (hasScope('support:read')) {
       void loadSupport({ announce: false });
     }

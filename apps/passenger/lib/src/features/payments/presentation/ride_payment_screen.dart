@@ -532,9 +532,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   bool get _pixAvailable => _paymentPolicy?.pixAvailable == true;
 
-  bool get _cardAvailable => _paymentPolicy?.cardAvailable == true;
+  bool get _cardAvailable => _ride.occurrenceAdditionalAmountCents == 0 && _paymentPolicy?.cardAvailable == true;
 
-  bool get _walletAvailable => _paymentPolicy?.walletAvailable == true;
+  bool get _walletAvailable => _ride.occurrenceAdditionalAmountCents == 0 && _paymentPolicy?.walletAvailable == true;
 
   bool get _walletHasEnough =>
       _walletAvailable &&
@@ -1110,7 +1110,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               const SizedBox(height: RamoSpacing.xl),
               if (_ride.driverConsentRequired) ...[
                 _driverConfirmationCard(),
-                const SizedBox(height: RamoSpacing.lg),
+                if (_ride.occurrenceAdditionalAmountCents > 0) ExpansionTile(title:const Text('Detalhamento do valor'),children:[ListTile(title:const Text('Adicional de ocorrência'),trailing:Text(PreparedRide.formatCents(_ride.occurrenceAdditionalAmountCents)))]),
+              const SizedBox(height: RamoSpacing.lg),
               ],
               if (_canPay) ...[
                 if (_ride.payableAmountCents == 0) ...[

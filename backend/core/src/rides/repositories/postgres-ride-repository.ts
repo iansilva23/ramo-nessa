@@ -30,6 +30,8 @@ interface RideRow {
   payment_status: RideRecord['paymentStatus'];
   manual_refund?: boolean;
   cancellation_state?: string | null;
+  occurrence_terms?: RideRecord['occurrenceTerms'];
+  occurrence_bonus?: RideRecord['occurrenceBonus'] | null;
   payment_method: RideRecord['paymentMethod'] | null;
   driver_id: string | null;
   driver_consent_required: boolean;
@@ -73,6 +75,8 @@ function mapRow(row: RideRow): RideRecord {
     passengerId: row.passenger_id,
     ...(row.driver_search_max_distance_km == null ? {} : { driverSearchMaxDistanceKm: Number(row.driver_search_max_distance_km) }),
     state: row.state,
+    ...(row.occurrence_terms ? {occurrenceTerms:row.occurrence_terms} : {}),
+    ...(row.occurrence_bonus == null ? {} : {occurrenceBonus: row.occurrence_bonus}),
     ...(row.cancellation_state == null ? {} : { cancellationState: row.cancellation_state }),
     paymentStatus: row.payment_status,
     ...(row.manual_refund ? { manualRefund: true } : {}),
@@ -152,7 +156,7 @@ function mapRow(row: RideRow): RideRecord {
 }
 
 const RETURNING = `
-  id, passenger_id, state, payment_status, payment_method, driver_id, manual_refund, cancellation_state,
+  id, passenger_id, state, payment_status, payment_method, driver_id, manual_refund, cancellation_state, occurrence_bonus, occurrence_terms,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
   pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
@@ -293,6 +297,7 @@ export class PostgresRideRepository implements RideRepository {
       FROM rides
       WHERE driver_id = $1
         AND state IN (
+          'INTERRUPTED',
           'DRIVER_ASSIGNED',
           'DRIVER_ARRIVING',
           'DRIVER_ARRIVED',

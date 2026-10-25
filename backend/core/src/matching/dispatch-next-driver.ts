@@ -150,7 +150,19 @@ export async function dispatchNextDriver(input: {
     candidates = allowed;
   }
 
-  if (ride.driverSearchMaxDistanceKm != null) {
+  if (ride.occurrenceTerms?.continuation) {
+    const estimates = [];
+    for (const candidate of candidates) {
+      if (!input.routing?.routeEstimate) continue;
+      try {
+        const estimate=await input.routing.routeEstimate({from:{latitude:candidate.supply.latitude!,longitude:candidate.supply.longitude!},to:input.pickup});
+        if(Number.isFinite(estimate.durationSeconds)&&estimate.durationSeconds>=0&&Number.isFinite(estimate.distanceKm)&&estimate.distanceKm>=0&&
+          (ride.driverSearchMaxDistanceKm==null||estimate.distanceKm<=ride.driverSearchMaxDistanceKm)) estimates.push({candidate,seconds:estimate.durationSeconds});
+      } catch { /* An unavailable route cannot establish a safe replacement ETA. */ }
+    }
+    estimates.sort((a,b)=>a.seconds-b.seconds||a.candidate.supply.driverId.localeCompare(b.candidate.supply.driverId));
+    candidates=estimates.map(e=>e.candidate);
+  } else if (ride.driverSearchMaxDistanceKm != null) {
     const routed = [];
     for (const candidate of candidates) {
       if (input.routing == null) continue;

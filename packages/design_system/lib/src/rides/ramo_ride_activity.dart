@@ -45,6 +45,7 @@ class RamoRideActivityData {
       };
   String get statusLabel => switch (state) {
         'DRIVER_ARRIVED' => 'No embarque',
+        'INTERRUPTED' => 'Viagem interrompida · escolha como continuar',
         'IN_PROGRESS' => 'Em trajeto',
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho do embarque',
         'PAID' || 'SEARCHING_DRIVER' => 'Procurando motorista',

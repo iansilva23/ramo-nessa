@@ -48,6 +48,7 @@ class PreparedRide {
     this.promotion,
     this.driverConsentRequired = false,
     this.promotionMessage,
+    this.occurrenceAdditionalAmountCents = 0,
   });
 
   factory PreparedRide.fromJson(Map<String, dynamic> json) {
@@ -87,6 +88,7 @@ class PreparedRide {
       promotion: promotion,
       driverConsentRequired: consentRequired,
       promotionMessage: json['promotionMessage'] as String?,
+      occurrenceAdditionalAmountCents: (ride['occurrenceAdditionalAmountCents'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -100,6 +102,7 @@ class PreparedRide {
   final PreparedRidePromotion? promotion;
   final bool driverConsentRequired;
   final String? promotionMessage;
+  final int occurrenceAdditionalAmountCents;
 
   int get payableAmountCents =>
       promotion?.passengerPayableCents ?? totalAmountCents;

@@ -1217,6 +1217,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
 
     _boardingPromptOpen = true;
+    if(ride.occurrencesEnabled&&ride.isCash&&api is RamoRideOccurrenceApi){
+      final received=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Recebeu o dinheiro?'),content:const Text('Receba o valor antes do início. Confirme somente após receber o dinheiro do passageiro.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Ainda não')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmo o recebimento'))]));
+      if(received!=true||!mounted){_boardingPromptOpen=false;return;}
+      try{await (api as RamoRideOccurrenceApi).occurrenceRequest('/v1/driver/me/rides/${ride.id}/cash-received',method:'POST',body:{});}catch(e){_boardingPromptOpen=false;if(mounted)setState(()=>_message=e.toString());return;}
+      if(!mounted)return;
+    }
+    _boardingPromptOpen = true;
     try {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -1312,6 +1319,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
 
+    if(ride.occurrencesEnabled && api is RamoRideOccurrenceApi && (ride.state=='IN_PROGRESS'||ride.state=='INTERRUPTED'||ride.isCash)){
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>Scaffold(appBar:AppBar(title:const Text('Ocorrência da corrida')),body:SafeArea(child:SingleChildScrollView(child:RamoRideOccurrencePanel(api:api as RamoRideOccurrenceApi,rideId:ride.id,driver:true,paymentMethod:ride.paymentMethod,onChanged:_restoreCurrentRide))))));
+      await _restoreCurrentRide();return;
+    }
     final cancellationApi = api as DriverRideCancellationApi;
     final noteController = TextEditingController();
     String reason = 'passenger_no_show';
@@ -2280,6 +2291,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             ),
                             onExpand: restore,
                           )
+                        : presentedRide.state=='INTERRUPTED' && _api is RamoRideOccurrenceApi
+                        ? RamoRideOccurrencePanel(api:_api as RamoRideOccurrenceApi,rideId:presentedRide.id,driver:true,paymentMethod:presentedRide.paymentMethod,onChanged:_restoreCurrentRide)
                         : _ActiveRideCard(
                             key: ValueKey(
                               'ride-${presentedRide.id}-${presentedRide.state}',
@@ -4958,6 +4971,7 @@ class _ActiveRideCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (ride.occurrenceBonusCents > 0) Text('Bônus de ocorrência + ${formatCents(ride.occurrenceBonusCents)}'),
             if (ride.isCash && ride.cashCollectionAmountCents != null) ...[
               const SizedBox(height: 12),
               _DriverNoticeStrip(

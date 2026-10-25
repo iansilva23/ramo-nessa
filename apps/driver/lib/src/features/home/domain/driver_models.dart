@@ -168,6 +168,8 @@ class DriverOffer {
 class AcceptedDriverRide {
   const AcceptedDriverRide({
     required this.id,
+    this.occurrencesEnabled = false,
+    this.occurrenceBonusCents = 0,
     required this.state,
     required this.category,
     required this.passengers,
@@ -192,6 +194,8 @@ class AcceptedDriverRide {
   factory AcceptedDriverRide.fromJson(Map<String, dynamic> json) {
     return AcceptedDriverRide(
       id: json['id'] as String,
+      occurrencesEnabled: json['occurrencesEnabled'] == true,
+      occurrenceBonusCents: (json['occurrenceBonusCents'] as num?)?.toInt() ?? 0,
       state: json['state'] as String,
       category: json['category'] as String,
       passengers: (json['passengers'] as num).toInt(),
@@ -222,6 +226,8 @@ class AcceptedDriverRide {
   }
 
   final String id;
+  final bool occurrencesEnabled;
+  final int occurrenceBonusCents;
   final String state;
   final String category;
   final int passengers;
