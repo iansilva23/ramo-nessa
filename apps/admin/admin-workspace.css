@@ -120,9 +120,7 @@
 .admin-workspace .panel-card {border-radius: 18px; background: #fff; box-shadow: 0 3px 12px #18251a03;}
 .admin-workspace .panel-card__header {padding-bottom: 18px; border-bottom: 1px solid #eff0eb;}
 .admin-workspace .panel-card__header p {margin-bottom: 0;}
-.admin-workspace .button,
-.admin-workspace [data-occurrence-admin] button,
-.admin-workspace [data-boarding-admin] button {
+.admin-workspace .button {
   display: inline-flex; justify-content: center; align-items: center; gap: 8px;
   min-height: 42px; max-width: 100%; padding: 11px 16px; border: 1px solid transparent;
   border-radius: 10px; font: inherit; font-size: 12px; font-weight: 650;
@@ -233,3 +231,5 @@
 .admin-workspace #staff-create-form > .field {margin: 0;}
 .admin-workspace .admin-permission-group {align-self: start;}
 @media(max-width: 600px) {.admin-workspace #staff-create-form {grid-template-columns: minmax(0,1fr);}}
+
+.admin-workspace :is(.panel-card,details) {scroll-margin-top: 96px;}

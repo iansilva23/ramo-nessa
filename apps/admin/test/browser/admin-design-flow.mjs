@@ -96,12 +96,15 @@ try {
    await mount('finance');
    for(const width of [1440,390,320]) {
     await page.setViewportSize({width,height:1000});
-    await page.locator('[data-boarding-admin]').scrollIntoViewIfNeeded();
+    await page.evaluate(()=>window.scrollTo(0,0));
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`Finance ${width} overflow`);
     await page.screenshot({path:resolve(output,`${engine}-finance-${width}.png`),fullPage:true,animations:'disabled'});
    }
    await mount('support');
    await page.locator('.admin-case').nth(1).waitFor();
+   const ghostStyle=await page.locator('[data-occurrence-admin]').getByRole('button',{name:'Atualizar ocorrências'}).evaluate(button=>{const s=getComputedStyle(button);return {border:s.borderTopWidth,color:s.borderTopColor};});
+   assert.equal(ghostStyle.border,'1px');
+   assert.notEqual(ghostStyle.color,'rgba(0, 0, 0, 0)','Secondary actions need a visible outline');
    assert.equal(await page.locator('.admin-case').count(),2);
    await page.locator('[data-occurrence-admin]').getByRole('button',{name:'Abrir atendimento e evidências'}).first().click();
    assert.equal(await page.evaluate(()=>window.openedTicket),'existing-ticket-id');
@@ -124,7 +127,7 @@ try {
    await page.waitForFunction(()=>document.querySelector('[data-occurrence-admin]')?.getAttribute('aria-busy')==='false');
    for(const width of [1440,390,320]) {
     await page.setViewportSize({width,height:1000});
-    await page.locator('[data-occurrence-admin]').scrollIntoViewIfNeeded();
+    await page.evaluate(()=>window.scrollTo(0,0));
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`Cases ${width} overflow`);
     await page.screenshot({path:resolve(output,`${engine}-support-${width}.png`),fullPage:true,animations:'disabled'});
    }
