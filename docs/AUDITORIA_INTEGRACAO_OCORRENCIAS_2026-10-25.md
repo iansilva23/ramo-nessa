@@ -76,7 +76,7 @@ O bônus usa a próxima corrida elegível: dinheiro fica com o próximo motorist
 
 A, B e C permanecem independentes: embarque existente, novas ocorrências e adicional futuro. Migração 097 cria B/C desativados, não altera a configuração A nem os pagamentos existentes. Cada nova corrida recebe regras persistidas; alternar controles não muda regras de corridas anteriores. Alterações são aditivas, sem apagar migrações ou reescrever dados históricos. A migração 096 mantém a autoria do cancelamento e a apresentação EXPIRED é somente leitura.
 
-Último complemento: sincronizar a conclusão da ocorrência com o mesmo atendimento de suporte, preservar ocupação do motorista se ele já estiver em outra corrida e restringir relatos de cada motorista aos próprios atendimentos. Esse complemento exige nova execução do Core antes de ser homologado.
+Último complemento: sincronizar a conclusão da ocorrência com o mesmo atendimento de suporte, preservar ocupação do motorista se ele já estiver em outra corrida e restringir relatos de cada motorista aos próprios atendimentos. Esse complemento foi validado pela execução final indicada abaixo.
 
 ### Arquivos e revisão
 
@@ -85,3 +85,10 @@ O diff completo do PR é a relação autoritativa de arquivos. Principais grupos
 ### Pendências de homologação e operação
 
 Não houve merge, publicação, alteração da VPS ou ativação. A evidência recebida da VPS continua mostrando migração 095 e artefatos anteriores; versões nativas instaladas não foram verificadas. Pendem homologação presencial em Android/iPhone, GPS/rede reais, confirmação de devolução/repasse com os provedores e revisão operacional antes de eventual publicação autorizada. Não foi criado instalador novo nem executado instalador antigo. As revisões #69/#70 e as demais branches permanecem intactas.
+
+
+## Resultado final automatizado
+
+Código remoto 3c5fa5e5ab635fac7654895d5a4bd6909cd6360a: todos os dez jobs aprovados na execução https://github.com/iansilva23/ramo-nessa/actions/runs/40232751441. Inclui o último complemento do suporte e do acesso aos relatos. As alterações posteriores a esse código são exclusivamente este registro documental; não modificam código, migrações ou configurações.
+
+Commits da integração nova: 9e0a5326 (ocorrências/substituição/bônus), fb636e26 (testes e liquidação atômica) e 3c5fa5e5 (sincronização do suporte e escopo dos relatos). O histórico completo e todos os 72 arquivos da revisão estão no PR #72. Não há conflito de merge informado pelo GitHub; não foi realizado merge. As limitações de homologação física e financeira e o estado não publicado continuam válidos.
