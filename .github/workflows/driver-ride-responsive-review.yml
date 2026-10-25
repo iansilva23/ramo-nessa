@@ -56,17 +56,20 @@ jobs:
         run: |
           dart format apps/driver/lib/src/features/home/presentation/driver_home_screen.dart \
             apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart \
-            apps/driver/test/driver_flow_test.dart
+            apps/driver/test/driver_flow_test.dart \
+            apps/driver/test/driver_ride_stage_visual_review.dart
       - name: Flutter analyzer
         working-directory: apps/driver
         run: flutter analyze
       - name: Widget, viewport and realtime regression suite
         working-directory: apps/driver
         run: flutter test
-      - name: Render visual review fixtures (320, 390, 900)
+      - name: Render every ride stage in phone and wide viewports
         if: matrix.target == 'web'
         working-directory: apps/driver
-        run: flutter test --update-goldens test/ride_identity_visual_review.dart
+        run: |
+          flutter test --update-goldens test/ride_identity_visual_review.dart
+          flutter test --update-goldens test/driver_ride_stage_visual_review.dart
       - name: Compile Web
         if: matrix.target == 'web'
         working-directory: apps/driver
@@ -86,6 +89,7 @@ jobs:
           name: driver-responsive-visual-review
           path: |
             apps/driver/ride-identity-artifacts/**
+            apps/driver/ride-responsive-artifacts/**
             apps/driver/test/goldens/**
             apps/driver/test/**/goldens/**
           if-no-files-found: ignore
