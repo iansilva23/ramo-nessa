@@ -45,3 +45,13 @@ A VPS ainda não recebeu as correções; fetch apenas baixa objetos Git. As seis
 A configuração deploy/staging/compose.yml não deve ser iniciada novamente como ambiente de teste: ela usa o nome ramo-nessa-staging e publica portas 80/443, correspondentes ao ambiente observado. Uma homologação adicional requer projeto Compose, banco, volumes, imagens e endereço próprios. Não compartilhar DATABASE_URL, volumes, nomes de projeto ou credenciais do ambiente ativo. O nome staging existente não prova isolamento de usuários reais.
 
 Falta identificar o domínio/subdomínio de homologação (ou a ausência dele), o destino de hospedagem e a forma de acesso dos aparelhos. Sem isso não gerar URLs presumidas nem instaladores apontando para o serviço ativo. Não é necessário repetir a consulta da VPS já recebida.
+
+## Execução recebida do responsável — ambiente isolado na VPS
+
+Docker Compose v5.5.1; host com 3,7 GiB totais, 2,8 GiB disponíveis na consulta e 19 GB livres. Configuração em /opt/ramo-homologacao-config-99ea1989, projeto ramo-nessa-occurrence-homologation. Imagens específicas de Core e gateway compiladas pelo responsável; fontes exportados separadamente do checkout ativo. Banco novo criado e migrações 001–097 concluídas. Consulta explícita comprovou A/B/C false e zero corridas/pagamentos.
+
+Após aplicar runtime-health.json, PostgreSQL, simuladores, Core e gateway ficaram healthy; migrate terminou. GET http://127.0.0.1:18080/ready retornou ok true e storageMode postgres. O gateway de teste permanece em loopback.
+
+O responsável executou smoke-occurrences.mjs do commit cc2a141ea38906f0b34f128de9b71df3172f852a no Core isolado. Retorno ok true, simulated true e oito verificações aprovadas: estado inicial, independência/snapshot das regras, isolamento do passageiro, substituição mantendo corrida/pagamento/destino e novo PIN de 3 dígitos, cinco erros persistidos com liberação e suporte sincronizado, devolução física sem transferência, liquidação simulada sem comissão no bônus ou duplicidade, e limpeza final. A liquidação desse roteiro usa repositório em memória; ocorrências e embarques usam PostgreSQL em esquema temporário. Não houve gateway financeiro externo nem recebimento/devolução/repasse real.
+
+Isso comprova a inicialização e o roteiro automático do backend isolado, não a homologação em aparelhos, GPS/rede reais ou a publicação das correções no app ativo. Próxima etapa: acesso ao ADM isolado por túnel SSH local no Mac, sem DNS ou publicação de porta nova. Ainda não foram criadas credenciais humanas de teste neste roteiro.
