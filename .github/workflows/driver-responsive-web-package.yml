@@ -147,7 +147,7 @@ jobs:
                   z.writestr('driver/'+file['path'],content)
           print('ZIP_SHA256:',hashlib.sha256(destination.read_bytes()).hexdigest())
           PY
-          sha256sum artifacts/RamoNessa-Motorista-Web-b5c44292.zip             > artifacts/RamoNessa-Motorista-Web-b5c44292.zip.sha256
+          (cd artifacts && sha256sum RamoNessa-Motorista-Web-b5c44292.zip > RamoNessa-Motorista-Web-b5c44292.zip.sha256)
           python3 deploy/staging/stage-driver-responsive-web.py             --archive "$PWD/artifacts/RamoNessa-Motorista-Web-b5c44292.zip"             --sha256 "$(cut -d' ' -f1 artifacts/RamoNessa-Motorista-Web-b5c44292.zip.sha256)"             --output "$RUNNER_TEMP/driver-responsive-staged"
       - name: Rehearse real Caddy switch, rollback and missing-Gateway recovery
         run: |
@@ -158,7 +158,7 @@ jobs:
         run: |
           set -euo pipefail
           git archive HEAD deploy/staging scripts/web | gzip -n > artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz
-          sha256sum artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz             > artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz.sha256
+          (cd artifacts && sha256sum Instalador-Driver-Responsive-b5c44292.tar.gz > Instalador-Driver-Responsive-b5c44292.tar.gz.sha256)
           cd artifacts
           sha256sum -c RamoNessa-Motorista-Web-b5c44292.zip.sha256
           sha256sum -c Instalador-Driver-Responsive-b5c44292.tar.gz.sha256
