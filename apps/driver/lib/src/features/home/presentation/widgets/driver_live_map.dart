@@ -113,9 +113,8 @@ class DriverMapController {
     final course =
         from == null ? null : DriverMapConfig.courseFromMovement(from, point);
     if (from == null ||
-        (from != null &&
-            DriverMapConfig.distanceMeters(from, point) >=
-                DriverMapConfig.headingMinTravelMeters)) {
+        DriverMapConfig.distanceMeters(from, point) >=
+            DriverMapConfig.headingMinTravelMeters) {
       _lastCoursePoint = point;
     }
     if (course != null) {
