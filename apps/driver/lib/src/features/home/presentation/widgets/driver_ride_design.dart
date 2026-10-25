@@ -627,6 +627,7 @@ class _DriverActiveDesign extends StatelessWidget {
     final underway = ride.state == 'IN_PROGRESS';
     final arrived = ride.state == 'DRIVER_ARRIVED';
     final waitingForPayment = ride.state == 'AWAITING_PAYMENT';
+    final narrowScreen = MediaQuery.sizeOf(context).width < 360;
     final category = switch (ride.category) {
       'moto' => 'Moto',
       'car' => 'Carro',
@@ -828,14 +829,14 @@ class _DriverActiveDesign extends StatelessWidget {
               children: [
                 _ridePair(
                   _RideButton(
-                    'Mensagem com passageiro',
+                    narrowScreen ? 'Mensagem' : 'Mensagem com passageiro',
                     onChat,
                     leading: chatIcon,
                     compact: true,
                     icon: Icons.chat_outlined,
                   ),
                   _RideButton(
-                    'Abrir no Google Maps',
+                    narrowScreen ? 'Google Maps' : 'Abrir no Google Maps',
                     canNavigate ? onExternalNavigation : null,
                     compact: true,
                     icon: Icons.chevron_right,
