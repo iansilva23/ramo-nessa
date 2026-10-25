@@ -194,7 +194,9 @@ class DriverMapController {
 
   Future<void> stopWebNavigation(domain.LatLng point) async {
     if (!kIsWeb || !DriverWebHeadingConfig.hasVectorMap ||
-        !_webNavigationActive) return;
+        !_webNavigationActive) {
+      return;
+    }
     _webNavigationActive = false;
     _nativeMapTouches = 0;
     _lastCoursePoint = null;
