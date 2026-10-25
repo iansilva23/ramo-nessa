@@ -212,7 +212,9 @@ class DriverMapController {
     List<domain.LatLng> route = const [],
   }) async {
     if (!kIsWeb || !DriverWebHeadingConfig.cinematicTiltEnabled ||
-        !ready || _disposed || _webDrivingPerspective) return;
+        !ready || _disposed || _webDrivingPerspective) {
+      return;
+    }
     _webDrivingPerspective = true;
     _webNavigationActive = true;
     final heading = _lastCourseBearing ??
@@ -233,7 +235,9 @@ class DriverMapController {
       for (var step = 1; step <= DriverWebCinematicCamera.animationSteps; step++) {
         if (_disposed || !ready || _nativeController != controller ||
             generation != _webTransitionGeneration || followPaused.value ||
-            !_webNavigationActive) break;
+            !_webNavigationActive) {
+          break;
+        }
         final t = step / DriverWebCinematicCamera.animationSteps;
         final easing = DriverWebCinematicCamera.ease(t);
         final currentPoint = _webLastFollowPoint ?? point;
