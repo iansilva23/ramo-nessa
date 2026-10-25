@@ -7611,7 +7611,9 @@ const server = createServer(async (request, response) => {
           refund.refundStatus === 'refunded'
             ? 'O valor da corrida foi devolvido integralmente.'
             : refund.refundStatus === 'not_charged'
-              ? 'A corrida foi cancelada e nenhum valor foi cobrado.'
+              ? stored.paymentMethod === 'cash'
+                ? 'Corrida cancelada. Se você entregou dinheiro, confira a devolução com o motorista e o suporte.'
+                : 'A corrida foi cancelada e nenhum valor foi cobrado.'
               : 'O reembolso integral já foi solicitado e está em processamento.',
         data: { rideId },
       });

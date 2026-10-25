@@ -20,6 +20,7 @@ class ResumedRideScreen extends StatelessWidget {
     required this.tracking,
     required this.payments,
     this.realtime,
+    this.support,
     this.routes,
     this.networkTilesEnabled = true,
   });
@@ -28,6 +29,7 @@ class ResumedRideScreen extends StatelessWidget {
   final PassengerRideTrackingService tracking;
   final PassengerPaymentService? payments;
   final PassengerRideRealtimeService? realtime;
+  final RamoRideSupportApi? support;
   final RouteService? routes;
   final bool networkTilesEnabled;
   @override
@@ -59,7 +61,9 @@ class ResumedRideScreen extends StatelessWidget {
         ...ride,
         'totalAmountCents': (ride['quote'] as Map<String, dynamic>)['totalAmountCents'],
       }).activityData;
-      return RamoRideDetailsScreen(ride: details, onHelp: null);
+      return RamoRideDetailsScreen(ride: details, onHelp: support == null ? null : () {
+        Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => RamoRideSupportScreen(api: support!, ride: details)));
+      });
     }
     final awaiting = const {
       'CREATED',
@@ -105,6 +109,7 @@ class ResumedRideScreen extends StatelessWidget {
           onClose: onClose,
           buildNext: (next) => ResumedRideScreen(
             data: next,
+            support: support,
             onClose: onClose,
             tracking: tracking,
             payments: payments,

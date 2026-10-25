@@ -41,3 +41,13 @@ A destinação usa o método da **próxima corrida**: em dinheiro, o motorista q
 O caminho real do caso dos prints ainda depende de vincular IDs completos e estados persistidos na VPS. Corrigir um caminho comprovado no código não prova a causa de todos os registros antigos. Não mudar dados históricos, configurações reais, dinheiro habilitado, credenciais ou políticas. Testes simulados não provam recebimento/reembolso/repasse real.
 
 O primeiro teste local do Core via CLI tsx parou antes de executar testes por EPERM no socket IPC; deve-se usar o carregador Node ou CI. Typecheck passou. Os 177 testes do ADM passaram na base. Flutter/PostgreSQL ainda precisam de ambientes próprios; não declarar plataformas aprovadas antes dos resultados.
+
+## Execução da primeira correção
+
+PR #72 criado como DRAFT, base #71. Nenhum merge/deploy/ativação.
+
+Correções presentes: cancelamento explícito de reserva pelo motorista, reconsulta de Atividades com aba fechada, preservação da autoria durante estorno, identificação de suporte versus passageiro, recuperação de terminal sem checkout, não devolver QR Pix pendente de corrida encerrada e conciliação de Pix tardio sem reativação. Dinheiro cancelado não afirma que houve ou não entrega física.
+
+O relatório `deploy/staging/inspect-ride-consistency.mjs` consulta exclusivamente versões, políticas, migrações e até 30 registros relacionados aos IDs dos prints, em transação PostgreSQL REPEATABLE READ READ ONLY. Omite nomes, telefones, documentos, PINs, QR codes e credenciais. Sua execução pelo responsável continua necessária para confirmar o cenário real antes de decidir qualquer conciliação histórica. Não foi executado na VPS nesta sessão.
+
+A regra de bônus foi aprovada e está registrada acima; **não está implementada nem ativada nesta primeira correção**. O ledger atual exige tarifa = comissão + líquido de um único motorista, e classifica excesso como recuperação de custo de pagamento. A próxima integração precisa separar o adicional e o beneficiário, mantendo liquidação atômica e bloqueando a dupla compensação com a taxa antiga. Não apresentar este PR como entrega de substituição, ocorrências completas ou bônus operacional.

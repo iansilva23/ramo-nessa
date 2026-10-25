@@ -55,3 +55,11 @@ test('activity rechecks the current ride when parallel reads straddle cancellati
  assert.equal(activity.rides.filter(r=>r.id===old.id).length,1);
  assert.equal(activity.rides[0]?.state,'CANCELLED_BY_DRIVER');
 });
+
+test('cancelled ride never exposes a stale pending Pix checkout during recovery',async()=>{
+ const c=await fixture();await c.rides.save({...c.ride,state:'CANCELLED_BY_DRIVER'});
+ await c.finance.createPayment({id:randomUUID(),rideId:c.ride.id,method:'pix',processor:'mercado-pago-orders',status:'pending',amountCents:c.ride.quote.totalAmountCents,idempotencyKey:'cancelled-pending-pix',createdAt:c.ride.createdAt,updatedAt:c.ride.updatedAt});
+ const boarding={checkout:async()=>{throw Error('Cancelled trips must not recover a payment QR code');}} as never;
+ const result=await resumePassengerRide({...c,boarding,passengerId:c.ride.passengerId,rideId:c.ride.id});
+ assert.equal(result.pix,null);assert.equal(result.payment?.status,'pending');assert.equal(result.ride?.state,'CANCELLED_BY_DRIVER');
+});

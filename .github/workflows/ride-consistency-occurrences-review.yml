@@ -29,6 +29,7 @@ jobs:
       - run: npm run typecheck && npm run db:migrate && npm run db:migrate && node --import tsx --test --test-concurrency=1 test/**/*.test.ts && npm run build
         working-directory: backend/core
       - run: npm test --prefix apps/admin
+      - run: node --test deploy/staging/inspect-ride-consistency.test.mjs
   apps:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
