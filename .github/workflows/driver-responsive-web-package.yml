@@ -67,7 +67,17 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
-          git diff --exit-code -- '*.dart' '*/pubspec.yaml' '*/pubspec.lock'
+          git diff --exit-code -- '*.dart' '*/pubspec.yaml'
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const path='apps/driver/pubspec.lock';
+          const committed=execFileSync('git',['show','HEAD:'+path],{encoding:'utf8'});
+          const generated=readFileSync(path,'utf8');
+          const normalize=content=>content.replace(/\n+$/,'\n');
+          if(normalize(committed)!==normalize(generated))
+            throw Error('Resolved dependencies differ from pinned lockfile');
+          NODE
           node --input-type=module - <<'NODE'
           import {readFileSync} from 'node:fs';
           const code=readFileSync('apps/driver/build/web/main.dart.js','utf8');
