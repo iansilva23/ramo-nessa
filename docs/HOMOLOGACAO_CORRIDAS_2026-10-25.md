@@ -4,7 +4,7 @@ Código funcional validado: 3c5fa5e5; dez jobs aprovados na execução 402327514
 
 ## Baseline atual
 
-Executar inspect-ride-consistency.mjs somente leitura na VPS. Registrar imagens Core/gateway, caminho Web, migrações e políticas. O diagnóstico agora inclui B/C e contagens agregadas, sem relatos pessoais. `table_absent` em B/C significa que a estrutura ainda não está instalada; não significa configuração falsa. Comparar com a evidência anterior: migração 095, Web driver-cinema-d8ddfb102f88, embarque e cancelamento manual desligados. Não executar instaladores dos PRs #62/#69 sobre versões novas sem verificar compatibilidade.
+Diagnóstico executado pelo responsável e recebido em 25/10/2026. Core b2e1742a4811bfd9455f550612628986871d9d00d2c9ec79242e907d4c51cc4d e gateway afd2bf7ee10435bf192c150d048310db027f81cb3334ce5ea5038307f7ca982f running; Web em /opt/ramo-nessa-web/releases/driver-cinema-d8ddfb102f88/bundles. Banco até migração 095. Migrações 096/097 ausentes; política de ocorrências e tabelas de ocorrências/bônus retornaram table_absent. Embarque false/revisão 0, cancelamento manual false/revisão 4. Pagamentos: dinheiro/Pix/carteira habilitados, cartão desabilitado. Nenhuma modificação foi realizada pelo diagnóstico. O diagnóstico agora inclui B/C e contagens agregadas, sem relatos pessoais. `table_absent` em B/C significa que a estrutura ainda não está instalada; não significa configuração falsa. Comparar com a evidência anterior: migração 095, Web driver-cinema-d8ddfb102f88, embarque e cancelamento manual desligados. Não executar instaladores dos PRs #62/#69 sobre versões novas sem verificar compatibilidade.
 
 ## Ambiente de teste necessário
 
@@ -36,3 +36,12 @@ Após cada grupo, desligar explicitamente as políticas do ambiente de teste e v
 ## Bloqueios atuais
 
 Sem sessão SSH disponível nesta execução; a leitura da VPS depende da saída do diagnóstico executado pelo responsável. Ainda não foram identificados ambiente separado, domínio de homologação, distribuição para aparelhos ou credenciais de teste. Não criar esses valores por suposição. A próxima decisão de pacote depende dessa baseline; este documento não autoriza instalar ou ativar recursos na VPS.
+
+
+## Preparação após o diagnóstico recebido
+
+A VPS ainda não recebeu as correções; fetch apenas baixa objetos Git. As seis tentativas dos prints continuam sem motorista, método ou registro financeiro e com prazo vencido. Os cancelamentos reais em dinheiro permanecem CANCELLED_BY_DRIVER. Não cancelar esses registros em lote nem criar devolução bancária.
+
+A configuração deploy/staging/compose.yml não deve ser iniciada novamente como ambiente de teste: ela usa o nome ramo-nessa-staging e publica portas 80/443, correspondentes ao ambiente observado. Uma homologação adicional requer projeto Compose, banco, volumes, imagens e endereço próprios. Não compartilhar DATABASE_URL, volumes, nomes de projeto ou credenciais do ambiente ativo. O nome staging existente não prova isolamento de usuários reais.
+
+Falta identificar o domínio/subdomínio de homologação (ou a ausência dele), o destino de hospedagem e a forma de acesso dos aparelhos. Sem isso não gerar URLs presumidas nem instaladores apontando para o serviço ativo. Não é necessário repetir a consulta da VPS já recebida.
