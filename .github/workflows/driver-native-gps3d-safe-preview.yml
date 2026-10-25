@@ -1,0 +1,134 @@
+name: GPS 3D — safe real-device preview (no backend)
+
+on:
+  push:
+    branches: [ops/driver-native-gps3d-devices-20261025]
+    paths: [.github/workflows/driver-native-gps3d-safe-preview.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: driver-gps3d-safe-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6f3975f16d2f424b0fe53862f73da8c470f59474
+      - name: Verify frozen reviewed source
+        run: test "$(git rev-parse HEAD)" = "6f3975f16d2f424b0fe53862f73da8c470f59474"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate restricted Maps test configuration
+        run: node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="GPS 3D driver native sandbox Android"
+      - name: Resolve locked dependencies
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+      - name: Flutter analyzer and all driver tests
+        working-directory: apps/driver
+        run: |
+          flutter analyze
+          flutter test
+      - name: Build physically installable GPS 3D sandbox APK
+        working-directory: apps/driver
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number=$((200000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=true \
+            --dart-define=RAMO_CORE_BASE_URL=
+      - name: Audit standalone demo signature and package ID
+        run: |
+          set -euo pipefail
+          apk=apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/signature-verified.txt"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          grep -q "name='br.com.ramonessa.driver.preview'" "$RUNNER_TEMP/package.txt"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-Motorista-GPS3D-DEMO-Android-6f3975f16d2f.apk
+          cp "$RUNNER_TEMP/signature-verified.txt" artifacts/android/signature-verified.txt
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          (
+            cd artifacts/android
+            sha256sum *.apk > SHA256SUMS
+          )
+          printf '%s\n' \
+            'MODO DEMONSTRACAO ISOLADO: GPS real, Google Maps nativo real, ofertas e corridas simuladas. RAMO_PREVIEW_MODE=true, RAMO_CORE_BASE_URL vazio. Nao faz solicitacoes ao Core e nao cobra pagamentos. Fluxo de login preview mostra o codigo na tela. Fonte PR #65 6f3975f16d2f424b0fe53862f73da8c470f59474. App ID br.com.ramonessa.driver.preview e assinatura somente de homologacao. Rota e pontos de embarque/destino sao exemplos: valida apenas camera e gestos com deslocamento real.' \
+            > artifacts/android/LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Motorista-GPS3D-DEMO-Android-6f3975f16d2f
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6f3975f16d2f424b0fe53862f73da8c470f59474
+      - name: Verify frozen reviewed source
+        run: test "$(git rev-parse HEAD)" = "6f3975f16d2f424b0fe53862f73da8c470f59474"
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS Maps test configuration
+        run: |
+          set -euo pipefail
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="GPS 3D driver native sandbox iOS"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/driver/ios/Flutter/GoogleMaps.local.xcconfig
+      - name: Resolve locked dependencies
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+      - name: Flutter analyzer and all driver tests
+        working-directory: apps/driver
+        run: |
+          flutter analyze
+          flutter test
+      - name: Compile iPhone preview — signing remains with owner's Apple account
+        working-directory: apps/driver
+        run: |
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number=$((200000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=true \
+            --dart-define=RAMO_CORE_BASE_URL=
+      - name: Package unsigned iPhone demonstration for provisioning review
+        run: |
+          set -euo pipefail
+          test -d apps/driver/build/ios/iphoneos/Runner.app
+          mkdir -p artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent apps/driver/build/ios/iphoneos/Runner.app artifacts/ios/RamoNessa-Motorista-GPS3D-DEMO-iPhone-SEM-ASSINATURA-6f3975f16d2f.zip
+          (
+            cd artifacts/ios
+            shasum -a 256 *.zip > SHA256SUMS
+          )
+          printf '%s\n' 'MODO DEMONSTRACAO ISOLADO. GPS real e corridas simuladas, RAMO_PREVIEW_MODE=true sem Core. Fonte PR #65 6f3975f16d2f424b0fe53862f73da8c470f59474. ZIP SEM ASSINATURA APPLE: nao instala diretamente no iPhone. Para uso real no iPhone e necessario assinar/provisionar usando Xcode e Apple Account/Team; nao enviar o ZIP diretamente ao celular. Nenhuma loja ou TestFlight recebeu o app.' > artifacts/ios/LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Motorista-GPS3D-DEMO-iPhone-SEM-ASSINATURA-6f3975f16d2f
+          path: artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
