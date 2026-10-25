@@ -1,0 +1,108 @@
+name: Ride recovery configured Web and verified installer
+on:
+  push:
+    branches: [ops/ride-recovery-web-20261024]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ride-recovery-web-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve the reviewed application revision
+        run: git diff --exit-code b209f2948dd948dc22d4f1f83bfbdcbef48a42b9 HEAD -- backend apps packages config/web
+      - name: Verify installer contracts and extraction
+        run: |
+          node --check deploy/staging/recovery-web-update.mjs
+          node --check deploy/staging/recovery-migration.mjs
+          node --check deploy/staging/test-recovery-web-update.mjs
+          node --test deploy/staging/recovery-web.test.mjs deploy/staging/google-search-update.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_recovery.py
+      - name: Compile the exact installed baseline and reviewed Core overlay
+        run: |
+          mkdir baseline
+          git archive 25d429e11b282be8832538ebd11d41123526fd5a backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Build both configured Web apps without native packages
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          for role in passenger driver; do
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            if [ "$role" = passenger ]; then route=passageiro; else route=motorista; fi
+            (cd "apps/$role" && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href="/$route/" --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false)
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Package only reviewed Core, ADM, migration and Web files
+        run: |
+          node scripts/web/package_recovery_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib, zipfile
+          with zipfile.ZipFile('RamoNessa-Recuperacao-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum RamoNessa-Recuperacao-Web.zip > RamoNessa-Recuperacao-Web.zip.sha256
+      - name: Install isolated browser test runtimes
+        run: |
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Compiled Web login, reload and same Pix recovery in both browsers
+        run: |
+          for role in passenger driver; do
+            for engine in chromium webkit; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/recovery_web_sessions_test.mjs
+            done
+          done
+      - name: Rehearse real Docker backups, migration, rollback and authenticated recovery
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-recovery-web-update.mjs "$PWD/RamoNessa-Recuperacao-Web.zip" "$PWD/baseline"
+      - name: Package exact installer sources
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Recuperacao-Web-r1.tar.gz
+          sha256sum Instalador-Recuperacao-Web-r1.tar.gz > Instalador-Recuperacao-Web-r1.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ride-recovery-configured-web-tested
+          path: |
+            RamoNessa-Recuperacao-Web.zip
+            RamoNessa-Recuperacao-Web.zip.sha256
+            Instalador-Recuperacao-Web-r1.tar.gz
+            Instalador-Recuperacao-Web-r1.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: recovery-web-session-evidence, path: artifacts/web-csp/, if-no-files-found: ignore}
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: ride-recovery-configured-web-tested, path: package}
+      - name: Publish verified files only; never access the VPS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd package
+          sha256sum -c RamoNessa-Recuperacao-Web.zip.sha256
+          sha256sum -c Instalador-Recuperacao-Web-r1.tar.gz.sha256
+          gh release create ride-recovery-web-20261024-r1 RamoNessa-Recuperacao-Web.zip RamoNessa-Recuperacao-Web.zip.sha256 Instalador-Recuperacao-Web-r1.tar.gz Instalador-Recuperacao-Web-r1.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Recuperação de corrida e pagamento — Web' --notes 'Passageiro e Motorista Web, ADM e Core sobre a base financeira confirmada na VPS. Embarque preparado DESATIVADO. Migração 094, backup com restauração e retornos ensaiados. Configuração dos provedores preservada; nenhuma cobrança real ou instalação automática na VPS. Android/iPhone ficam para sincronização futura.'
