@@ -572,12 +572,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         hasActiveRide: _activeRide != null,
         navigationMode: _navigationMode,
       )) {
-        unawaited(
-          _mapController.move(
-            LatLng(updated.latitude, updated.longitude),
-            _navigationMode ? 17.2 : _mapController.currentZoom,
-          ),
-        );
+        final point = LatLng(updated.latitude, updated.longitude);
+        if (!kIsWeb && _navigationMode) {
+          unawaited(_mapController.followNavigation(
+            point,
+            route: _activeRoute?.points ?? const [],
+          ));
+        } else {
+          // Keep Web and ordinary map behaviour exactly as it was.
+          unawaited(_mapController.move(
+            point,
+            _navigationMode
+                ? DriverMapConfig.navigationZoom
+                : _mapController.currentZoom,
+          ));
+        }
       }
       if (_activeRide != null) {
         unawaited(_refreshActiveRoute());
@@ -1026,10 +1035,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     });
 
     if (_mapReady) {
-      await _mapController.move(
-        LatLng(supply.latitude, supply.longitude),
-        17.2,
-      );
+      final point = LatLng(supply.latitude, supply.longitude);
+      if (kIsWeb) {
+        await _mapController.move(point, DriverMapConfig.navigationZoom);
+      } else {
+        _mapController.resumeNativeFollow();
+        await _mapController.followNavigation(
+          point,
+          route: _activeRoute?.points ?? const [],
+        );
+      }
     }
     await _refreshActiveRoute(force: true);
   }
@@ -1885,7 +1900,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         return;
       }
       setState(() => _activeRoute = route);
-      if (shouldFitRoute && _mapReady) {
+      if (_mapReady && !kIsWeb && _navigationMode) {
+        unawaited(_mapController.followNavigation(
+          currentPosition,
+          route: route.points,
+        ));
+      }
+      if (shouldFitRoute && _mapReady && (kIsWeb || !_navigationMode)) {
         try {
           await _mapController.fitCoordinates(
             route.points,
@@ -1920,12 +1941,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   void _centerDriverOnMap() {
     final supply = _supply;
     if (!_mapReady || supply == null) return;
-    unawaited(
-      _mapController.move(
-        LatLng(supply.latitude, supply.longitude),
+    final point = LatLng(supply.latitude, supply.longitude);
+    if (!kIsWeb && _navigationMode) {
+      _mapController.resumeNativeFollow();
+      unawaited(_mapController.followNavigation(
+        point,
+        route: _activeRoute?.points ?? const [],
+      ));
+    } else {
+      unawaited(_mapController.move(
+        point,
         DriverMapConfig.recenterZoom(_mapController.currentZoom),
-      ),
-    );
+      ));
+    }
   }
 
   Widget _buildHomeMap(DriverSupplySnapshot supply) {
@@ -1976,10 +2004,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     onTap: () => setState(() => _selectedTab = 1),
                   ),
                   const Spacer(),
-                  _MapCircleButton(
-                    tooltip: 'Centralizar mapa',
-                    icon: Icons.my_location_rounded,
-                    onPressed: _updateLocation,
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _mapController.followPaused,
+                    builder: (context, paused, _) => _MapCircleButton(
+                      tooltip: !kIsWeb && _navigationMode
+                          ? (paused ? 'Retomar GPS 3D' : 'Centralizar GPS 3D')
+                          : 'Centralizar mapa',
+                      icon: !kIsWeb && _navigationMode && paused
+                          ? Icons.navigation_rounded
+                          : Icons.my_location_rounded,
+                      onPressed: !kIsWeb && _navigationMode
+                          ? () {
+                              _mapController.resumeNativeFollow();
+                              _centerDriverOnMap();
+                            }
+                          : _updateLocation,
+                    ),
                   ),
                 ],
               ),
