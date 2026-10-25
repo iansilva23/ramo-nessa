@@ -1473,7 +1473,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   }
 
   Future<void> _copyPix() async {
-    if (_reservationExpired) return;
+    if (_reservationExpired || _navigating) return;
     final code = widget.result.qrCode.trim();
     if (code.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: code));
@@ -1498,6 +1498,21 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     try {
       final snapshot = await tracking.tracking(widget.rideId);
       if (!mounted) return;
+
+      if (snapshot.state.startsWith('CANCELLED_')) {
+        _pollTimer?.cancel();
+        _navigating = true;
+        await Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => RideTrackingScreen(
+            rideId: widget.rideId, remainingWalletCents: null,
+            trackingService: tracking, paymentMethod: 'pix',
+            realtimeService: widget.realtimeService, routeService: widget.routeService,
+            networkTilesEnabled: widget.networkTilesEnabled,
+            onRecoveryClose: widget.onRecoveryClose,
+          ),
+        ));
+        return;
+      }
 
       if (snapshot.state == 'PAYMENT_FAILED') {
         _pollTimer?.cancel();
@@ -1830,6 +1845,21 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
     try {
       final snapshot = await tracking.tracking(widget.rideId);
       if (!mounted) return;
+
+      if (snapshot.state.startsWith('CANCELLED_')) {
+        _pollTimer?.cancel();
+        _navigating = true;
+        await Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => RideTrackingScreen(
+            rideId: widget.rideId, remainingWalletCents: null,
+            trackingService: tracking, paymentMethod: 'card',
+            realtimeService: widget.realtimeService, routeService: widget.routeService,
+            networkTilesEnabled: widget.networkTilesEnabled,
+            onRecoveryClose: widget.onRecoveryClose,
+          ),
+        ));
+        return;
+      }
 
       if (snapshot.state == 'PAYMENT_FAILED') {
         _pollTimer?.cancel();

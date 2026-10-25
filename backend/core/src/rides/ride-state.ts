@@ -31,6 +31,7 @@ export class RideStateError extends Error {
 const TRANSITIONS: Readonly<Record<RideState, ReadonlySet<RideState>>> = {
   CREATED: new Set(['AWAITING_PAYMENT', 'CANCELLED_BY_PASSENGER']),
   AWAITING_PAYMENT: new Set([
+    'CANCELLED_BY_DRIVER',
     'PAID',
     'PAYMENT_FAILED',
     'CANCELLED_BY_PASSENGER',

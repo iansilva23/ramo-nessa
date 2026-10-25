@@ -489,9 +489,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
       'IN_PROGRESS' => 'Corrida em andamento',
       'COMPLETED' => 'Corrida finalizada',
       'NO_DRIVER_FOUND' => 'Nenhum motorista disponível nesta rodada',
-      'CANCELLED_BY_PASSENGER' ||
-      'CANCELLED_BY_DRIVER' ||
-      'CANCELLED_BY_ADMIN' => 'Corrida cancelada',
+      'CANCELLED_BY_PASSENGER' => 'Corrida cancelada por você',
+      'CANCELLED_BY_DRIVER' => 'Corrida cancelada pelo motorista',
+      'CANCELLED_BY_ADMIN' => 'Corrida cancelada pelo suporte',
       'REFUND_PENDING' => 'Estorno em processamento',
       'REFUNDED' => 'Pagamento devolvido',
       'PAID' || 'SEARCHING_DRIVER' => 'Procurando motorista',
