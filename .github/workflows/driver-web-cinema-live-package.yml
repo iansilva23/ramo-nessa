@@ -1,0 +1,151 @@
+name: Motorista Web GPS Cinema — official production release (manual VPS deploy)
+on:
+  push:
+    branches: [ops/driver-web-cinema-live-rollout-20261025]
+    paths:
+      - .github/workflows/driver-web-cinema-live-package.yml
+      - deploy/staging/activate-driver-cinema-live.mjs
+      - deploy/staging/stage-driver-cinema-live.py
+      - deploy/staging/test-activate-driver-cinema-live.mjs
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: motorist-web-cinema-live-package
+  cancel-in-progress: true
+jobs:
+  build-verify-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID: de20bf289d6db3ad15fdb14b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3f2204647bb9385f589040c7fe1ce1659dc48223
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify source and that newer ride features are preserved
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "3f2204647bb9385f589040c7fe1ce1659dc48223"
+          git diff --exit-code c05e3b82949ab22963ac9018b3834d8e7c46060d HEAD -- \
+            apps/admin apps/passenger backend packages scripts/web \
+            apps/driver/android apps/driver/ios apps/driver/web
+          test -f apps/driver/lib/src/features/home/presentation/boarding_code_dialog.dart
+          grep -q 'startWithBoardingCode' apps/driver/lib/src/features/home/presentation/driver_home_screen.dart
+          grep -q 'enterWebDrivingPerspective' apps/driver/lib/src/features/home/presentation/driver_home_screen.dart
+          grep -q 'top: _message == null ? 221 : 268' apps/driver/lib/src/features/home/presentation/driver_home_screen.dart
+          node --input-type=module - <<'NODE'
+          import {validateMapsWebKey} from './scripts/web/maps_web_config.mjs';
+          import {loadPublicWebConfiguration} from './scripts/web/public_web_configuration.mjs';
+          validateMapsWebKey(process.env.RAMO_GOOGLE_MAPS_WEB_API_KEY);
+          const c=await loadPublicWebConfiguration();
+          if(c.expectedOrigin!=='https://app.ramonessa.com.br'||c.expectedProject!=='ramo-nessa') throw Error('Public setup changed');
+          NODE
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Prepare configured Motorista bundle
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=driver
+      - name: Analyze, test and compile Motorista /motorista/ (NOT /gps-cinema/)
+        working-directory: apps/driver
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+          flutter build web --release --no-web-resources-cdn --no-pub \
+            --base-href=/motorista/ \
+            --dart-define=RAMO_CORE_BASE_URL= \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID="$RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID"
+      - name: Audit compiled Web, origin, PWA, GPS flags and financial flows
+        run: |
+          set -euo pipefail
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+          grep -Fq '<base href="/motorista/">' apps/driver/build/web/index.html
+          grep -Fq "$RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID" apps/driver/build/web/main.dart.js
+          ! grep -q '__RAMO_GOOGLE_MAPS_WEB_KEY__' apps/driver/build/web/index.html
+          ! grep -q 'WEB_KEY_NOT_CONFIGURED_FOR_CI' apps/driver/build/web/index.html
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const root='apps/driver/build/web/';
+          const manifest=JSON.parse(readFileSync(root+'manifest.json'));
+          if(manifest.start_url!=='.'||manifest.scope!=='.'||manifest.display!=='standalone')throw Error('PWA identity changed');
+          const source=readFileSync(root+'main.dart.js','utf8');
+          for(const term of ['anticipationMinimumCents','anticipationFeeCents','expectedMinimumCents','expectedFeeCents']){
+            if(!source.includes(term))throw Error('Finance terms missing: '+term);
+          }
+          NODE
+      - name: Create signed-by-checksum full-driver Web ZIP manifest
+        run: |
+          mkdir -p artifacts/driver-package
+          node --input-type=module - <<'NODE'
+          import {readFile,readdir,lstat,writeFile} from 'node:fs/promises';
+          import {join} from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {loadPublicWebConfiguration} from './scripts/web/public_web_configuration.mjs';
+          const root='apps/driver/build/web';
+          const cfg=await loadPublicWebConfiguration();
+          const sha=x=>createHash('sha256').update(x).digest('hex');
+          const code=await readFile(join(root,'ramo_push_config.js'),'utf8');
+          const match=code.match(/^\/\/[^\n]*\nself\.ramoPushConfig = ([\s\S]+);\s*$/);
+          if(!match)throw Error('Web Push public config unexpected');
+          const value=JSON.parse(match[1]);
+          if(Object.keys(cfg.apps.driver).some(key=>value[key]!==cfg.apps.driver[key]))
+            throw Error('Firebase public config mismatch');
+          const files=[];
+          async function walk(rel='') {
+            for(const name of (await readdir(join(root,rel))).sort()){
+              const path=rel?rel+'/'+name:name,full=join(root,path),stat=await lstat(full);
+              if(stat.isSymbolicLink())throw Error('Symlink in Web');
+              if(stat.isDirectory())await walk(path);
+              else if(stat.isFile())files.push({path,bytes:stat.size,sha256:sha(await readFile(full))});
+              else throw Error('Special file in Web');
+            }
+          }
+          await walk();
+          const data={
+            schemaVersion:1,role:'driver',sourceCommit:'3f2204647bb9385f589040c7fe1ce1659dc48223',
+            expectedOrigin:cfg.expectedOrigin,expectedProject:cfg.expectedProject,
+            basePath:'/motorista/',publicConfigSha256:sha(JSON.stringify(cfg.apps.driver)),
+            files,compiledFinanceTerms:true,browserLoginChromium:true,
+            browserLoginWebKit:true,realProviderAcceptance:false
+          };
+          await writeFile('artifacts/driver-package/release.driver.json',JSON.stringify(data,null,2)+'\n',{flag:'wx'});
+          NODE
+          python3 - <<'PY'
+          import hashlib,json,zipfile
+          from pathlib import Path
+          root=Path('artifacts/driver-package')
+          manifest=json.loads((root/'release.driver.json').read_text())
+          name='RamoNessa-Motorista-Web-GPSCinema-3f2204647bb9.zip'
+          target=root/name
+          with zipfile.ZipFile(target,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as out:
+              out.write(root/'release.driver.json','release.driver.json')
+              for item in manifest['files']:
+                  data=(Path('apps/driver/build/web')/item['path']).read_bytes()
+                  assert len(data)==item['bytes'] and hashlib.sha256(data).hexdigest()==item['sha256']
+                  out.writestr('driver/'+item['path'],data)
+          digest=hashlib.sha256(target.read_bytes()).hexdigest()
+          (root/(name+'.sha256')).write_text(digest+'  '+name+'\n')
+          print('PACKAGE_SHA256='+digest)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-web-gps-cinema-oficial
+          path: artifacts/driver-package/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Assert pinned installer source (no VPS access)
+        run: |
+          echo 'Bundle generated; next CI stage rehearses rollback and activation.'
