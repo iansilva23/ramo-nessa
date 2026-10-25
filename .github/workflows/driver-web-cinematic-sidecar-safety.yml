@@ -1,0 +1,50 @@
+name: Driver GPS CINEMA VPS sidecar installer — safety checks
+
+on:
+  push:
+    branches: [ops/driver-web-cinematic-vps-test-20261025]
+    paths:
+      - deploy/staging/install-driver-web-cinematic-sidecar.py
+      - .github/workflows/driver-web-cinematic-sidecar-safety.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate install script syntax
+        run: python3 -m py_compile deploy/staging/install-driver-web-cinematic-sidecar.py
+      - name: Unit-check ZIP traversal, unsupported entries and release path
+        run: |
+          python3 - <<'PY'
+          from importlib.util import spec_from_file_location, module_from_spec
+          from pathlib import Path
+          import zipfile, io, stat
+          p='deploy/staging/install-driver-web-cinematic-sidecar.py'
+          spec=spec_from_file_location('sidecar',p)
+          module=module_from_spec(spec)
+          spec.loader.exec_module(module)
+          def archive(names):
+              bio=io.BytesIO()
+              with zipfile.ZipFile(bio,'w',zipfile.ZIP_DEFLATED) as z:
+                  for path in names: z.writestr(path,b'clean')
+              return bio.getvalue()
+          assert module.safe_zip(archive(['index.html','assets/hi.txt']),4096,True)=={
+              'index.html':b'clean','assets/hi.txt':b'clean'
+          }
+          for bad in ['../outside','/absolute','folder/../../secret','bad\\name']:
+              try: module.safe_zip(archive([bad]),4096,True)
+              except RuntimeError: pass
+              else: raise AssertionError('Unsafe path accepted: '+bad)
+          assert module.EXPECTED_MAP_ID=='de20bf289d6db3ad15fdb14b'
+          assert module.URL.endswith('/motorista/gps-cinema/index.html')
+          # Caddy's existing SPA try_files currently falls back to
+          # /motorista/index.html on /motorista/gps-cinema/ directory requests.
+          # We target the actual file and keep the base-href on /gps-cinema/.
+          print('Sidecar ZIP validation and isolation path approved')
+          PY
