@@ -13,7 +13,10 @@ export function action(text, primary = false) {
 }
 export function field(text, control) {
   const label = element('label', null, 'field');
-  label.append(element('span', text), control);
+  const caption = element('span', text);
+  caption.id = 'admin-field-' + crypto.randomUUID();
+  control.setAttribute('aria-labelledby', caption.id);
+  label.append(caption, control);
   return label;
 }
 export function toggle(text, description, control) {

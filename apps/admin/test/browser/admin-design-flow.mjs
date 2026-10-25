@@ -36,12 +36,16 @@ try {
       const panel=document.importNode(parsed.querySelector('.view-panel'),true); panel.hidden=false; outlet.replaceChildren(panel);
       const {organizeAdminWorkspace}=await import('/src/admin-workspace.js');
       const {createBoardingAdmin}=await import('/src/boarding-admin.js');
+      const {createCancellationAdmin}=await import('/src/manual-refunds-admin.js');
       const {createOccurrencesAdmin}=await import('/src/ride-occurrences-admin.js');
       window.calls=[]; window.openedTicket=null; window.failSave=false;
       const categories={moto:true,car:true,buggy:true,delivery:true,comfort_black:true};
       const amounts={moto:300,car:300,buggy:300,delivery:0,comfort_black:300};
       const options={root:outlet,getToken:()=> 'ephemeral-test-session',hasScope:()=>writable,
-       api:{boardingRequest:async (token,path,method='GET',body)=>{
+       api:{manualRefundRequest:async(token,path,method='GET',body)=>{
+        if(path.endsWith('cancellation-policy'))return {systemEnabled:false,revision:4,rules:Object.fromEntries(Object.keys(categories).map(k=>[k,{enabled:k!=='delivery',feeCents:k==='delivery'?null:1000,freeSeconds:40}]))};
+        return {items:[]};
+       },boardingRequest:async (token,path,method='GET',body)=>{
         window.calls.push({path,method,body}); if(fail || window.failSave) throw Error('Falha de conexão simulada.');
         if(method==='POST') return {ok:true}; return method==='PUT'?{...body,revision:body.revision+1}:{enabled:false,revision:0,categories};
        },occurrenceRequest:async(token,path,method='GET',body)=>{
@@ -52,9 +56,11 @@ try {
         return {items:[{...base,id:'22222222-2222-4222-8222-222222222222',status:'review',kind:'dispute',payment_method:'pix',driver_statement:'O passageiro solicitou o encerramento durante o trajeto.',passenger_statement:'O motorista não conseguiu chegar ao destino combinado.'},
          {...base,id:'33333333-3333-4333-8333-333333333333',ride_id:'44444444-4444-4444-8444-444444444444',status:'resolved',kind:'cash',payment_method:'cash',payment_status:'authorized',driver_statement:'Devolvi o valor recebido em dinheiro.',passenger_statement:'Confirmo que recebi a devolução integral.',cash_returned_at:'2026-10-25T12:00:00Z',cash_return_confirmed:true,decision:{action:'close',note:'Devolução física confirmada pelas duas partes.',penalty:false}}]};
        }}};
-      if(view==='finance')createBoardingAdmin(options);
+      if(view==='finance'){createCancellationAdmin(options);createBoardingAdmin(options);}
       createOccurrencesAdmin({...options,view,openTicket:id=>{window.openedTicket=id;}});
       organizeAdminWorkspace(panel,view);
+      document.getElementById('page-title').textContent=panel.querySelector('h1')?.textContent ?? view;
+      document.querySelectorAll('.nav-item').forEach(link=>link.classList.toggle('is-active',link.dataset.view===view));
     },{markup,view,writable,fail});
     await page.waitForFunction(()=>document.querySelector('[data-occurrence-admin] .admin-feedback')?.textContent !== 'Carregando…' && !document.querySelector('[data-occurrence-admin][aria-busy="true"]'));
    }

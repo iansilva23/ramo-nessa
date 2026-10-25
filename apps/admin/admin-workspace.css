@@ -147,7 +147,7 @@
   border: 1px solid #dce1d5; background: #fff; color: #20251c; padding: 11px 13px; font-family: inherit;
 }
 .admin-workspace :is(input,textarea)::placeholder {color: #81877b; opacity: 1;}
-.admin-workspace input[type=checkbox], .admin-workspace input[type=radio] {width: 18px; height: 18px; accent-color: #65732d; flex-shrink: 0;}
+.admin-workspace input[type=checkbox], .admin-workspace input[type=radio] {width: 18px; height: 18px; accent-color: #8c7616; flex-shrink: 0;}
 .admin-workspace :is(input,select,textarea):focus-visible {outline: 2px solid #817021; outline-offset: 2px; border-color: #817021;}
 .admin-workspace th {background: #f7f8f3; color: #616759; padding-block: 15px;}
 .admin-workspace td {border-color: #eef0e8; padding-block: 16px; line-height: 1.6;}
@@ -227,3 +227,9 @@
 .admin-workspace .admin-policy-categories > .admin-policy-toggle {padding: 12px;}
 .admin-workspace .admin-policy-categories > .admin-policy-toggle > span {display: block;}
 .admin-workspace .admin-case-list + .admin-feedback {margin-top: 20px;}
+
+.admin-workspace #staff-create-form {display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px;}
+.admin-workspace #staff-create-form > :not(.field) {grid-column: 1/-1;}
+.admin-workspace #staff-create-form > .field {margin: 0;}
+.admin-workspace .admin-permission-group {align-self: start;}
+@media(max-width: 600px) {.admin-workspace #staff-create-form {grid-template-columns: minmax(0,1fr);}}
