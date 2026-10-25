@@ -1,0 +1,171 @@
+name: Native sync from currently stable Web - no deploy
+on:
+  push:
+    branches: [sync/native-current-web-20261024]
+    paths:
+      - '.github/workflows/native-stable-sync-20261024.yml'
+      - 'apps/passenger/**'
+      - 'apps/driver/**'
+      - 'packages/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-stable-sync-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+  STABLE_SOURCE: e36963c02716511da855f89a529175da04b51eff
+jobs:
+  android:
+    name: Android stable Web parity - ${{ matrix.app }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    env:
+      RAMO_PREVIEW_SIGNING: 'true'
+      RAMO_PRODUCTION_SIGNING: 'false'
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY) || (secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY) }}
+      RAMO_FIREBASE_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) || (secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) }}
+      RAMO_FIREBASE_APP_ID: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID) || (secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID) }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_MERCADO_PAGO_PUBLIC_KEY: ${{ secrets.RAMO_MERCADO_PAGO_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact stable source (exclude reverted recovery)
+        run: |
+          set -euo pipefail
+          git cat-file -e "$STABLE_SOURCE^{commit}"
+          git merge-base --is-ancestor "$STABLE_SOURCE" HEAD
+          git diff --exit-code "$STABLE_SOURCE" HEAD -- apps backend packages config
+          ! test -f apps/passenger/lib/src/features/rides/presentation/ride_recovery_gate.dart
+          ! test -f backend/core/migrations/094_ride_boarding_recovery.sql
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android service configurations
+        run: |
+          set -euo pipefail
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="Android stable ${{ matrix.app }}"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="Android stable ${{ matrix.app }}"
+      - name: Analyze, test and build Android preview APK
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+          flutter build apk --release --no-pub \
+            --build-number=$((200000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY="$RAMO_MERCADO_PAGO_PUBLIC_KEY" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signed preview APK and package identity
+        run: |
+          set -euo pipefail
+          apk="apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$apk"
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          grep -q "name='br.com.ramonessa.${{ matrix.app }}.preview'" "$RUNNER_TEMP/package.txt" || { echo 'Unexpected package identity'; exit 1; }
+          mkdir -p artifacts
+          cp "$apk" "artifacts/RamoNessa-${{ matrix.app }}-stable-web-Android-PREVIEW.apk"
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS
+          printf 'Source=%s\nWeb reference=%s\nPlatform=Android\nPackage=PREVIEW (separate from store app)\nCore=%s\nNo deploy, no store publication\n' "$GITHUB_SHA" "$STABLE_SOURCE" "$RAMO_CORE_BASE_URL" > artifacts/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stable-${{ matrix.app }}-android-preview
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    name: iOS stable Web parity - ${{ matrix.app }}
+    runs-on: macos-15
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY) || secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) || (secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) }}
+      RAMO_FIREBASE_APP_ID: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID) || (secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID) }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_MERCADO_PAGO_PUBLIC_KEY: ${{ secrets.RAMO_MERCADO_PAGO_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact stable source (exclude reverted recovery)
+        run: |
+          set -euo pipefail
+          git cat-file -e "$STABLE_SOURCE^{commit}"
+          git merge-base --is-ancestor "$STABLE_SOURCE" HEAD
+          git diff --exit-code "$STABLE_SOURCE" HEAD -- apps backend packages config
+          ! test -f apps/passenger/lib/src/features/rides/presentation/ride_recovery_gate.dart
+          ! test -f backend/core/migrations/094_ride_boarding_recovery.sql
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS service configurations
+        run: |
+          set -euo pipefail
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="iOS stable ${{ matrix.app }}"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="iOS stable ${{ matrix.app }}"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > "apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig"
+      - name: Analyze, test and build unsigned iPhone app
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number=$((200000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY="$RAMO_MERCADO_PAGO_PUBLIC_KEY" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package unsigned iPhone app (not installable)
+        run: |
+          set -euo pipefail
+          app="apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app"
+          test -s "$app/Runner"
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$app" "artifacts/RamoNessa-${{ matrix.app }}-stable-web-iPhone-UNSIGNED.zip"
+          shasum -a 256 artifacts/*.zip > artifacts/SHA256SUMS
+          printf 'Source=%s\nStable reference=%s\nCore=%s\nUnsigned; requires Apple signing and provisioning\nNo deploy; no App Store publication\n' "$GITHUB_SHA" "$STABLE_SOURCE" "$RAMO_CORE_BASE_URL" > artifacts/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stable-${{ matrix.app }}-ios-unsigned
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
