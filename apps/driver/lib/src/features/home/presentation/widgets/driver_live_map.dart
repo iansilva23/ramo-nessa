@@ -44,6 +44,7 @@ class DriverMapController {
   final ValueNotifier<bool> followPaused = ValueNotifier<bool>(false);
   bool _nativeNavigationActive = false;
   bool _appCameraMovement = false;
+  int _nativeMapTouches = 0;
   DateTime _ignoreGestureUntil = DateTime.fromMillisecondsSinceEpoch(0);
   domain.LatLng? _lastCoursePoint;
   double? _lastCourseBearing;
@@ -69,15 +70,26 @@ class DriverMapController {
     _nativeController = null;
   }
 
+  void onMapPointerDown() {
+    if (!kIsWeb && _nativeNavigationActive) _nativeMapTouches++;
+  }
+
+  void onMapPointerUp() {
+    if (!kIsWeb && _nativeMapTouches > 0) _nativeMapTouches--;
+  }
+
   void onCameraMoveStarted() {
-    if (kIsWeb ||
-        !_nativeNavigationActive ||
-        _appCameraMovement ||
-        DateTime.now().isBefore(_ignoreGestureUntil)) {
+    if (kIsWeb || !_nativeNavigationActive) return;
+    // The Flutter plugin doesn't expose the native "reason" for a camera
+    // movement. A pointer on the map distinguishes user gestures from our
+    // programmatic camera animations on both Android and iOS.
+    final userGesturing = _nativeMapTouches > 0;
+    if (!userGesturing &&
+        (_appCameraMovement ||
+            DateTime.now().isBefore(_ignoreGestureUntil))) {
       return;
     }
-    // Never fight the driver's manual map inspection. The top-right
-    // recenter control explicitly resumes automatic 3D following.
+    // Pausing makes manual map inspection predictable until Recenter is tapped.
     followPaused.value = true;
   }
 
@@ -94,9 +106,13 @@ class DriverMapController {
       await controller.animateCamera(
         gm.CameraUpdate.newCameraPosition(position),
       );
+    } catch (error) {
+      // The native map can be destroyed mid-animation on a tab change or
+      // app background transition. Keep the trip and route functioning.
+      debugPrint('Motorista GPS 3D: movimentação da câmera indisponível: $error');
     } finally {
       _ignoreGestureUntil =
-          DateTime.now().add(const Duration(milliseconds: 850));
+          DateTime.now().add(const Duration(milliseconds: 180));
       _appCameraMovement = false;
     }
   }
@@ -152,6 +168,7 @@ class DriverMapController {
   void resetNavigationForNewMap() {
     if (kIsWeb) return;
     _nativeNavigationActive = false;
+    _nativeMapTouches = 0;
     _lastCoursePoint = null;
     _lastCourseBearing = null;
     followPaused.value = false;
@@ -648,7 +665,11 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     final driverPoint = _driverPoint;
     return LayoutBuilder(builder: (context, constraints) {
       widget.controller.updateViewport(constraints.biggest);
-      return gm.GoogleMap(
+      return Listener(
+        onPointerDown: (_) => widget.controller.onMapPointerDown(),
+        onPointerUp: (_) => widget.controller.onMapPointerUp(),
+        onPointerCancel: (_) => widget.controller.onMapPointerUp(),
+        child: gm.GoogleMap(
           // Full-screen app maps must accept the first one-finger drag.
           // Leaving this automatic can select cooperative (two-finger) mode.
           webGestureHandling: kIsWeb ? gm.WebGestureHandling.greedy : null,
@@ -675,6 +696,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       buildingsEnabled: true,
       indoorViewEnabled: false,
       trafficEnabled: widget.navigationMode,
+        ),
       );
     });
   }
