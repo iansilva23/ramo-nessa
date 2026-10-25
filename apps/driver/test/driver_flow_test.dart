@@ -52,6 +52,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
     expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsOneWidget,
+      reason: 'Reserva pendente usa o mesmo painel, sem cartão aninhado');
+    expect(find.byKey(const ValueKey('driver-surface-floating')), findsNothing);
     expect(find.textContaining('segundos restantes'), findsOneWidget);
     expect(find.text('Cheguei no embarque'), findsNothing);
     expect(find.text('Iniciar corrida'), findsNothing);
@@ -139,6 +142,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(find.text('NOVA CORRIDA'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-floating')), findsOneWidget,
+      reason: 'Oferta é uma notificação flutuante, não o painel da corrida');
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsNothing);
     expect(find.text('R\$ 110,00'), findsAtLeastNWidgets(1));
     expect(find.text('Preá'), findsOneWidget);
     expect(find.text('Jijoca'), findsOneWidget);
@@ -179,6 +185,7 @@ void main() {
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
     expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsOneWidget);
     expect(find.text('Cheguei no embarque'), findsOneWidget);
     expect(find.text('Parar navegação'), findsOneWidget);
 
@@ -194,6 +201,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Iniciar corrida'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsOneWidget);
+    expect(find.text('Cheguei no embarque'), findsNothing,
+      reason: 'Após chegar, o botão primário só pode iniciar o embarque');
 
     await tester.ensureVisible(find.text('Iniciar corrida'));
     await tester.pump();
@@ -201,6 +211,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Finalizar corrida'), findsOneWidget);
+    expect(find.text('Cheguei no destino'), findsNothing,
+      reason: 'Não deve existir uma segunda ação para a mesma finalização');
     expect(find.text('Parar navegação'), findsOneWidget);
     expect(find.text('Abrir no Google Maps'), findsOneWidget);
 
@@ -295,6 +307,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('NOVA CORRIDA'), findsOneWidget);
+    final floatingRect = tester.getRect(
+        find.byKey(const ValueKey('driver-surface-floating')));
+    expect(floatingRect.left, greaterThan(0),
+        reason: 'Oferta continua flutuante sobre o mapa');
+    expect(floatingRect.right, lessThan(viewport.width),
+        reason: 'Oferta não vira página de tela inteira');
     expect(tester.takeException(), isNull, reason: 'oferta 320 px');
 
     await tester.ensureVisible(find.text('Aceitar corrida'));
@@ -310,6 +328,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('Cheguei no embarque'), findsOneWidget);
+    final surface = find.byKey(const ValueKey('driver-surface-docked'));
+    expect(surface, findsOneWidget);
+    final dockedRect = tester.getRect(surface);
+    expect(dockedRect.left, closeTo(0, 1),
+        reason: 'Painel de corrida deve chegar à borda esquerda do telefone');
+    expect(dockedRect.width, closeTo(viewport.width, 1),
+        reason: 'Painel de corrida deve ocupar toda a largura útil do telefone');
+    expect(tester.getSize(find.byKey(const ValueKey('ride-secondary-scroll'))).height,
+        greaterThan(0), reason: 'Detalhes só rolam dentro da área útil');
     final coletaError = tester.takeException();
     if (coletaError != null) {
       final lines = tester.binding.renderViews.first.toStringDeep().split('\n');
@@ -341,7 +368,10 @@ void main() {
     await tester.tap(find.text('Finalizar corrida'));
     await tester.pumpAndSettle();
     expect(find.text('Corrida finalizada'), findsOneWidget);
-    expect(find.text('Concluir e voltar para o mapa').hitTestable(), findsOneWidget);
+    final dismissLabel = viewport.width < 360
+        ? 'Voltar ao mapa'
+        : 'Concluir e voltar para o mapa';
+    expect(find.text(dismissLabel).hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
     await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
     await tester.pumpAndSettle();
@@ -349,7 +379,7 @@ void main() {
     expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Concluir e voltar para o mapa'));
+    await tester.tap(find.text(dismissLabel));
     await tester.pumpAndSettle();
     expect(api.completionCalls, 1);
 
@@ -1293,6 +1323,36 @@ class _IdentityReviewApi extends _FakeDriverApi implements DriverRideIdentityApi
 }
 DriverApi identityReviewApi()=>_IdentityReviewApi();
 DriverLocationService identityReviewLocation()=>const _FakeLocationService();
+
+/// Dedicated in-memory visual fixture: no network, payments or live drivers.
+DriverApi driverVisualStageApi(String stage) {
+  if (stage == 'offer') return _FakeDriverApi();
+  return _DriverVisualStageApi(stage == 'complete' ? 'IN_PROGRESS' : stage);
+}
+
+class _DriverVisualStageApi extends _IdentityReviewApi {
+  _DriverVisualStageApi(String state) : super() {
+    final current = _currentRide!;
+    _currentRide = AcceptedDriverRide(
+      id: current.id,
+      state: state,
+      category: current.category,
+      passengers: current.passengers,
+      origin: current.origin,
+      destination: current.destination,
+      driverEarningsCents: current.driverEarningsCents,
+      pickupCompensationCents: current.pickupCompensationCents,
+      pickupLatitude: current.pickupLatitude,
+      pickupLongitude: current.pickupLongitude,
+      dropoffLatitude: current.dropoffLatitude,
+      dropoffLongitude: current.dropoffLongitude,
+      driverHoldExpiresAt: state == 'AWAITING_PAYMENT'
+          ? DateTime.now().add(const Duration(minutes: 4))
+          : null,
+    );
+  }
+}
+
 class _CancellationReviewRealtime implements DriverRealtimeService {
  final controller=StreamController<DriverRealtimeUpdate>.broadcast();
  @override Stream<DriverRealtimeUpdate> watch()=>controller.stream;

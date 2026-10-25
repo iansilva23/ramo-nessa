@@ -5,8 +5,9 @@ const _rideMuted = Color(0xFF70747D);
 const _rideGrey = Color(0xFFF4F4F6);
 const _rideYellow = Color(0xFFFFD600);
 
-// Bounds come from the map's usable overlay area, above the existing tab bar.
-// Only secondary content scrolls; the handle and primary actions stay mounted.
+// A floating notification is deliberately distinct from the in-ride docked
+// surface. On phones the docked surface reaches the map viewport edges;
+// only wide layouts apply a reading-width limit.
 class _DriverDesignFrame extends StatelessWidget {
   const _DriverDesignFrame({
     required this.header,
@@ -14,131 +15,152 @@ class _DriverDesignFrame extends StatelessWidget {
     required this.actions,
     required this.onMinimize,
     this.darkHeader = false,
+    this.floating = false,
   });
+
   final Widget header, body, actions;
   final VoidCallback onMinimize;
-  final bool darkHeader;
+  final bool darkHeader, floating;
 
   @override
-  Widget build(BuildContext context) => RamoWebMapOverlay(
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        // On short viewports the title can scroll with the details. The gesture
-        // handle and actions always remain outside that scrollable area.
-        final scrollHeader = constraints.maxHeight < 360;
-        final heading = Container(
-          color: darkHeader ? _rideInk : Colors.white,
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          child: header,
-        );
-        final details = Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: darkHeader
-                ? const BorderRadius.vertical(top: Radius.circular(24))
-                : null,
-          ),
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-          child: body,
-        );
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 480,
-            maxHeight: constraints.maxHeight,
-          ),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: Theme.of(context).colorScheme.copyWith(
-                surface: Colors.white,
-                onSurface: _rideInk,
-                onSurfaceVariant: _rideMuted,
-              ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = MediaQuery.sizeOf(context).width >= 700;
+      final scrollHeader = constraints.maxHeight < 360;
+      final horizontalPadding = floating ? 14.0 : 18.0;
+      final radius = floating || wide
+          ? BorderRadius.circular(28)
+          : const BorderRadius.vertical(top: Radius.circular(28));
+      final heading = Container(
+        color: darkHeader ? _rideInk : Colors.white,
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 12),
+        child: header,
+      );
+      final details = Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: darkHeader
+              ? const BorderRadius.vertical(top: Radius.circular(24))
+              : null,
+        ),
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 10),
+        child: body,
+      );
+
+      // Align is outside the pointer interceptor: unpainted map regions must
+      // remain interactive on Flutter Web with the HTML map underneath.
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: RamoWebMapOverlay(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: wide ? (floating ? 480 : 620) : constraints.maxWidth,
+              maxHeight: constraints.maxHeight,
             ),
-            child: DefaultTextStyle(
-              style: const TextStyle(
-                color: _rideInk,
-                fontSize: 14,
-                fontFamily: 'Roboto',
-                height: 1.2,
-              ),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: darkHeader ? _rideInk : Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x22000000),
-                      blurRadius: 20,
-                      offset: Offset(0, 6),
-                    ),
-                  ],
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: Theme.of(context).colorScheme.copyWith(
+                  surface: Colors.white,
+                  onSurface: _rideInk,
+                  onSurfaceVariant: _rideMuted,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Semantics(
-                        label: 'Minimizar informações',
-                        button: true,
-                        onTap: onMinimize,
-                        child: GestureDetector(
-                          key: const ValueKey('ride-drag-handle'),
-                          behavior: HitTestBehavior.opaque,
-                          onVerticalDragEnd: (details) {
-                            if ((details.primaryVelocity ?? 0) > 120) {
-                              onMinimize();
-                            }
-                          },
-                          onVerticalDragUpdate: (details) {
-                            if (details.localPosition.dy > 38 &&
-                                details.delta.dy > 0) {
-                              onMinimize();
-                            }
-                          },
-                          child: SizedBox(
-                            height: 26,
-                            width: double.infinity,
-                            child: Center(
-                              child: Container(
-                                width: 34,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: darkHeader
-                                      ? Colors.white70
-                                      : const Color(0xFF8A8B90),
-                                  borderRadius: BorderRadius.circular(4),
+              ),
+              child: DefaultTextStyle(
+                style: const TextStyle(
+                  color: _rideInk,
+                  fontSize: 14,
+                  fontFamily: 'Roboto',
+                  height: 1.2,
+                ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: darkHeader ? _rideInk : Colors.white,
+                    borderRadius: radius,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x22000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    key: ValueKey(
+                      floating ? 'driver-surface-floating' : 'driver-surface-docked',
+                    ),
+                    borderRadius: radius,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Semantics(
+                          label: 'Minimizar informações',
+                          button: true,
+                          onTap: onMinimize,
+                          child: GestureDetector(
+                            key: const ValueKey('ride-drag-handle'),
+                            behavior: HitTestBehavior.opaque,
+                            onVerticalDragEnd: (details) {
+                              if ((details.primaryVelocity ?? 0) > 250) {
+                                onMinimize();
+                              }
+                            },
+                            onVerticalDragUpdate: (details) {
+                              if (details.localPosition.dy > 55 &&
+                                  details.delta.dy > 0) {
+                                onMinimize();
+                              }
+                            },
+                            child: SizedBox(
+                              height: 26,
+                              width: double.infinity,
+                              child: Center(
+                                child: Container(
+                                  width: 34,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: darkHeader
+                                        ? Colors.white70
+                                        : const Color(0xFF8A8B90),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      if (!scrollHeader) heading,
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: SingleChildScrollView(
-                          key: const ValueKey('ride-secondary-scroll'),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [if (scrollHeader) heading, details],
+                        if (!scrollHeader) heading,
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: SingleChildScrollView(
+                            key: const ValueKey('ride-secondary-scroll'),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [if (scrollHeader) heading, details],
+                            ),
                           ),
                         ),
-                      ),
-                      Container(
-                        color: Colors.white,
-                        padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
-                        child: actions,
-                      ),
-                    ],
+                        Container(
+                          color: Colors.white,
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            2,
+                            horizontalPadding,
+                            floating ? 14 : 18,
+                          ),
+                          child: actions,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        );
-      },
-    ),
+        ),
+      );
+    },
   );
 }
 
@@ -240,6 +262,7 @@ Widget _rideHeading(
   String subtitle,
   String category, {
   bool done = false,
+  bool compact = false,
 }) => Row(
   children: [
     Container(
@@ -274,7 +297,10 @@ Widget _rideHeading(
     ),
     if (!done) ...[
       const SizedBox(width: 6),
-      Flexible(child: _rideCategory(category)),
+      ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compact ? 112 : 148),
+        child: _rideCategory(category),
+      ),
     ],
   ],
 );
@@ -441,6 +467,7 @@ class _DriverOfferDesign extends StatelessWidget {
     final trip =
         tripRoute?.distanceLabel ?? _rideDistance(offer.tripDistanceKm);
     return _DriverDesignFrame(
+      floating: true,
       darkHeader: true,
       onMinimize: onMinimize,
       header: Row(
@@ -474,12 +501,20 @@ class _DriverOfferDesign extends StatelessWidget {
                   backgroundColor: const Color(0xFF292D31),
                   strokeWidth: 4,
                 ),
-                Text(
-                  '${seconds}s',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                SizedBox(
+                  width: 40,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${seconds}s',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -505,17 +540,27 @@ class _DriverOfferDesign extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Text(
-                      formatCents(offer.driverEarningsCents),
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        formatCents(offer.driverEarningsCents),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              Flexible(child: _rideCategory(offer.categoryLabel)),
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 128),
+                child: _rideCategory(offer.categoryLabel),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -570,6 +615,7 @@ class _DriverActiveDesign extends StatelessWidget {
     required this.busy,
     required this.onMinimize,
     required this.onArrived,
+    required this.onStart,
     required this.onComplete,
     required this.onCancel,
     required this.onChat,
@@ -590,6 +636,7 @@ class _DriverActiveDesign extends StatelessWidget {
   final DriverRouteInfo? route;
   final VoidCallback onMinimize,
       onArrived,
+      onStart,
       onComplete,
       onCancel,
       onChat,
@@ -600,6 +647,9 @@ class _DriverActiveDesign extends StatelessWidget {
   Widget build(BuildContext context) {
     final done = ride.state == 'COMPLETED';
     final underway = ride.state == 'IN_PROGRESS';
+    final arrived = ride.state == 'DRIVER_ARRIVED';
+    final waitingForPayment = ride.state == 'AWAITING_PAYMENT';
+    final narrowScreen = MediaQuery.sizeOf(context).width < 360;
     final category = switch (ride.category) {
       'moto' => 'Moto',
       'car' => 'Carro',
@@ -613,21 +663,39 @@ class _DriverActiveDesign extends StatelessWidget {
       header: _rideHeading(
         done
             ? 'Corrida finalizada'
+            : waitingForPayment
+            ? (narrowScreen ? 'Aguardando pagamento' : 'Aguardando pagamento do passageiro')
             : underway
             ? 'Corrida em andamento'
+            : arrived
+            ? 'Você chegou'
             : 'Indo buscar passageiro',
         done
             ? 'Viagem concluída com sucesso'
+            : waitingForPayment
+            ? 'Aguarde a confirmação para começar'
             : underway
             ? 'Passageiro a bordo'
+            : arrived
+            ? 'Pronto para iniciar o embarque'
             : 'Chegue no embarque',
         category,
         done: done,
+        compact: narrowScreen,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if(identity!=null)identity!,
+          if (identity != null) identity!,
+          if (waitingForPayment) ...[
+            const SizedBox(height: 8),
+            _DriverNoticeStrip(
+              icon: Icons.hourglass_top_rounded,
+              text: ride.driverHoldExpiresAt == null
+                  ? 'Reserva com prazo limitado. Aguarde a confirmação do pagamento.'
+                  : 'Reserva: ${ride.driverHoldExpiresAt!.difference(DateTime.now()).inSeconds.clamp(0, 999)} segundos restantes. Aguarde a confirmação do pagamento.',
+            ),
+          ],
           if (done) ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -671,7 +739,9 @@ class _DriverActiveDesign extends StatelessWidget {
                 : underway
                 ? 'ORIGEM'
                 : 'EMBARQUE',
-            pickupDistance: !done && !underway ? route?.distanceLabel : null,
+            pickupDistance: !done && !underway && !waitingForPayment
+                ? route?.distanceLabel
+                : null,
             tripDistance: underway ? route?.distanceLabel : null,
           ),
           const SizedBox(height: 8),
@@ -738,7 +808,7 @@ class _DriverActiveDesign extends StatelessWidget {
                   ? 'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}'
                   : 'SEU GANHO · ${formatCents(ride.driverEarningsCents)}',
             ),
-            if (canNavigate)
+            if (canNavigate && !waitingForPayment)
               TextButton.icon(
                 onPressed: navigationActive ? onStopNavigation : onNavigate,
                 icon: Icon(
@@ -765,52 +835,66 @@ class _DriverActiveDesign extends StatelessWidget {
                 icon: Icons.star_outline_rounded,
               ),
               _RideButton(
-                'Concluir e voltar para o mapa',
+                narrowScreen ? 'Voltar ao mapa' : 'Concluir e voltar para o mapa',
                 onComplete,
                 primary: true,
                 icon: Icons.check_circle,
               ),
             )
+          : waitingForPayment
+          ? _RideButton(
+              'Cancelar corrida',
+              busy ? null : onCancel,
+              icon: Icons.cancel_outlined,
+            )
           : Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _ridePair(
+                if (canNavigate)
+                  _ridePair(
+                    _RideButton(
+                      narrowScreen ? 'Mensagem' : 'Mensagem com passageiro',
+                      onChat,
+                      leading: chatIcon,
+                      compact: true,
+                      icon: Icons.chat_outlined,
+                    ),
+                    _RideButton(
+                      narrowScreen ? 'Google Maps' : 'Abrir no Google Maps',
+                      onExternalNavigation,
+                      compact: true,
+                      icon: Icons.chevron_right,
+                    ),
+                  )
+                else
                   _RideButton(
-                    'Mensagem com passageiro',
+                    narrowScreen ? 'Mensagem' : 'Mensagem com passageiro',
                     onChat,
                     leading: chatIcon,
-                    compact: true,
                     icon: Icons.chat_outlined,
                   ),
-                  _RideButton(
-                    'Abrir no Google Maps',
-                    canNavigate ? onExternalNavigation : null,
-                    compact: true,
-                    icon: Icons.chevron_right,
-                  ),
-                ),
                 const SizedBox(height: 8),
-                _ridePair(
+                if (underway)
                   _RideButton(
-                    underway ? 'Finalizar corrida' : 'Cancelar corrida',
-                    busy
-                        ? null
-                        : underway
-                        ? onComplete
-                        : onCancel,
-                    icon: Icons.cancel_outlined,
-                  ),
-                  _RideButton(
-                    underway ? 'Cheguei no destino' : 'Cheguei no embarque',
-                    busy
-                        ? null
-                        : underway
-                        ? onComplete
-                        : onArrived,
+                    'Finalizar corrida',
+                    busy ? null : onComplete,
                     primary: true,
                     icon: Icons.flag_rounded,
+                  )
+                else
+                  _ridePair(
+                    _RideButton(
+                      'Cancelar corrida',
+                      busy ? null : onCancel,
+                      icon: Icons.cancel_outlined,
+                    ),
+                    _RideButton(
+                      arrived ? 'Iniciar corrida' : 'Cheguei no embarque',
+                      busy ? null : (arrived ? onStart : onArrived),
+                      primary: true,
+                      icon: Icons.flag_rounded,
+                    ),
                   ),
-                ),
               ],
             ),
     );
