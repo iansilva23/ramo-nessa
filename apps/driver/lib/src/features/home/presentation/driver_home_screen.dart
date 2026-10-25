@@ -1050,6 +1050,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       }
     }
     await _refreshActiveRoute(force: true);
+    _enterWebDrivingPerspectiveIfNeeded();
   }
 
   void _stopInAppNavigation() {
@@ -1140,6 +1141,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _message = null;
       });
       await _refreshActiveRoute(force: true);
+      _enterWebDrivingPerspectiveIfNeeded();
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1944,6 +1946,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     );
   }
 
+  void _enterWebDrivingPerspectiveIfNeeded() {
+    if (!mounted || !kIsWeb ||
+        !DriverWebHeadingConfig.cinematicTiltEnabled ||
+        !_navigationMode ||
+        _activeRide?.state != 'IN_PROGRESS' ||
+        !_mapReady || _supply == null) {
+      return;
+    }
+    final current = _supply!;
+    unawaited(_mapController.enterWebDrivingPerspective(
+      LatLng(current.latitude, current.longitude),
+      route: _activeRoute?.points ?? const [],
+    ));
+  }
+
   void _centerDriverOnMap() {
     final supply = _supply;
     if (!_mapReady || supply == null) return;
@@ -1990,6 +2007,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           onMapReady: () {
             _mapReady = true;
             _centerDriverOnMap();
+            _enterWebDrivingPerspectiveIfNeeded();
           },
         ),
         SafeArea(
@@ -2041,7 +2059,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         if (_navigationMode && _activeRide != null &&
             DriverWebHeadingConfig.hasVectorMap)
           Positioned(
-            top: _message == null ? 205 : 252,
+            // Clear the banner with a tiny vertical adjustment.
+            top: _message == null ? 221 : 268,
             right: 14,
             child: SafeArea(
               child: DriverWebHeadingCompass(

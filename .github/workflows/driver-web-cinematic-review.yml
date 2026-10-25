@@ -1,0 +1,86 @@
+name: Motorista Web camera cinematic — review only
+on:
+  push:
+    branches: [feature/driver-web-cinematic-tilt-20261025]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: driver-web-cinematic-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    name: Cinematic GPS — ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: web
+            runner: ubuntu-24.04
+          - target: android
+            runner: ubuntu-24.04
+          - target: ios
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Reject unrelated changes and server changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 54902d5689f2f0e682d8f343b769c0836549b601 HEAD -- \
+            apps/passenger apps/admin backend packages deploy config \
+            apps/driver/android apps/driver/ios apps/driver/web
+          changed=$(git diff --name-only 54902d5689f2f0e682d8f343b769c0836549b601 HEAD)
+          disallowed=$(printf '%s\n' "$changed" | grep -vE '^((apps/driver/lib/src/core/config/(driver_web_heading_config|driver_web_cinematic_camera).dart)|(apps/driver/lib/src/features/home/presentation/(driver_home_screen.dart|widgets/driver_live_map.dart))|(apps/driver/test/driver_web_cinematic_camera_test.dart)|(.github/workflows/driver-web-cinematic-review.yml))$' || true)
+          if [ -n "$disallowed" ]; then echo "Unapproved changes: $disallowed"; exit 1; fi
+      - uses: actions/setup-java@v5
+        if: matrix.target == 'android'
+        with: {distribution: temurin, java-version: '21'}
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Lock dependencies
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+      - name: Format code in runner
+        run: |
+          dart format \
+            apps/driver/lib/src/core/config/driver_web_heading_config.dart \
+            apps/driver/lib/src/core/config/driver_web_cinematic_camera.dart \
+            apps/driver/lib/src/features/home/presentation/driver_home_screen.dart \
+            apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart \
+            apps/driver/test/driver_web_cinematic_camera_test.dart
+      - name: Analyze all Motorista code
+        working-directory: apps/driver
+        run: flutter analyze
+      - name: Run all Motorista tests
+        working-directory: apps/driver
+        run: flutter test
+      - name: Web cinema prototype compilation (no provider keys)
+        if: matrix.target == 'web'
+        working-directory: apps/driver
+        run: |
+          flutter build web --release --no-pub \
+            --base-href=/motorista/gps-cinema/ \
+            --dart-define=RAMO_CORE_BASE_URL= \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=DEMO_MAP_ID
+      - name: Legacy 2D Web build with cinema switched OFF
+        if: matrix.target == 'web'
+        working-directory: apps/driver
+        run: flutter build web --release --no-pub --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=false
+      - name: Preserve Android 3D navigation
+        if: matrix.target == 'android'
+        working-directory: apps/driver
+        run: flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Preserve iPhone 3D navigation
+        if: matrix.target == 'ios'
+        working-directory: apps/driver
+        run: flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
