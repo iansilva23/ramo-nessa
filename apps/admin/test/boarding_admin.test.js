@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createBoardingAdmin } from '../src/boarding-admin.js';
 
 class Element {
-  constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.value = ''; }
+  constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.value = ''; this.dataset = {}; }
   append(...children) { this.children.push(...children); }
   setAttribute() {}
   addEventListener(event, listener) { this.listeners[event] = listener; }
@@ -16,7 +16,7 @@ async function fixture(t, writable = true) {
   globalThis.confirm = () => true;
   let section;
   const anchor = { before: node => { section = node; } };
-  const root = { querySelector: () => anchor };
+  const root = { querySelector: selector => selector === '[data-manual-refunds]' ? anchor : null };
   const calls = [];
   const policy = { enabled: false, revision: 0, categories: { moto: true, car: true, buggy: true, delivery: true, comfort_black: true } };
   createBoardingAdmin({ root, getToken: () => 'memory-session', hasScope: () => writable,

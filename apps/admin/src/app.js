@@ -4424,7 +4424,6 @@ async function loadFinance({ announce = true } = {}) {
       state.finance.generatedAt == null
         ? 'Falha ao atualizar · sem dados atuais'
         : `Falha ao atualizar · último dado ${formatDateTime(state.finance.generatedAt)}`;
-    if(hasScope('support:read'))createOccurrencesAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view:'finance'});
     renderPaymentPolicy(state.finance.policy);
     renderFinancePayoutDetail(null);
     handleAuthenticatedError(error);
@@ -10913,6 +10912,7 @@ function initializeRouteView(view) {
     renderFinance(state.finance);
     if(hasScope('finance:read'))createCancellationAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
     if(hasScope('rides:read'))createBoardingAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
+    if(hasScope('support:read'))createOccurrencesAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view:'finance'});
     renderPaymentPolicy(state.finance.policy);
     if (hasScope('finance:read')) {
       void loadFinance({ announce: false });

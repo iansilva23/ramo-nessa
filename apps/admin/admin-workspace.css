@@ -92,3 +92,138 @@
   font-weight: 400;
   overflow-wrap: anywhere;
 }
+
+/* Shared interaction system. The approved pricing workspace keeps its own
+   component styles; the shell and other workspaces use these same tokens. */
+.admin-shell {
+  --admin-accent: #f4d329;
+  --admin-line: #e7e8e2;
+  --admin-muted: #65685f;
+  --admin-ease: cubic-bezier(.22, 1, .36, 1);
+}
+.admin-shell .sidebar {background: #111412; border-right: 1px solid #252923;}
+.admin-shell .sidebar-brand {padding-bottom: 26px;}
+.admin-shell .sidebar-brand small {color: #a1a99e; letter-spacing: .18em;}
+.admin-nav-group {border-bottom: 1px solid #ffffff0b; padding-bottom: 10px; margin-bottom: 10px;}
+.admin-nav-group summary {font-size: 10px; letter-spacing: .12em; padding: 13px 12px;}
+.admin-nav-group summary::after {content: ''; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform 180ms var(--admin-ease); margin-right: 5px;}
+.admin-nav-group[open] summary::after {content: ''; transform: rotate(45deg);}
+.admin-shell .nav-item {gap: 12px; border-radius: 10px; margin: 3px 0; transition: color 160ms ease, background-color 160ms ease;}
+.admin-shell .nav-item:hover {background: #ffffff0a; color: #fff;}
+.admin-shell .nav-item.is-active {background: #f4d329; color: #171a12; box-shadow: 0 4px 16px #00000012;}
+.admin-shell .nav-icon {display: inline-flex; align-items: center; justify-content: center; flex: 0 0 19px; width: 19px; height: 19px;}
+.admin-shell .nav-icon svg {width: 19px; height: 19px;}
+.admin-shell .topbar {background: #f8f9f5ed; border-color: var(--admin-line);}
+.admin-shell .topbar .button--ghost {border-radius: 10px; font-size: 12px; font-weight: 650;}
+.admin-workspace {--workspace-line: var(--admin-line); --workspace-muted: var(--admin-muted);}
+.admin-workspace .page-heading h1 {font-size: clamp(26px, 2.7vw, 36px); font-weight: 740; letter-spacing: -.045em;}
+.admin-workspace .panel-card {border-radius: 18px; background: #fff; box-shadow: 0 3px 12px #18251a03;}
+.admin-workspace .panel-card__header {padding-bottom: 18px; border-bottom: 1px solid #eff0eb;}
+.admin-workspace .panel-card__header p {margin-bottom: 0;}
+.admin-workspace .button,
+.admin-workspace [data-occurrence-admin] button,
+.admin-workspace [data-boarding-admin] button {
+  display: inline-flex; justify-content: center; align-items: center; gap: 8px;
+  min-height: 42px; max-width: 100%; padding: 11px 16px; border: 1px solid transparent;
+  border-radius: 10px; font: inherit; font-size: 12px; font-weight: 650;
+  line-height: 1.45; text-decoration: none; text-align: center;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms var(--admin-ease);
+}
+.admin-workspace .button--primary {background: var(--admin-accent); color: #181b10; border-color: #e2c126; box-shadow: 0 2px 3px #171b1010;}
+.admin-workspace .button--primary:hover:not(:disabled) {background: #ffe04b; border-color: #d5b222; box-shadow: 0 4px 10px #a78c1720;}
+.admin-workspace .button--ghost,
+.admin-workspace .button--ghost-dark {background: #fff; color: #363b32; border-color: #dfe3d9;}
+.admin-workspace .button--ghost:hover:not(:disabled),
+.admin-workspace .button--ghost-dark:hover:not(:disabled) {background: #f4f6ef; border-color: #b8c1ad;}
+.admin-workspace .button--dark {background: #20271d; color: #fff; border-color: #20271d;}
+.admin-workspace .button--dark:hover:not(:disabled) {background: #35402f;}
+.admin-workspace .button--danger {background: #b8333d; border-color: #b8333d; color: #fff;}
+.admin-workspace .button--danger:hover:not(:disabled) {background: #99232c;}
+.admin-workspace .button:active:not(:disabled) {transform: translateY(1px); box-shadow: none;}
+.admin-workspace button:disabled {opacity: .5; cursor: not-allowed; box-shadow: none;}
+.admin-workspace [aria-busy=true] button:disabled {cursor: progress;}
+.admin-workspace :is(input,select,textarea) {transition: border-color 160ms ease, box-shadow 160ms ease;}
+.admin-workspace :is(input,select,textarea):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]) {
+  border: 1px solid #dce1d5; background: #fff; color: #20251c; padding: 11px 13px; font-family: inherit;
+}
+.admin-workspace :is(input,textarea)::placeholder {color: #81877b; opacity: 1;}
+.admin-workspace input[type=checkbox], .admin-workspace input[type=radio] {width: 18px; height: 18px; accent-color: #65732d; flex-shrink: 0;}
+.admin-workspace :is(input,select,textarea):focus-visible {outline: 2px solid #817021; outline-offset: 2px; border-color: #817021;}
+.admin-workspace th {background: #f7f8f3; color: #616759; padding-block: 15px;}
+.admin-workspace td {border-color: #eef0e8; padding-block: 16px; line-height: 1.6;}
+.admin-workspace tbody tr {transition: background-color 150ms ease;}
+.admin-workspace tbody tr:hover {background: #fafbf7;}
+.admin-workspace .empty-state {border: 1px dashed #dce2d3; border-radius: 14px; background: #fafbf8; padding: 32px 20px; color: #656e5d; line-height: 1.65;}
+.admin-workspace .pill {font-weight: 650; border-radius: 7px;}
+.admin-workspace .admin-section-nav {background: #fdfefa; border-radius: 12px; padding: 12px 14px;}
+.admin-workspace .admin-section-nav button {background: transparent; border: 1px solid transparent; border-radius: 8px; font-weight: 550; transition: background-color 150ms ease, border-color 150ms ease;}
+.admin-workspace .admin-section-nav button:hover {background: #f4f1d8; border-color: #e9e0a9;}
+.admin-workspace details.panel-card > summary {padding: 4px 0;}
+.admin-workspace .admin-policy-form {display: grid; gap: 22px; margin-top: 20px;}
+.admin-workspace .admin-policy-grid {display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;}
+.admin-workspace .admin-policy-toggle {display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--admin-line); border-radius: 12px; background: #fafbf7; cursor: pointer;}
+.admin-workspace .admin-policy-toggle:has(input:checked) {background: #faf8e8; border-color: #d9cb7a;}
+.admin-workspace .admin-policy-toggle:has(input:disabled) {cursor: default;}
+.admin-policy-toggle > span {display: grid; gap: 4px; flex: 1;}
+.admin-workspace .admin-policy-toggle strong {font-size: 13px; font-weight: 650; color: #20271d;}
+.admin-workspace .admin-policy-toggle small {font-size: 12px; font-weight: 400; color: #626b5b; line-height: 1.6;}
+.admin-workspace .admin-policy-toggle input {order: 2; width: 20px; height: 20px; margin: 0;}
+.admin-workspace .admin-policy-categories {display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; border: 1px solid var(--admin-line); border-radius: 12px; margin: 0; padding: 18px; min-width: 0;}
+.admin-policy-categories legend {padding: 0 7px; font-weight: 650; font-size: 12px;}
+.admin-policy-categories .field {margin: 0; display: grid; gap: 7px;}
+.admin-workspace .admin-policy-note {margin: 0; padding: 14px 16px; border-left: 3px solid #d8c66b; border-radius: 0 8px 8px 0; background: #faf9f0; font-size: 12px; line-height: 1.7; color: #65604c;}
+.admin-workspace .admin-form-actions {display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 18px; border-top: 1px solid var(--admin-line);}
+.admin-form-actions small {color: #666d5e; font-size: 12px;}
+.admin-workspace .admin-form-actions .button {flex: 0 1 auto;}
+.admin-workspace .admin-feedback {font-size: 12px; line-height: 1.6; margin: 14px 0 0; padding: 11px 14px; background: #f3f5ef; border-radius: 9px; overflow-wrap: anywhere; color: #526048;}
+.admin-workspace .admin-feedback:empty {display: none;}
+.admin-workspace .admin-feedback[data-state=error] {color: #99232c; background: #fff0ef;}
+.admin-workspace .admin-feedback[data-state=success] {color: #226240; background: #edf7ee;}
+.admin-workspace .admin-exception {margin-top: 22px; border-top: 1px solid var(--admin-line); padding-top: 18px;}
+.admin-exception summary {font-size: 12px; font-weight: 650; color: #57614c;}
+.admin-exception form {display: grid; gap: 14px; margin-top: 18px;}
+.admin-workspace .admin-case-list {display: grid; gap: 16px; margin-top: 22px;}
+.admin-workspace .admin-case {padding: 22px; border: 1px solid var(--admin-line); border-radius: 14px; background: #fff; min-width: 0; overflow-wrap: anywhere;}
+.admin-case-header {display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;}
+.admin-case-header h3 {margin: 0;}
+.admin-workspace .admin-case-badge {display: inline-flex; border-radius: 7px; padding: 6px 10px; color: #6d5b18; background: #f8f2d9; font-size: 11px; font-weight: 650;}
+.admin-workspace .admin-case-badge[data-state=resolved] {color: #286241; background: #edf5ed;}
+.admin-case-versions {display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 16px 0;}
+.admin-case-version {background: #f7f8f4; border-radius: 10px; padding: 16px; min-width: 0;}
+.admin-case-version strong {font-size: 11px; color: #68705e; font-weight: 650;}
+.admin-case-version p {font-size: 13px; line-height: 1.7; color: #30372a; white-space: pre-wrap; margin: 8px 0 0;}
+.admin-case details {padding: 15px 0; font-size: 12px; color: #68705e;}
+.admin-case details p {line-height: 1.7;}
+.admin-case .admin-policy-form {border-top: 1px solid var(--admin-line); padding-top: 20px;}
+.admin-workspace .admin-case .field {display: grid; gap: 8px;}
+.admin-workspace .admin-case .field > span {font-size: 12px;}
+/* Keep the financial dashboard's established dark surface and readable controls. */
+.admin-workspace [data-company-dashboard] .cd-box {box-shadow: 0 4px 16px #00000012;}
+.admin-workspace [data-company-dashboard] :is(input,select,textarea):not([type=checkbox]):not([type=radio]) {background: #111512; color: #f4f6ee; border-color: #41493c;}
+.admin-workspace [data-company-dashboard] button {border: 1px solid #dcc029; border-radius: 10px; transition: background-color 160ms ease;}
+.admin-workspace [data-company-dashboard] button:hover:not(:disabled) {background: #ffe45f;}
+@keyframes admin-page-enter {from {opacity: 0; transform: translateY(6px);} to {opacity: 1; transform: none;}}
+@keyframes admin-dialog-enter {from {opacity: 0; transform: translateY(8px) scale(.99);} to {opacity: 1; transform: none;}}
+@media(prefers-reduced-motion: no-preference) {
+  .admin-workspace:not([hidden]) {animation: admin-page-enter 220ms var(--admin-ease) both;}
+  .admin-shell dialog[open] {animation: admin-dialog-enter 180ms var(--admin-ease) both;}
+  .admin-workspace details[open] > :not(summary) {animation: admin-page-enter 180ms var(--admin-ease);}
+}
+@media(prefers-reduced-motion: reduce) {
+  .admin-shell *, .admin-shell *::before, .admin-shell *::after {animation: none !important; transition: none !important; scroll-behavior: auto !important;}
+}
+@media(max-width: 900px) {.admin-workspace .admin-policy-categories {grid-template-columns: repeat(2,minmax(0,1fr));}}
+@media(max-width: 600px) {
+  .admin-workspace .admin-policy-grid,.admin-case-versions,.admin-workspace .admin-policy-categories {grid-template-columns: minmax(0,1fr);}
+  .admin-workspace .admin-policy-toggle {padding: 15px;}
+  .admin-workspace .admin-case {padding: 16px;}
+  .admin-workspace .admin-form-actions .button {width: 100%;}
+}
+.admin-workspace .manual-refund-policy label:has(> input[type=checkbox]) {display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; padding: 12px; border: 1px solid var(--admin-line); border-radius: 10px; background: #fafbf7;}
+.admin-workspace .manual-refund-policy input[type=checkbox] {width: 20px; height: 20px; min-height: 20px; margin: 0;}
+.admin-workspace .manual-refund-activation {grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 14px; background: #fbfcf8;}
+.admin-workspace .manual-refund-activation > label {grid-column: 1/-1;}
+.admin-workspace .manual-refund-activation > button {justify-self: start;}
+.admin-workspace .admin-policy-categories > .admin-policy-toggle {padding: 12px;}
+.admin-workspace .admin-policy-categories > .admin-policy-toggle > span {display: block;}
+.admin-workspace .admin-case-list + .admin-feedback {margin-top: 20px;}
