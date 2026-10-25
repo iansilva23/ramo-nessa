@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 40
     env:
       RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
-      RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID: ${{ vars.RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID || secrets.RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID }}
+      RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID: de20bf289d6db3ad15fdb14b
     steps:
       - uses: actions/checkout@v4
         with:
