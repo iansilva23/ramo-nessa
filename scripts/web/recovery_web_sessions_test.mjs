@@ -188,6 +188,8 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
       await page.reload();await page.waitForSelector('flutter-view, flt-glass-pane',{timeout:60000});
       await page.locator('flt-semantics-placeholder').dispatchEvent('click');
       await page.getByRole('button',{name:'Copiar código Pix',exact:true}).waitFor({timeout:30000});
+      await page.waitForLoadState('networkidle',{timeout:15000});
+      await page.evaluate(()=>document.fonts.ready.then(()=>true));
       assert.equal(loginCalls,1);assert.equal(paymentWrites,0,'Recovery cannot create a new payment');
     }
     await page.screenshot({path:resolve(setupEvidence,browserName+'-passenger-recovered-pix.png')});
