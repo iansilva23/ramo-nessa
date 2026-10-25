@@ -1,0 +1,83 @@
+name: Driver native GPS 3D — validation only
+
+on:
+  push:
+    branches: [feature/driver-native-gps-3d-20261025]
+    paths:
+      - 'apps/driver/lib/src/core/config/driver_map_config.dart'
+      - 'apps/driver/lib/src/features/home/presentation/driver_home_screen.dart'
+      - 'apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart'
+      - 'apps/driver/test/driver_native_3d_camera_policy_test.dart'
+      - '.github/workflows/driver-native-gps-3d-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: driver-native-gps3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Driver GPS 3D ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android
+            runner: ubuntu-24.04
+          - target: ios
+            runner: macos-15
+          - target: web
+            runner: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Protect Web baseline, passenger, Core, pricing and assets
+        run: |
+          set -euo pipefail
+          git diff --exit-code b5c44292ff76e881c14bfdcdb55474165dc6eb36 HEAD -- \
+            apps/passenger apps/admin backend packages config deploy scripts/web
+          git diff --name-only b5c44292ff76e881c14bfdcdb55474165dc6eb36 HEAD | \
+            grep -vE '^(apps/driver/lib/src/(core/config/driver_map_config.dart|features/home/presentation/(driver_home_screen.dart|widgets/driver_live_map.dart))|apps/driver/test/driver_native_3d_camera_policy_test.dart|.github/workflows/driver-native-gps-3d-review.yml)$' \
+            && { echo 'Unapproved change'; exit 1; } || true
+      - uses: actions/setup-java@v5
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve pinned driver dependencies
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+      - name: Format changed Dart sources in CI copy
+        run: |
+          dart format apps/driver/lib/src/core/config/driver_map_config.dart \
+            apps/driver/lib/src/features/home/presentation/driver_home_screen.dart \
+            apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart \
+            apps/driver/test/driver_native_3d_camera_policy_test.dart
+      - name: Analyze full Motorista
+        working-directory: apps/driver
+        run: flutter analyze
+      - name: Full unit/widget/regression tests
+        working-directory: apps/driver
+        run: flutter test
+      - name: Compile Android APK for review
+        if: matrix.target == 'android'
+        working-directory: apps/driver
+        run: flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Compile iOS simulator for review
+        if: matrix.target == 'ios'
+        working-directory: apps/driver
+        run: flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Web regression compilation only — no deployment
+        if: matrix.target == 'web'
+        working-directory: apps/driver
+        run: flutter build web --release --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
