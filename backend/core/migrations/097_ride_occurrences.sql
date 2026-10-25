@@ -86,12 +86,14 @@ CREATE UNIQUE INDEX ride_penalty_reservation ON ride_occurrence_penalties(reserv
 CREATE FUNCTION update_ride_occurrence_completion() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF NEW.state='IN_PROGRESS' AND EXISTS(SELECT 1 FROM ride_occurrences WHERE ride_id=NEW.id AND status='replacement_search' AND driver_id<>NEW.driver_id) THEN
+  UPDATE driver_support_tickets SET status='resolved',updated_at=now() WHERE id IN(SELECT ticket_id FROM ride_occurrences WHERE ride_id=NEW.id AND status='replacement_search');
   UPDATE ride_occurrences SET status='resolved',revision=revision+1,updated_at=now(),decision=jsonb_build_object('action','continued','originalDriverAmountCents',0,'replacementDriverId',NEW.driver_id) WHERE ride_id=NEW.id AND status='replacement_search';
  END IF;
  IF NEW.state IN ('CANCELLED_BY_PASSENGER','CANCELLED_BY_DRIVER','CANCELLED_BY_ADMIN') THEN
   UPDATE ride_occurrences SET status='refund_pending',revision=revision+1,updated_at=now() WHERE ride_id=NEW.id AND status='replacement_search';
  END IF;
  IF NEW.state='REFUNDED' THEN
+  UPDATE driver_support_tickets SET status='resolved',updated_at=now() WHERE id IN(SELECT ticket_id FROM ride_occurrences WHERE ride_id=NEW.id AND status='refund_pending');
   UPDATE ride_occurrences SET status='resolved',revision=revision+1,updated_at=now() WHERE ride_id=NEW.id AND status='refund_pending';
  END IF;
  IF NEW.state IN ('CANCELLED_BY_PASSENGER','CANCELLED_BY_DRIVER','CANCELLED_BY_ADMIN','REFUNDED') THEN

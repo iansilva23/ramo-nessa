@@ -50,7 +50,7 @@ Correções presentes: cancelamento explícito de reserva pelo motorista, recons
 
 O relatório `deploy/staging/inspect-ride-consistency.mjs` consulta exclusivamente versões, políticas, migrações e até 30 registros relacionados aos IDs dos prints, em transação PostgreSQL REPEATABLE READ READ ONLY. Omite nomes, telefones, documentos, PINs, QR codes e credenciais. Sua execução pelo responsável continua necessária para confirmar o cenário real antes de decidir qualquer conciliação histórica. Não foi executado na VPS nesta sessão.
 
-A regra de bônus foi aprovada e está registrada acima; **não está implementada nem ativada nesta primeira correção**. O ledger atual exige tarifa = comissão + líquido de um único motorista, e classifica excesso como recuperação de custo de pagamento. A próxima integração precisa separar o adicional e o beneficiário, mantendo liquidação atômica e bloqueando a dupla compensação com a taxa antiga. Não apresentar este PR como entrega de substituição, ocorrências completas ou bônus operacional.
+A regra de bônus foi aprovada e está registrada acima; **ainda não estava implementada no primeiro checkpoint**. O ledger atual exige tarifa = comissão + líquido de um único motorista, e classifica excesso como recuperação de custo de pagamento. A próxima integração precisa separar o adicional e o beneficiário, mantendo liquidação atômica e bloqueando a dupla compensação com a taxa antiga. Esse limite descrevia somente o primeiro checkpoint; a integração posterior está registrada abaixo.
 
 
 ## Evidência recebida da VPS (consulta do responsável)
@@ -64,3 +64,24 @@ As referências dos prints DEFF08F0 e 3603B4F3 possuem estado AWAITING_PAYMENT, 
 Correção adicionada: modelo de leitura EXPIRED para tentativa sem motorista, sem método e sem pagamento registrado, com prazo válido já vencido. Atividades mostra Solicitação expirada no Histórico; retomada explícita abre detalhes sem cobrança. Não altera o estado persistido nem fabrica autoria de cancelamento. Pagamento existente (inclusive Pix pendente), estado confirmado, motorista atribuído ou prazo inválido impedem essa classificação automática. Não há limpeza em lote ou decisão financeira.
 
 A compilação dos quatro alvos nativos na primeira revisão terminou, mas o job falhou na conferência final porque Flutter retirou duas linhas vazias finais de cada pubspec.lock. Normalizados somente esses finais de arquivo, sem mudança de versão, hash ou dependência. Nova execução ainda deve ser conferida antes de declarar aprovação final.
+
+
+## Integração posterior no PR #72
+
+Os commits remotos 9e0a5326 e fb636e26 complementam a base preservada. O segundo recebeu aprovação nos dez jobs da execução https://github.com/iansilva23/ramo-nessa/actions/runs/40220847191: Core/PostgreSQL, ADM, shared UI, aplicativos Web e seus testes Chromium/WebKit, controles ADM nos dois motores e quatro compilações nativas (Android e simulador iOS de Passageiro/Motorista). Compilação e testes automatizados não equivalem a homologação em aparelhos nem a operações financeiras reais.
+
+Implementado: ocorrência persistente ligada ao atendimento existente; duas versões; dinheiro com confirmação de recebimento e devolução física; interrupção Pix, devolução pelo caminho financeiro existente, escolha de substituição na mesma corrida/pagamento/destino; busca por menor ETA verificado e aceite existente de 35 segundos; novo código de três dígitos com cinco tentativas, histórico e bloqueio; moderação com decisão financeira explícita e adicional futuro separado. Falha de GPS/rotas não inventa um ponto de encontro nem ETA: permite devolução e suporte. Nenhum primeiro motorista recebe pela interrupção mecânica.
+
+O bônus usa a próxima corrida elegível: dinheiro fica com o próximo motorista, Pix credita o motorista prejudicado no ledger existente. Não há fundo novo nem transferência bancária improvisada. Comissão normal sobre tarifa normal; zero sobre bônus. Reserva concorrente única, liquidação idempotente, consumo na transação financeira e revisão quando uma corrida já compensada é reembolsada. Taxa antiga já creditada impede compensação duplicada. Cartão/carteira não recebem operações de bônus não suportadas.
+
+A, B e C permanecem independentes: embarque existente, novas ocorrências e adicional futuro. Migração 097 cria B/C desativados, não altera a configuração A nem os pagamentos existentes. Cada nova corrida recebe regras persistidas; alternar controles não muda regras de corridas anteriores. Alterações são aditivas, sem apagar migrações ou reescrever dados históricos. A migração 096 mantém a autoria do cancelamento e a apresentação EXPIRED é somente leitura.
+
+Último complemento: sincronizar a conclusão da ocorrência com o mesmo atendimento de suporte, preservar ocupação do motorista se ele já estiver em outra corrida e restringir relatos de cada motorista aos próprios atendimentos. Esse complemento exige nova execução do Core antes de ser homologado.
+
+### Arquivos e revisão
+
+O diff completo do PR é a relação autoritativa de arquivos. Principais grupos: migrações 096/097; ride-occurrence-store/routes, occurrence-bonus; repositórios de corridas e matching; settlement/ledger e ambos os repositórios financeiros; server.ts; telas/serviços/modelos de Passageiro e Motorista; painel compartilhado design_system; módulo de ocorrências ADM; testes PostgreSQL, financeiros, widgets e navegadores. O visual/câmera aprovado da base #71 foi preservado; os cartões só recebem informação adicional quando há bônus ou ocorrência ativa.
+
+### Pendências de homologação e operação
+
+Não houve merge, publicação, alteração da VPS ou ativação. A evidência recebida da VPS continua mostrando migração 095 e artefatos anteriores; versões nativas instaladas não foram verificadas. Pendem homologação presencial em Android/iPhone, GPS/rede reais, confirmação de devolução/repasse com os provedores e revisão operacional antes de eventual publicação autorizada. Não foi criado instalador novo nem executado instalador antigo. As revisões #69/#70 e as demais branches permanecem intactas.

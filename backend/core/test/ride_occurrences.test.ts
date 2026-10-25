@@ -20,7 +20,7 @@ test('PostgreSQL default off, same trip/payment continuation and new 3-digit cod
    CREATE TABLE driver_documents(id uuid PRIMARY KEY,validity_controlled boolean,status text,expires_on date);
    CREATE TABLE payments(id uuid PRIMARY KEY,ride_id uuid,status text);
    CREATE TABLE driver_supply(driver_id text PRIMARY KEY,busy boolean);
-   CREATE TABLE driver_support_tickets(id uuid PRIMARY KEY,driver_id text,category text,subject text,message text,status text,ride_id uuid,ride_context jsonb,created_at timestamptz,updated_at timestamptz);
+   CREATE TABLE driver_support_tickets(id uuid PRIMARY KEY,driver_id text,category text,subject text,message text,response text,status text,ride_id uuid,ride_context jsonb,created_at timestamptz,updated_at timestamptz);
    CREATE TABLE ride_manual_cancellations(ride_id uuid,credited_fee_cents int);CREATE TABLE ledger_transactions(reference_key text);`);
   for(const m of ['094_ride_boarding_recovery.sql','097_ride_occurrences.sql'])await pool.query(await readFile(new URL('../migrations/'+m,import.meta.url),'utf8'));
   const store=new RideOccurrenceStore(pool),boarding=new PostgresBoardingStore(pool);
