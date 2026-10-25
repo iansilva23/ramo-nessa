@@ -1,0 +1,100 @@
+name: Motorista GPS 2D Web — pacote para teste isolado na VPS
+
+on:
+  push:
+    branches: [ops/driver-web-gps2d-vps-test-20261025]
+    paths: [.github/workflows/driver-web-gps2d-vps-package.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: driver-web-gps2d-vps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID: ${{ vars.RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID || secrets.RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 54902d5689f2f0e682d8f343b769c0836549b601
+          fetch-depth: 0
+      - name: Verify exact, reviewed Web GPS 2D source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "54902d5689f2f0e682d8f343b769c0836549b601"
+          git diff --exit-code 6f3975f16d2f424b0fe53862f73da8c470f59474 HEAD -- \
+            apps/passenger apps/admin backend deploy config apps/driver/android apps/driver/ios apps/driver/web
+          printf 'Código GPS 2D congelado e escopo preservado.\n'
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Refuse missing or demo Web Map ID
+        run: |
+          node --input-type=module - <<'NODE'
+          import {validateMapsWebKey} from './scripts/web/maps_web_config.mjs';
+          validateMapsWebKey(process.env.RAMO_GOOGLE_MAPS_WEB_API_KEY);
+          const id=(process.env.RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID??'').trim();
+          if(!/^[a-zA-Z0-9_-]{8,128}$/.test(id) || /^(DEMO_MAP_ID|test|undefined|null)$/i.test(id)) {
+            throw new Error('Bloqueado: crie um Map ID JAVASCRIPT VETORIAL no Google Cloud e defina RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID em GitHub Actions Variables/Secrets. Nenhum pacote foi publicado.');
+          }
+          console.log('Map ID vetorial de teste configurado; seu tipo ainda requer verificação manual no Google Cloud.');
+          NODE
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Prepare existing browser Maps and Firebase configuration
+        run: node scripts/web/prepare_configured_web.mjs --role=driver
+      - name: Analyze and test isolated driver
+        working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+      - name: Compile only the separate /motorista/gps2d/ preview
+        working-directory: apps/driver
+        run: |
+          flutter build web --release --no-web-resources-cdn --no-pub \
+            --base-href=/motorista/gps2d/ \
+            --dart-define=RAMO_CORE_BASE_URL= \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID="$RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID"
+      - name: Audit payload and ZIP (no VPS changes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s apps/driver/build/web/index.html
+          test -s apps/driver/build/web/main.dart.js
+          grep -q '<base href="/motorista/gps2d/">' apps/driver/build/web/index.html
+          ! grep -q '__RAMO_GOOGLE_MAPS_WEB_KEY__' apps/driver/build/web/index.html
+          ! grep -q 'WEB_KEY_NOT_CONFIGURED_FOR_CI' apps/driver/build/web/index.html
+          grep -Fq "$RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID" apps/driver/build/web/main.dart.js
+          test -f apps/driver/build/web/ramo_push_config.js
+          test -f apps/driver/build/web/ramo_web_push.js
+          mkdir -p artifacts
+          (
+            cd apps/driver/build/web
+            zip -qr ../../../../artifacts/ramo-motorista-gps2d-vps-web.zip .
+          )
+          sha256sum artifacts/ramo-motorista-gps2d-vps-web.zip > artifacts/SHA256SUMS
+          printf '%s\n' \
+            'SOMENTE TESTE LATERAL: /motorista/gps2d/.' \
+            'Requer VPS com Caddy handle_path /motorista/* já homologado, Map ID Javascript VECTOR e a chave Web restrita por origem.' \
+            'Nunca substituir /motorista/ nem executar migrações, pagamentos, alterações de API, Gateway, Passenger, ADM ou Core.' \
+            'Este ZIP contém configurações públicas de navegador; não contém segredos de servidor.' \
+            'A execução do workflow NÃO publica nada automaticamente.' \
+            > artifacts/LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-gps2d-vps-isolado
+          path: artifacts/
+          retention-days: 14
+          if-no-files-found: error
