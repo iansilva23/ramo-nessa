@@ -10,6 +10,8 @@ import type {
 } from '../driver-support-repository.js';
 
 interface DriverSupportTicketRow {
+  ride_id: string | null;
+  ride_context: DriverSupportTicketRecord['rideContext'] | null;
   id: string;
   driver_id: string | null;
   passenger_id: string | null;
@@ -28,6 +30,8 @@ function mapTicket(
 ): DriverSupportTicketRecord {
   const base = {
     id: row.id,
+    ...(row.ride_id == null ? {} : {rideId: row.ride_id}),
+    ...(row.ride_context == null ? {} : {rideContext: row.ride_context}),
     category: row.category,
     subject: row.subject,
     message: row.message,
@@ -57,7 +61,7 @@ function mapTicket(
 }
 
 const COLUMNS = `
-  id, driver_id, passenger_id, category, subject, message, status,
+  id, driver_id, passenger_id, category, subject, message, status, ride_id, ride_context,
   response, responded_at, created_at, updated_at
 `;
 
@@ -72,8 +76,8 @@ export class PostgresDriverSupportRepository
       `
       INSERT INTO driver_support_tickets (
         id, driver_id, passenger_id, category, subject, message,
-        status, response, responded_at, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        status, response, responded_at, created_at, updated_at, ride_id, ride_context
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING ${COLUMNS}
       `,
       [
@@ -88,6 +92,8 @@ export class PostgresDriverSupportRepository
         ticket.respondedAt ?? null,
         ticket.createdAt,
         ticket.updatedAt,
+        ticket.rideId ?? null,
+        ticket.rideContext == null ? null : JSON.stringify(ticket.rideContext),
       ],
     );
     const row = result.rows[0];
@@ -98,17 +104,18 @@ export class PostgresDriverSupportRepository
   async listByPassenger(
     passengerId: string,
     limit: number,
+    rideId?: string,
   ): Promise<DriverSupportTicketRecord[]> {
     const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
     const result = await this.pool.query<DriverSupportTicketRow>(
       `
       SELECT ${COLUMNS}
       FROM driver_support_tickets
-      WHERE passenger_id = $1
+      WHERE passenger_id = $1 AND ($3::uuid IS NULL OR ride_id = $3)
       ORDER BY created_at DESC, id DESC
       LIMIT $2
       `,
-      [passengerId, safeLimit],
+      [passengerId, safeLimit, rideId ?? null],
     );
     return result.rows.map(mapTicket);
   }
@@ -116,17 +123,18 @@ export class PostgresDriverSupportRepository
   async listByDriver(
     driverId: string,
     limit: number,
+    rideId?: string,
   ): Promise<DriverSupportTicketRecord[]> {
     const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
     const result = await this.pool.query<DriverSupportTicketRow>(
       `
       SELECT ${COLUMNS}
       FROM driver_support_tickets
-      WHERE driver_id = $1
+      WHERE driver_id = $1 AND ($3::uuid IS NULL OR ride_id = $3)
       ORDER BY created_at DESC, id DESC
       LIMIT $2
       `,
-      [driverId, safeLimit],
+      [driverId, safeLimit, rideId ?? null],
     );
     return result.rows.map(mapTicket);
   }

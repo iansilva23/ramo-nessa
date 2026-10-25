@@ -12,6 +12,8 @@ export type DriverSupportStatus =
   | 'closed';
 
 interface SupportTicketBase {
+  rideId?: string;
+  rideContext?: import('../rides/ride-support-context.js').RideSupportContext;
   id: string;
   category: DriverSupportCategory;
   subject: string;
@@ -51,10 +53,12 @@ export interface DriverSupportRepository {
   listByDriver(
     driverId: string,
     limit: number,
+    rideId?: string,
   ): Promise<DriverSupportTicketRecord[]>;
   listByPassenger(
     passengerId: string,
     limit: number,
+    rideId?: string,
   ): Promise<DriverSupportTicketRecord[]>;
   findById(id: string): Promise<DriverSupportTicketRecord | null>;
   listAdmin(

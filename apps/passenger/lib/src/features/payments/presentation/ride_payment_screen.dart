@@ -181,7 +181,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       if (!mounted) return;
       setState(() => _leaving = true);
       _confirmationTimer?.cancel();
-      if(widget.onRecoveryClose!=null){widget.onRecoveryClose!();}else{Navigator.of(context).pop();}
+      if (widget.onRecoveryClose != null) {
+        widget.onRecoveryClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
     } catch (error) {
       if (mounted) {
         setState(
@@ -302,9 +306,14 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (!_paymentOptionsOpen)
-                  if(_confirmation?.cancellationRule!=null)Padding(
-                    padding:const EdgeInsets.only(bottom:12),
-                    child:Text('Cancelamento gratuito até ${_confirmation!.cancellationRule!['freeSeconds']}s após o aceite. Depois, solicite à equipe. Taxa prevista: R\$ ${((_confirmation!.cancellationRule!['enabled']==true?(_confirmation!.cancellationRule!['feeCents'] as num?)??0:0)/100).toStringAsFixed(2).replaceAll('.',',')}. Devolução realizada manualmente pela equipe.',style:Theme.of(context).textTheme.bodySmall)),
+                  if (_confirmation?.cancellationRule != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Cancelamento gratuito até ${_confirmation!.cancellationRule!['freeSeconds']}s após o aceite. Depois, solicite à equipe. Taxa prevista: R\$ ${((_confirmation!.cancellationRule!['enabled'] == true ? (_confirmation!.cancellationRule!['feeCents'] as num?) ?? 0 : 0) / 100).toStringAsFixed(2).replaceAll('.', ',')}. Devolução realizada manualmente pela equipe.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                 if (!_paymentOptionsOpen)
                   RamoReveal(
                     delay: const Duration(milliseconds: 180),
@@ -571,18 +580,36 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     try {
       PixRidePaymentResult result;
       try {
-        result = await service.createPixRidePayment(rideId:_ride.id,idempotencyKey:_pixIdempotencyKey);
+        result = await service.createPixRidePayment(
+          rideId: _ride.id,
+          idempotencyKey: _pixIdempotencyKey,
+        );
       } on PassengerPaymentException catch (error) {
-        if (error.code != 'PASSENGER_EMAIL_REQUIRED' || service is! PixEmailPaymentService) { rethrow; }
+        if (error.code != 'PASSENGER_EMAIL_REQUIRED' ||
+            service is! PixEmailPaymentService) {
+          rethrow;
+        }
         if (!mounted) return;
-        final email = await showDialog<String>(context:context,builder: (_) => const _CheckoutEmailDialog());
+        final email = await showDialog<String>(
+          context: context,
+          builder: (_) => const _CheckoutEmailDialog(),
+        );
         if (!mounted) return;
-        if (email == null) { setState(() => _creatingPix = false); return; }
+        if (email == null) {
+          setState(() => _creatingPix = false);
+          return;
+        }
         _updateRemaining();
         if (_remaining == Duration.zero || !_canPay) {
-          throw const PassengerPaymentException('A reserva expirou ou o motorista ficou indisponível. Solicite novamente.');
+          throw const PassengerPaymentException(
+            'A reserva expirou ou o motorista ficou indisponível. Solicite novamente.',
+          );
         }
-        result = await (service as PixEmailPaymentService).createPixWithEmail(rideId:_ride.id,idempotencyKey:_pixIdempotencyKey,payerEmail:email);
+        result = await (service as PixEmailPaymentService).createPixWithEmail(
+          rideId: _ride.id,
+          idempotencyKey: _pixIdempotencyKey,
+          payerEmail: email,
+        );
       }
 
       if (!mounted) return;
@@ -648,7 +675,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           builder: (_) => CardCheckoutScreen(
             tokenizer: tokenizer,
             amountLabel: PreparedRide.formatCents(_cardTotalAmountCents),
-            initialEmail: service is PixEmailPaymentService ? (service as PixEmailPaymentService).checkoutEmail ?? '' : '',
+            initialEmail: service is PixEmailPaymentService
+                ? (service as PixEmailPaymentService).checkoutEmail ?? ''
+                : '',
             holdExpiresAt: _ride.holdExpiresAt,
             cards: service is SavedCardService
                 ? service as SavedCardService
@@ -937,7 +966,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           };
 
     return PopScope(
-      canPop: !_ride.driverConsentRequired || _leaving,
+      canPop: widget.onRecoveryClose != null || !_ride.driverConsentRequired || _leaving,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _leaveReservation();
       },
@@ -948,7 +977,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                 ? (_canPay ? 'Pagamento' : 'Confirmar corrida')
                 : 'Preço e pagamento',
           ),
-          leading: _ride.driverConsentRequired
+          leading: widget.onRecoveryClose != null
+              ? BackButton(onPressed: widget.onRecoveryClose)
+              : _ride.driverConsentRequired
               ? IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: _leaveReservation,
@@ -978,7 +1009,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                                 ? 'Tarifa-base da corrida'
                                 : 'Preço com cupom',
                             style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -994,7 +1029,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                               'Preço normal: ${PreparedRide.formatCents(_ride.promotion!.normalTotalCents)}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     decoration: TextDecoration.lineThrough,
                                   ),
                             ),
@@ -1006,18 +1043,27 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   ],
                 ),
               ),
-              if (widget.sharedTransfer != null) SharedTransferButton(
-                option: widget.sharedTransfer!,
-                enabled: !_creatingPix && !_creatingCard && !_payingWallet && !_authorizingCash && !_confirmingPromotion && !_leaving,
-                beforeOpen: () async {
-                  await _confirmationService?.releaseDriverReservation(_ride.id);
-                  if (!mounted) return false;
-                  setState(() => _leaving = true);
-                  _confirmationTimer?.cancel();
-                  Navigator.of(this.context).pop();
-                  return true;
-                },
-              ),
+              if (widget.sharedTransfer != null)
+                SharedTransferButton(
+                  option: widget.sharedTransfer!,
+                  enabled:
+                      !_creatingPix &&
+                      !_creatingCard &&
+                      !_payingWallet &&
+                      !_authorizingCash &&
+                      !_confirmingPromotion &&
+                      !_leaving,
+                  beforeOpen: () async {
+                    await _confirmationService?.releaseDriverReservation(
+                      _ride.id,
+                    );
+                    if (!mounted) return false;
+                    setState(() => _leaving = true);
+                    _confirmationTimer?.cancel();
+                    Navigator.of(this.context).pop();
+                    return true;
+                  },
+                ),
               if (_ride.pickupCompensationCents > 0) ...[
                 const SizedBox(height: RamoSpacing.sm),
                 _PriceRow(
@@ -1041,8 +1087,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                         expired
                             ? 'O prazo de pagamento expirou. Solicite novamente.'
                             : _ride.driverConsentRequired
-                                ? 'Preço e motorista reservados por $_countdown.'
-                                : 'Conclua o pagamento em $_countdown. A corrida será enviada após a confirmação.',
+                            ? 'Preço e motorista reservados por $_countdown.'
+                            : 'Conclua o pagamento em $_countdown. A corrida será enviada após a confirmação.',
                       ),
                     ),
                   ],
@@ -1071,7 +1117,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   Container(
                     padding: const EdgeInsets.all(RamoSpacing.lg),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(RamoRadius.lg),
                     ),
                     child: Column(
@@ -1093,7 +1141,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                           'Não é necessário gerar Pix nem cobrar cartão. Confirme para liberar seu motorista.',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                         const SizedBox(height: RamoSpacing.lg),
                         FilledButton(
@@ -1166,9 +1218,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   Text(
                     'Os preços podem variar conforme a forma de pagamento. '
                     'O total exibido em cada opção é o valor cobrado.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: RamoSpacing.sm),
                   _PaymentOption(
@@ -1548,7 +1600,12 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     final reservationExpired = _reservationExpired;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pagar com Pix')),
+      appBar: AppBar(
+        title: const Text('Pagar com Pix'),
+        leading: widget.onRecoveryClose == null
+            ? null
+            : BackButton(onPressed: widget.onRecoveryClose),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(RamoSpacing.xl),
@@ -1573,8 +1630,8 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
               reservationExpired
                   ? 'Prazo encerrado · não faça mais este Pix'
                   : widget.driverReserved
-                      ? 'Reserva do motorista: $_reservationCountdown'
-                      : 'Tempo para pagar: $_reservationCountdown',
+                  ? 'Reserva do motorista: $_reservationCountdown'
+                  : 'Tempo para pagar: $_reservationCountdown',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
@@ -1830,7 +1887,7 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RideTrackingScreen(
-                  onRecoveryClose: widget.onRecoveryClose,
+            onRecoveryClose: widget.onRecoveryClose,
             rideId: widget.rideId,
             remainingWalletCents: null,
             paymentMethod: 'card',
@@ -2231,22 +2288,48 @@ class _CheckoutEmailDialog extends StatefulWidget {
   @override
   State<_CheckoutEmailDialog> createState() => _CheckoutEmailDialogState();
 }
+
 class _CheckoutEmailDialogState extends State<_CheckoutEmailDialog> {
   final _email = TextEditingController();
   final _form = GlobalKey<FormState>();
   @override
-  void dispose() { _email.dispose(); super.dispose(); }
-  void _continue() { if (_form.currentState!.validate()) { Navigator.of(context).pop(_email.text.trim()); } }
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  void _continue() {
+    if (_form.currentState!.validate()) {
+      Navigator.of(context).pop(_email.text.trim());
+    }
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title:const Text('Só falta seu e-mail'),
-    content:Form(key:_form,child:TextFormField(key:const Key('payment-email-field'),controller:_email,
-      autofocus:true,keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email],
-      decoration:const InputDecoration(labelText:'E-mail para o pagamento'),maxLength:254,
-      validator:(value) => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value?.trim() ?? '') ? null : 'Informe um e-mail válido',
-      onFieldSubmitted:(_) => _continue())),
-    actions:[TextButton(onPressed:() => Navigator.of(context).pop(),child:const Text('Cancelar')),
-      FilledButton(onPressed:_continue,child:const Text('Continuar'))],
+    title: const Text('Só falta seu e-mail'),
+    content: Form(
+      key: _form,
+      child: TextFormField(
+        key: const Key('payment-email-field'),
+        controller: _email,
+        autofocus: true,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email],
+        decoration: const InputDecoration(labelText: 'E-mail para o pagamento'),
+        maxLength: 254,
+        validator: (value) =>
+            RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value?.trim() ?? '')
+            ? null
+            : 'Informe um e-mail válido',
+        onFieldSubmitted: (_) => _continue(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _continue, child: const Text('Continuar')),
+    ],
   );
 }
-

@@ -14,6 +14,7 @@ import 'passenger_rating_api.dart';
 
 class HttpDriverApi
     implements
+        RamoRideSupportApi,
         RamoRideChatApi,
         DriverApi,
         DriverRideIdentityApi,
@@ -37,14 +38,30 @@ class HttpDriverApi
   final http.Client _client;
 
   @override
-  Future<Map<String,dynamic>> boardingStatus(String rideId) async {
-    final response=await _client.get(_baseUrl.resolve('/v1/driver/me/rides/$rideId/boarding'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
-    return _expectObject(response,expectedStatus:200);
+  Future<Map<String, dynamic>> boardingStatus(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/boarding'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    return _expectObject(response, expectedStatus: 200);
   }
+
   @override
-  Future<AcceptedDriverRide> startWithBoardingCode(String rideId,String code) async {
-    final response=await _client.post(_baseUrl.resolve('/v1/driver/me/rides/$rideId/start'),headers:_headers,body:jsonEncode({'code':code})).timeout(DriverCoreConfig.requestTimeout);
-    final data=_expectObject(response,expectedStatus:200);return AcceptedDriverRide.fromJson(data['ride'] as Map<String,dynamic>);
+  Future<AcceptedDriverRide> startWithBoardingCode(
+    String rideId,
+    String code,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/start'),
+          headers: _headers,
+          body: jsonEncode({'code': code}),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    final data = _expectObject(response, expectedStatus: 200);
+    return AcceptedDriverRide.fromJson(data['ride'] as Map<String, dynamic>);
   }
 
   Map<String, String> get _headers => {
@@ -71,9 +88,14 @@ class HttpDriverApi
   }
 
   @override
-  Future<Map<String,dynamic>> rideIdentification(String rideId) async {
-    final response=await _client.get(_baseUrl.resolve('/v1/driver/me/rides/$rideId/identification'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
-    return _expectObject(response,expectedStatus:200);
+  Future<Map<String, dynamic>> rideIdentification(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/identification'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    return _expectObject(response, expectedStatus: 200);
   }
 
   @override
@@ -280,6 +302,46 @@ class HttpDriverApi
     return DriverSupportTicket.fromJson(
       _expectObject(response, expectedStatus: 201),
     );
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> rideSupportTickets(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl
+              .resolve('/v1/driver/me/support')
+              .replace(queryParameters: {'rideId': rideId}),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    return ((_expectObject(response, expectedStatus: 200)['tickets']
+                as List?) ??
+            [])
+        .whereType<Map>()
+        .map((t) => Map<String, dynamic>.from(t))
+        .where((t) => t['rideId'] == rideId)
+        .toList();
+  }
+
+  @override
+  Future<void> createRideSupportTicket({
+    required String rideId,
+    required String reason,
+    required String description,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/support'),
+          headers: _headers,
+          body: jsonEncode({
+            'rideId': rideId,
+            'category': 'ride',
+            'subject': reason,
+            'message': description.isEmpty ? reason : '$reason. $description',
+          }),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    _expectObject(response, expectedStatus: 201);
   }
 
   @override

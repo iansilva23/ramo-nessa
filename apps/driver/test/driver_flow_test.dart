@@ -17,72 +17,126 @@ import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dar
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
-  testWidgets('passenger cancellation immediately shows fee, refreshes balance and releases busy state',(tester)async{
-    final api=_IdentityReviewApi(),realtime=_CancellationReviewRealtime();
-    await tester.pumpWidget(RamoNessaDriverApp(api:api,locationService:const _FakeLocationService(),realtimeService:realtime));
-    await tester.pump();await tester.pump(const Duration(milliseconds:500));
-    final before=api._supply;
-    api._currentRide=null;
-    api._supply=DriverSupplySnapshot(driverId:before.driverId,vehicleId:before.vehicleId,categories:before.categories,fourByFour:before.fourByFour,seatCapacity:before.seatCapacity,online:true,busy:false,latitude:before.latitude,longitude:before.longitude,locationUpdatedAt:before.locationUpdatedAt);
-    api._finance=const DriverFinanceSummary(availableBalanceCents:11500,payoutPendingCents:0);
-    realtime.controller.add(const DriverRealtimeUpdate(rideUpdated:true,cancelledRideId:'ride-restored',cancellationFeeCents:500));
-    await tester.pump();await tester.pump(const Duration(milliseconds:500));
-    expect(find.textContaining('Você recebeu R\$ 5,00'),findsOneWidget);
-    expect(find.text('R\$ 115,00'),findsOneWidget);
-    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).supply!.busy,isFalse);
-    expect(tester.takeException(),isNull);
-    await tester.pumpWidget(const SizedBox());await realtime.controller.close();
-  });
-  testWidgets('reabrir app restaura reserva aguardando pagamento sem liberar ações de viagem', (tester) async {
-    final api = _FakeDriverApi(initialOnline: true);
-    api._offerAvailable = false;
-    api._currentRide = AcceptedDriverRide(id: 'held-ride', state: 'AWAITING_PAYMENT', category: 'car', passengers: 1,
-      origin: const DriverLocationRef(zoneId: 'prea'), destination: const DriverLocationRef(zoneId: 'jijoca'),
-      driverEarningsCents: 11000, pickupCompensationCents: 200,
-      pickupLatitude: -2.82017, pickupLongitude: -40.41467,
-      driverHoldExpiresAt: DateTime.now().add(const Duration(seconds: 90)));
-    final navigation = _FakeNavigationService();
-    await tester.pumpWidget(RamoNessaDriverApp(api: api,
-      locationService: const _FakeLocationService(), navigationService: navigation));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    final expand = find.byTooltip('Expandir corrida');
-    if (expand.evaluate().isNotEmpty) {
-      await tester.tap(expand);
+  testWidgets(
+    'passenger cancellation immediately shows fee, refreshes balance and releases busy state',
+    (tester) async {
+      final api = _IdentityReviewApi(),
+          realtime = _CancellationReviewRealtime();
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+          realtimeService: realtime,
+        ),
+      );
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-    }
-    expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
-    expect(find.textContaining('segundos restantes'), findsOneWidget);
-    expect(find.text('Cheguei no embarque'), findsNothing);
-    expect(find.text('Iniciar corrida'), findsNothing);
-    expect(find.text('Navegar até o embarque'), findsNothing);
-    expect(navigation.lastLatitude, isNull);
-    expect(tester.takeException(), isNull);
-    final callsBeforeRelease = api.currentRideCalls;
-    api._currentRide = null;
-    await tester.pump(const Duration(seconds: 11));
-    await tester.pumpAndSettle();
-    expect(api.currentRideCalls, greaterThan(callsBeforeRelease));
-    expect(find.text('Aguardando pagamento do passageiro'), findsNothing);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+      final before = api._supply;
+      api._currentRide = null;
+      api._supply = DriverSupplySnapshot(
+        driverId: before.driverId,
+        vehicleId: before.vehicleId,
+        categories: before.categories,
+        fourByFour: before.fourByFour,
+        seatCapacity: before.seatCapacity,
+        online: true,
+        busy: false,
+        latitude: before.latitude,
+        longitude: before.longitude,
+        locationUpdatedAt: before.locationUpdatedAt,
+      );
+      api._finance = const DriverFinanceSummary(
+        availableBalanceCents: 11500,
+        payoutPendingCents: 0,
+      );
+      realtime.controller.add(
+        const DriverRealtimeUpdate(
+          rideUpdated: true,
+          cancelledRideId: 'ride-restored',
+          cancellationFeeCents: 500,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.textContaining('Você recebeu R\$ 5,00'), findsOneWidget);
+      expect(find.text('R\$ 115,00'), findsOneWidget);
+      expect(
+        tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).supply!.busy,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await realtime.controller.close();
+    },
+  );
+  testWidgets(
+    'reabrir app restaura reserva aguardando pagamento sem liberar ações de viagem',
+    (tester) async {
+      final api = _FakeDriverApi(initialOnline: true);
+      api._offerAvailable = false;
+      api._currentRide = AcceptedDriverRide(
+        id: 'held-ride',
+        state: 'AWAITING_PAYMENT',
+        category: 'car',
+        passengers: 1,
+        origin: const DriverLocationRef(zoneId: 'prea'),
+        destination: const DriverLocationRef(zoneId: 'jijoca'),
+        driverEarningsCents: 11000,
+        pickupCompensationCents: 200,
+        pickupLatitude: -2.82017,
+        pickupLongitude: -40.41467,
+        driverHoldExpiresAt: DateTime.now().add(const Duration(seconds: 90)),
+      );
+      final navigation = _FakeNavigationService();
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+          navigationService: navigation,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      final expand = find.byTooltip('Expandir corrida');
+      if (expand.evaluate().isNotEmpty) {
+        await tester.tap(expand);
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
+      expect(find.textContaining('segundos restantes'), findsOneWidget);
+      expect(find.text('Cheguei no embarque'), findsNothing);
+      expect(find.text('Iniciar corrida'), findsNothing);
+      expect(find.text('Navegar até o embarque'), findsNothing);
+      expect(navigation.lastLatitude, isNull);
+      expect(tester.takeException(), isNull);
+      final callsBeforeRelease = api.currentRideCalls;
+      api._currentRide = null;
+      await tester.pump(const Duration(seconds: 11));
+      await tester.pumpAndSettle();
+      expect(api.currentRideCalls, greaterThan(callsBeforeRelease));
+      expect(find.text('Aguardando pagamento do passageiro'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
-  testWidgets('centralizar busca GPS novo sem ativar motorista offline',
-      (tester) async {
+  testWidgets('centralizar busca GPS novo sem ativar motorista offline', (
+    tester,
+  ) async {
     final api = _FakeDriverApi();
     final location = _MutableLocationService();
-    await tester.pumpWidget(RamoNessaDriverApp(
-      api: api,
-      locationService: location,
-    ));
+    await tester.pumpWidget(
+      RamoNessaDriverApp(api: api, locationService: location),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Centralizar mapa'));
     await tester.pumpAndSettle();
     expect(location.calls, 1);
     expect(api.lastSyncedPosition?.latitude, location.position.latitude);
-    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap))
-        .supply!.online, isFalse);
+    expect(
+      tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).supply!.online,
+      isFalse,
+    );
 
     location.position = const DriverPosition(
       latitude: -2.7979,
@@ -95,7 +149,9 @@ void main() {
     expect(map.supply!.latitude, location.position.latitude);
     expect(map.supply!.longitude, location.position.longitude);
 
-    location.error = const DriverLocationException('Ative o GPS para localizar.');
+    location.error = const DriverLocationException(
+      'Ative o GPS para localizar.',
+    );
     await tester.tap(find.byTooltip('Centralizar mapa'));
     await tester.pumpAndSettle();
     expect(find.text('Ative o GPS para localizar.'), findsOneWidget);
@@ -105,13 +161,24 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('Perfil abre benefícios usando a capacidade do mesmo cliente', (tester) async {
+  testWidgets('Perfil abre benefícios usando a capacidade do mesmo cliente', (
+    tester,
+  ) async {
     final api = _FakeDriverApi();
-    await tester.pumpWidget(RamoNessaDriverApp(api: api, locationService: const _FakeLocationService()));
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: api,
+        locationService: const _FakeLocationService(),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Perfil'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Ranking & Benefícios'), 180, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('Ranking & Benefícios'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Ranking & Benefícios'));
     await tester.pumpAndSettle();
     expect(api.benefitsCalls, 1);
@@ -146,7 +213,10 @@ void main() {
     expect(find.text('DESTINO'), findsOneWidget);
 
     // Presentation changes must not accept or reject an offer.
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.drag(
+      find.byKey(const ValueKey('ride-drag-handle')),
+      const Offset(0, 90),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('offer-mini-offer-1')), findsOneWidget);
     expect(find.text('Aceitar corrida'), findsNothing);
@@ -162,7 +232,10 @@ void main() {
     await tester.tap(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.drag(
+      find.byKey(const ValueKey('ride-drag-handle')),
+      const Offset(0, 90),
+    );
     await tester.pumpAndSettle();
 
     expect(
@@ -198,6 +271,9 @@ void main() {
     await tester.ensureVisible(find.text('Iniciar corrida'));
     await tester.pump();
     await tester.tap(find.text('Iniciar corrida'));
+    await tester.pumpAndSettle();
+    expect(find.text('Passageiro a bordo?'), findsOneWidget);
+    await tester.tap(find.text('Sim, iniciar trajeto'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Finalizar corrida'), findsOneWidget);
@@ -211,15 +287,30 @@ void main() {
     expect(navigation.lastLatitude, -2.7956);
     expect(navigation.lastLongitude, -40.5142);
 
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.drag(
+      find.byKey(const ValueKey('ride-drag-handle')),
+      const Offset(0, 90),
+    );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')),
+      findsOneWidget,
+    );
     expect(find.text('Finalizar corrida'), findsNothing);
     expect(api.completedRideId, isNull);
-    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).activeRide!.state, 'IN_PROGRESS');
+    expect(
+      tester
+          .widget<DriverLiveMap>(find.byType(DriverLiveMap))
+          .activeRide!
+          .state,
+      'IN_PROGRESS',
+    );
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')),
+      findsNothing,
+    );
 
     await tester.ensureVisible(find.text('Finalizar corrida'));
     await tester.pump();
@@ -230,133 +321,198 @@ void main() {
     expect(find.textContaining('Saldo disponível: R\$ 110,00'), findsOneWidget);
     expect(api.completedRideId, 'ride-1');
     expect(find.text('Corrida finalizada'), findsOneWidget);
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.drag(
+      find.byKey(const ValueKey('ride-drag-handle')),
+      const Offset(0, 90),
+    );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
+      findsOneWidget,
+    );
     expect(find.text('Concluir e voltar para o mapa'), findsNothing);
-    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).activeRide, isNull);
+    expect(
+      tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).activeRide,
+      isNull,
+    );
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsNothing);
-    final rating = tester.widget<OutlinedButton>(find.ancestor(
-      of: find.text('Avaliar passageiro'), matching: find.byType(OutlinedButton)));
+    expect(
+      find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
+      findsNothing,
+    );
+    final rating = tester.widget<OutlinedButton>(
+      find.ancestor(
+        of: find.text('Avaliar passageiro'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
     expect(rating.onPressed, isNotNull);
     await tester.tap(find.text('Avaliar passageiro'));
     await tester.pumpAndSettle();
     expect(find.text('Como foi sua experiência?'), findsOneWidget);
     await tester.tap(find.text('Agora não'));
     await tester.pumpAndSettle();
-    expect(api.completionCalls, 1, reason: 'abrir/fechar avaliação não repete liquidação');
+    expect(
+      api.completionCalls,
+      1,
+      reason: 'abrir/fechar avaliação não repete liquidação',
+    );
     await tester.tap(find.text('Concluir e voltar para o mapa'));
     await tester.pumpAndSettle();
     expect(find.text('Corrida finalizada'), findsNothing);
-    expect(api.completionCalls, 1, reason: 'fechar resumo não repete liquidação');
+    expect(
+      api.completionCalls,
+      1,
+      reason: 'fechar resumo não repete liquidação',
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
 
-  testWidgets('Atividade preserva cartão existente sem controles exclusivos do mapa', (tester) async {
-    final api = _FakeDriverApi(initialOnline: true, initialBusy: true);
-    await tester.pumpWidget(RamoNessaDriverApp(
-      api: api, locationService: const _FakeLocationService()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Atividade'));
-    await tester.pumpAndSettle();
-    expect(find.text('Corrida atual'), findsOneWidget);
-    expect(find.byKey(const ValueKey('ride-drag-handle')), findsNothing);
-    expect(tester.takeException(), isNull);
-    expect(api.completedRideId, isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+  testWidgets(
+    'Atividade preserva cartão existente sem controles exclusivos do mapa',
+    (tester) async {
+      final api = _FakeDriverApi(initialOnline: true, initialBusy: true);
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Atividades'));
+      await tester.pumpAndSettle();
+      expect(find.text('Retomar corrida'), findsOneWidget);
+      expect(find.text('Ajuda'), findsOneWidget);
+      expect(find.text('Iniciar corrida'), findsNothing);
+      await tester.tap(find.text('Retomar corrida'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DriverLiveMap), findsOneWidget);
+      expect(find.byKey(const ValueKey('ride-drag-handle')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(api.completedRideId, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   for (final viewport in const [
-    Size(320, 568), Size(320, 640), Size(375, 667), Size(390, 844), Size(430, 932),
+    Size(320, 568),
+    Size(320, 640),
+    Size(375, 667),
+    Size(390, 844),
+    Size(430, 932),
   ]) {
-  testWidgets('fluxo completo cabe em ${viewport.width} x ${viewport.height}',
-      (tester) async {
-    tester.view.physicalSize = viewport;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('fluxo completo cabe em ${viewport.width} x ${viewport.height}', (
+      tester,
+    ) async {
+      tester.view.physicalSize = viewport;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final api = _FakeDriverApi();
-    await tester.pumpWidget(RamoNessaDriverApp(
-      api: api,
-      locationService: const _FakeLocationService(),
-      navigationService: _FakeNavigationService(),
-    ));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.text('Você está offline'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'offline 320 px');
+      final api = _FakeDriverApi();
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+          navigationService: _FakeNavigationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('Você está offline'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'offline 320 px');
 
-    await tester.tap(find.byKey(const Key('driver-go-online')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(find.text('NOVA CORRIDA'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'oferta 320 px');
+      await tester.tap(find.byKey(const Key('driver-go-online')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(find.text('NOVA CORRIDA'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'oferta 320 px');
 
-    await tester.ensureVisible(find.text('Aceitar corrida'));
-    await tester.tap(find.text('Aceitar corrida'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
-    await tester.pumpAndSettle();
-    expect(find.byTooltip('Expandir corrida'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'aceite e mini-barra 320 px');
+      await tester.ensureVisible(find.text('Aceitar corrida'));
+      await tester.tap(find.text('Aceitar corrida'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.drag(
+        find.byKey(const ValueKey('ride-drag-handle')),
+        const Offset(0, 90),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Expandir corrida'), findsOneWidget);
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'aceite e mini-barra 320 px',
+      );
 
-    await tester.tap(find.byTooltip('Expandir corrida'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(find.text('Cheguei no embarque'), findsOneWidget);
-    final coletaError = tester.takeException();
-    if (coletaError != null) {
-      final lines = tester.binding.renderViews.first.toStringDeep().split('\n');
-      for (var index = 0; index < lines.length; index++) {
-        if (lines[index].contains('OVERFLOWING')) {
-          final start = index - 4 < 0 ? 0 : index - 4;
-          final end = index + 7 < lines.length ? index + 7 : lines.length;
-          debugPrint('RENDER_OVERFLOW_COLETA: ${lines.sublist(start, end).join('\n')}');
+      await tester.tap(find.byTooltip('Expandir corrida'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(find.text('Cheguei no embarque'), findsOneWidget);
+      final coletaError = tester.takeException();
+      if (coletaError != null) {
+        final lines = tester.binding.renderViews.first.toStringDeep().split(
+          '\n',
+        );
+        for (var index = 0; index < lines.length; index++) {
+          if (lines[index].contains('OVERFLOWING')) {
+            final start = index - 4 < 0 ? 0 : index - 4;
+            final end = index + 7 < lines.length ? index + 7 : lines.length;
+            debugPrint(
+              'RENDER_OVERFLOW_COLETA: ${lines.sublist(start, end).join('\n')}',
+            );
+          }
         }
       }
-    }
-    expect(coletaError, isNull, reason: 'coleta 320 px');
+      expect(coletaError, isNull, reason: 'coleta 320 px');
 
-    await tester.ensureVisible(find.text('Cheguei no embarque'));
-    await tester.tap(find.text('Cheguei no embarque'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(find.text('Iniciar corrida'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'chegada 320 px');
+      await tester.ensureVisible(find.text('Cheguei no embarque'));
+      await tester.tap(find.text('Cheguei no embarque'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(find.text('Iniciar corrida'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'chegada 320 px');
 
-    await tester.ensureVisible(find.text('Iniciar corrida'));
-    await tester.tap(find.text('Iniciar corrida'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(find.text('Finalizar corrida'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'viagem 320 px');
+      await tester.ensureVisible(find.text('Iniciar corrida'));
+      await tester.tap(find.text('Iniciar corrida'));
+      await tester.pumpAndSettle();
+      expect(find.text('Passageiro a bordo?'), findsOneWidget);
+      await tester.tap(find.text('Sim, iniciar trajeto'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(find.text('Finalizar corrida'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'viagem 320 px');
 
-    expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
-    await tester.tap(find.text('Finalizar corrida'));
-    await tester.pumpAndSettle();
-    expect(find.text('Corrida finalizada'), findsOneWidget);
-    expect(find.text('Concluir e voltar para o mapa').hitTestable(), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsOneWidget);
-    expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
-    await tester.tap(find.byTooltip('Expandir corrida'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Concluir e voltar para o mapa'));
-    await tester.pumpAndSettle();
-    expect(api.completionCalls, 1);
+      expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Finalizar corrida'));
+      await tester.pumpAndSettle();
+      expect(find.text('Corrida finalizada'), findsOneWidget);
+      expect(
+        find.text('Concluir e voltar para o mapa').hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
+      await tester.drag(
+        find.byKey(const ValueKey('ride-drag-handle')),
+        const Offset(0, 90),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
+      await tester.tap(find.byTooltip('Expandir corrida'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Concluir e voltar para o mapa'));
+      await tester.pumpAndSettle();
+      expect(api.completionCalls, 1);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  });
-
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
   }
 
   testWidgets(
@@ -409,35 +565,31 @@ void main() {
       await tester.pump();
     },
   );
-  testWidgets(
-    'motorista suspenso fica bloqueado fora da operação',
-    (tester) async {
-      final api = _FakeDriverApi(registrySuspended: true);
+  testWidgets('motorista suspenso fica bloqueado fora da operação', (
+    tester,
+  ) async {
+    final api = _FakeDriverApi(registrySuspended: true);
 
-      await tester.pumpWidget(
-        RamoNessaDriverApp(
-          api: api,
-          locationService: const _FakeLocationService(),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 10));
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: api,
+        locationService: const _FakeLocationService(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
 
-      expect(find.text('Acesso suspenso'), findsOneWidget);
-      expect(find.text('Suspenso'), findsNWidgets(2));
-      expect(find.text('Você está offline'), findsNothing);
-      expect(find.text('Ganhos'), findsNothing);
+    expect(find.text('Acesso suspenso'), findsOneWidget);
+    expect(find.text('Suspenso'), findsNWidgets(2));
+    expect(find.text('Você está offline'), findsNothing);
+    expect(find.text('Ganhos'), findsNothing);
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-    },
-  );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets('corrida ativa é recuperada ao reabrir o app', (tester) async {
-    final api = _FakeDriverApi(
-      initialOnline: true,
-      initialBusy: true,
-    );
+    final api = _FakeDriverApi(initialOnline: true, initialBusy: true);
 
     await tester.pumpWidget(
       RamoNessaDriverApp(
@@ -464,19 +616,13 @@ void main() {
       final location = _StreamingFakeLocationService();
 
       await tester.pumpWidget(
-        RamoNessaDriverApp(
-          api: api,
-          locationService: location,
-        ),
+        RamoNessaDriverApp(api: api, locationService: location),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
 
       location.add(
-        const DriverPosition(
-          latitude: -2.90001,
-          longitude: -40.50001,
-        ),
+        const DriverPosition(latitude: -2.90001, longitude: -40.50001),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
@@ -505,9 +651,11 @@ void main() {
 
       expect(api.activityCalls, greaterThanOrEqualTo(1));
 
-      await tester.tap(find.text('Atividade'));
+      await tester.tap(find.text('Atividades'));
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Histórico'));
+      await tester.pumpAndSettle();
       expect(find.text('7 dias'), findsOneWidget);
       expect(find.text('15 dias'), findsOneWidget);
       expect(find.text('30 dias'), findsOneWidget);
@@ -521,10 +669,7 @@ void main() {
       expect(api.activityCalls, before + 1);
       expect(api.lastActivityFrom, isNotNull);
       expect(api.lastActivityTo, isNotNull);
-      expect(
-        api.lastActivityTo!.difference(api.lastActivityFrom!).inDays,
-        15,
-      );
+      expect(api.lastActivityTo!.difference(api.lastActivityFrom!).inDays, 15);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -558,51 +703,41 @@ void main() {
 
     expect(api.lastPayoutAmountCents, 11000);
     expect(find.text('Em processamento: R\$ 110,00'), findsOneWidget);
-    expect(
-      find.textContaining('Saque solicitado: R\$ 110,00'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Saque solicitado: R\$ 110,00'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
 
-  testWidgets(
-    'taxa cash fica restrita ao extrato da carteira',
-    (tester) async {
-      final api = _FakeDriverApi(cashCommissionDebtCents: 1200);
+  testWidgets('taxa cash fica restrita ao extrato da carteira', (tester) async {
+    final api = _FakeDriverApi(cashCommissionDebtCents: 1200);
 
-      await tester.pumpWidget(
-        RamoNessaDriverApp(
-          api: api,
-          locationService: const _FakeLocationService(),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 10));
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: api,
+        locationService: const _FakeLocationService(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
 
-      await tester.tap(find.text('Ganhos'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Ganhos'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Taxa de uso do app pendente'), findsNothing);
+    expect(find.text('Taxa de uso do app pendente'), findsNothing);
 
-      final statementButton =
-          find.widgetWithText(TextButton, 'Ver extrato');
-      await tester.ensureVisible(statementButton);
-      await tester.pumpAndSettle();
-      await tester.tap(statementButton);
-      await tester.pumpAndSettle();
+    final statementButton = find.widgetWithText(TextButton, 'Ver extrato');
+    await tester.ensureVisible(statementButton);
+    await tester.pumpAndSettle();
+    await tester.tap(statementButton);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Extrato de ganhos'), findsOneWidget);
-      expect(
-        find.text('Taxa de uso do app pendente: R\$ 12,00'),
-        findsOneWidget,
-      );
+    expect(find.text('Extrato de ganhos'), findsOneWidget);
+    expect(find.text('Taxa de uso do app pendente: R\$ 12,00'), findsOneWidget);
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-    },
-  );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets(
     'retry de saque após falha de transporte reutiliza a mesma chave',
@@ -639,10 +774,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
 
       expect(api.payoutIdempotencyKeys, hasLength(2));
-      expect(
-        api.payoutIdempotencyKeys[1],
-        api.payoutIdempotencyKeys[0],
-      );
+      expect(api.payoutIdempotencyKeys[1], api.payoutIdempotencyKeys[0]);
       expect(find.text('Em processamento: R\$ 110,00'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -650,38 +782,34 @@ void main() {
     },
   );
 
-  testWidgets(
-    'mesma oferta reutiliza rotas sem repetir chamadas do provedor',
-    (tester) async {
-      final api = _FakeDriverApi(
-        initialOnline: true,
-        offerCoordinates: true,
-      );
-      final routes = _CountingRouteService();
+  testWidgets('mesma oferta reutiliza rotas sem repetir chamadas do provedor', (
+    tester,
+  ) async {
+    final api = _FakeDriverApi(initialOnline: true, offerCoordinates: true);
+    final routes = _CountingRouteService();
 
-      await tester.pumpWidget(
-        RamoNessaDriverApp(
-          api: api,
-          locationService: const _FakeLocationService(),
-          routeService: routes,
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: api,
+        locationService: const _FakeLocationService(),
+        routeService: routes,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
 
-      expect(routes.calls, 2);
+    expect(routes.calls, 2);
 
-      await tester.pump(const Duration(seconds: 11));
-      await tester.pump(const Duration(milliseconds: 20));
-      await tester.pump(const Duration(seconds: 11));
-      await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(milliseconds: 20));
 
-      expect(routes.calls, 2);
+    expect(routes.calls, 2);
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-    },
-  );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets('motorista pode recusar oferta', (tester) async {
     final api = _FakeDriverApi(initialOnline: true);
@@ -766,10 +894,7 @@ class _FakeLocationService implements DriverLocationService {
 
   @override
   Future<DriverPosition> currentPosition() async {
-    return const DriverPosition(
-      latitude: -2.82017,
-      longitude: -40.41467,
-    );
+    return const DriverPosition(latitude: -2.82017, longitude: -40.41467);
   }
 
   @override
@@ -783,21 +908,25 @@ class _StreamingFakeLocationService implements DriverLocationService {
 
   @override
   Future<DriverPosition> currentPosition() async {
-    return const DriverPosition(
-      latitude: -2.82017,
-      longitude: -40.41467,
-    );
+    return const DriverPosition(latitude: -2.82017, longitude: -40.41467);
   }
 
   @override
   Stream<DriverPosition> positionStream() => _controller.stream;
 }
 
-class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRatingApi {
+class _FakeDriverApi
+    implements DriverApi, DriverBenefitsApi, DriverPassengerRatingApi {
   @override
   Future<DriverPassengerRating?> passengerRating(String rideId) async => null;
   @override
-  Future<DriverPassengerRating> ratePassenger({required String rideId, required int stars, required List<String> reasons, String? comment}) async => DriverPassengerRating(stars: stars, reasons: reasons, comment: comment);
+  Future<DriverPassengerRating> ratePassenger({
+    required String rideId,
+    required int stars,
+    required List<String> reasons,
+    String? comment,
+  }) async =>
+      DriverPassengerRating(stars: stars, reasons: reasons, comment: comment);
   int benefitsCalls = 0;
 
   @override
@@ -815,39 +944,39 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
     this.registrySuspended = false,
     this.cashCommissionDebtCents = 0,
     this.offerCoordinates = false,
-  })  : _finance = DriverFinanceSummary(
-          availableBalanceCents: 11000,
-          payoutPendingCents: 0,
-          cashCommissionDebtCents: cashCommissionDebtCents,
-        ),
-        _supply = DriverSupplySnapshot(
-          driverId: 'driver-test',
-          vehicleId: 'SW4 TESTE',
-          categories: const ['car'],
-          fourByFour: true,
-          seatCapacity: 6,
-          online: initialOnline,
-          busy: initialBusy,
-          latitude: -2.82,
-          longitude: -40.41,
-          locationUpdatedAt: DateTime(2026, 9, 23, 17),
-        ),
-        _currentRide = initialBusy
-            ? const AcceptedDriverRide(
-                id: 'ride-restored',
-                state: 'DRIVER_ARRIVING',
-                category: 'car',
-                passengers: 2,
-                origin: DriverLocationRef(zoneId: 'prea'),
-                destination: DriverLocationRef(zoneId: 'jijoca'),
-                driverEarningsCents: 11000,
-                pickupCompensationCents: 200,
-                pickupLatitude: -2.82017,
-                pickupLongitude: -40.41467,
-                dropoffLatitude: -2.7956,
-                dropoffLongitude: -40.5142,
-              )
-            : null;
+  }) : _finance = DriverFinanceSummary(
+         availableBalanceCents: 11000,
+         payoutPendingCents: 0,
+         cashCommissionDebtCents: cashCommissionDebtCents,
+       ),
+       _supply = DriverSupplySnapshot(
+         driverId: 'driver-test',
+         vehicleId: 'SW4 TESTE',
+         categories: const ['car'],
+         fourByFour: true,
+         seatCapacity: 6,
+         online: initialOnline,
+         busy: initialBusy,
+         latitude: -2.82,
+         longitude: -40.41,
+         locationUpdatedAt: DateTime(2026, 9, 23, 17),
+       ),
+       _currentRide = initialBusy
+           ? const AcceptedDriverRide(
+               id: 'ride-restored',
+               state: 'DRIVER_ARRIVING',
+               category: 'car',
+               passengers: 2,
+               origin: DriverLocationRef(zoneId: 'prea'),
+               destination: DriverLocationRef(zoneId: 'jijoca'),
+               driverEarningsCents: 11000,
+               pickupCompensationCents: 200,
+               pickupLatitude: -2.82017,
+               pickupLongitude: -40.41467,
+               dropoffLatitude: -2.7956,
+               dropoffLongitude: -40.5142,
+             )
+           : null;
 
   final bool failFirstPayoutUnexpectedly;
   final bool missingSupplyOnFirstLoad;
@@ -874,21 +1003,21 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
   DateTime? lastActivityTo;
 
   DriverOffer get _offer => DriverOffer(
-        id: 'offer-1',
-        rideId: 'ride-1',
-        expiresAt: DateTime.now().add(const Duration(minutes: 2)),
-        approximatePickupDistanceKm: 1.1,
-        pickupLatitude: offerCoordinates ? -2.82017 : null,
-        pickupLongitude: offerCoordinates ? -40.41467 : null,
-        dropoffLatitude: offerCoordinates ? -2.7956 : null,
-        dropoffLongitude: offerCoordinates ? -40.5142 : null,
-        category: 'car',
-        passengers: 2,
-        origin: const DriverLocationRef(zoneId: 'prea'),
-        destination: const DriverLocationRef(zoneId: 'jijoca'),
-        driverEarningsCents: 11000,
-        pickupCompensationCents: 200,
-      );
+    id: 'offer-1',
+    rideId: 'ride-1',
+    expiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    approximatePickupDistanceKm: 1.1,
+    pickupLatitude: offerCoordinates ? -2.82017 : null,
+    pickupLongitude: offerCoordinates ? -40.41467 : null,
+    dropoffLatitude: offerCoordinates ? -2.7956 : null,
+    dropoffLongitude: offerCoordinates ? -40.5142 : null,
+    category: 'car',
+    passengers: 2,
+    origin: const DriverLocationRef(zoneId: 'prea'),
+    destination: const DriverLocationRef(zoneId: 'jijoca'),
+    driverEarningsCents: 11000,
+    pickupCompensationCents: 200,
+  );
 
   @override
   Future<DriverSupplySnapshot> getSupply() async {
@@ -958,8 +1087,8 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
       profileStatus: registrySuspended
           ? 'suspended'
           : registryPending
-              ? 'pending'
-              : 'approved',
+          ? 'pending'
+          : 'approved',
       vehicleId: 'SW4 TESTE',
       vehiclePlate: 'TES1T23',
       vehicleMake: 'Toyota',
@@ -969,8 +1098,8 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
       vehicleStatus: registrySuspended
           ? 'suspended'
           : registryPending
-              ? 'pending'
-              : 'approved',
+          ? 'pending'
+          : 'approved',
       vehicleCategories: const ['car'],
       vehicleFourByFour: true,
       vehicleSeatCapacity: 6,
@@ -981,10 +1110,7 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
   Future<DriverDocumentsSnapshot> documents() async =>
       const DriverDocumentsSnapshot(
         items: [],
-        requiredDocumentTypes: [
-          'driver_license',
-          'vehicle_registration',
-        ],
+        requiredDocumentTypes: ['driver_license', 'vehicle_registration'],
         documentsApproved: false,
       );
 
@@ -1010,20 +1136,16 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
   }
 
   @override
-  Future<DriverSecuritySnapshot> security() async =>
-      DriverSecuritySnapshot(
-        sessionId: 'session-test',
-        subjectType: 'driver',
-        createdAt: DateTime(2026, 9, 24, 10),
-        expiresAt: DateTime(2026, 10, 24, 10),
-      );
+  Future<DriverSecuritySnapshot> security() async => DriverSecuritySnapshot(
+    sessionId: 'session-test',
+    subjectType: 'driver',
+    createdAt: DateTime(2026, 9, 24, 10),
+    expiresAt: DateTime(2026, 10, 24, 10),
+  );
 
   @override
   Future<DriverSessionRevokeResult> revokeOtherSessions() async =>
-      const DriverSessionRevokeResult(
-        revokedSessions: 0,
-        disabledDevices: 0,
-      );
+      const DriverSessionRevokeResult(revokedSessions: 0, disabledDevices: 0);
 
   @override
   Future<DriverSupportSnapshot> supportTickets() async =>
@@ -1034,16 +1156,15 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
     required String category,
     required String subject,
     required String message,
-  }) async =>
-      DriverSupportTicket(
-        id: 'support-test',
-        category: category,
-        subject: subject,
-        message: message,
-        status: 'open',
-        createdAt: DateTime(2026, 9, 24, 12),
-        updatedAt: DateTime(2026, 9, 24, 12),
-      );
+  }) async => DriverSupportTicket(
+    id: 'support-test',
+    category: category,
+    subject: subject,
+    message: message,
+    status: 'open',
+    createdAt: DateTime(2026, 9, 24, 12),
+    updatedAt: DateTime(2026, 9, 24, 12),
+  );
 
   @override
   Future<String> updateProfilePhoto({
@@ -1196,7 +1317,6 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
     );
   }
 
-
   @override
   Future<List<DriverRideChatMessage>> rideMessages(String rideId) async =>
       const [];
@@ -1228,13 +1348,12 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
   Future<DriverPayoutDestination> savePayoutDestination({
     required String pixKeyType,
     required String pixKey,
-  }) async =>
-      DriverPayoutDestination(
-        configured: true,
-        pixKeyType: pixKeyType,
-        pixKeyMasked: '••••0000',
-        updatedAt: DateTime(2026, 9, 26),
-      );
+  }) async => DriverPayoutDestination(
+    configured: true,
+    pixKeyType: pixKeyType,
+    pixKeyMasked: '••••0000',
+    updatedAt: DateTime(2026, 9, 26),
+  );
 
   @override
   Future<DriverFinanceSummary> financeSummary() async => _finance;
@@ -1262,12 +1381,9 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
     }
 
     _finance = DriverFinanceSummary(
-      availableBalanceCents:
-          _finance.availableBalanceCents - amountCents,
-      payoutPendingCents:
-          _finance.payoutPendingCents + amountCents,
-      cashCommissionDebtCents:
-          _finance.cashCommissionDebtCents,
+      availableBalanceCents: _finance.availableBalanceCents - amountCents,
+      payoutPendingCents: _finance.payoutPendingCents + amountCents,
+      cashCommissionDebtCents: _finance.cashCommissionDebtCents,
     );
     return DriverPayoutReservation(
       id: 'payout-test',
@@ -1286,14 +1402,28 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
   }
 }
 
-class _IdentityReviewApi extends _FakeDriverApi implements DriverRideIdentityApi {
- _IdentityReviewApi():super(initialOnline:true,initialBusy:true){_offerAvailable=false;}
- @override Future<Map<String,dynamic>> rideIdentification(String rideId)async=>{
-  'passengerName':'Ian Silva','terms':{'cancelUntil':DateTime.now().add(const Duration(seconds:40)).toIso8601String(),'serverTime':DateTime.now().toIso8601String()}};
+class _IdentityReviewApi extends _FakeDriverApi
+    implements DriverRideIdentityApi {
+  _IdentityReviewApi() : super(initialOnline: true, initialBusy: true) {
+    _offerAvailable = false;
+  }
+  @override
+  Future<Map<String, dynamic>> rideIdentification(String rideId) async => {
+    'passengerName': 'Ian Silva',
+    'terms': {
+      'cancelUntil': DateTime.now()
+          .add(const Duration(seconds: 40))
+          .toIso8601String(),
+      'serverTime': DateTime.now().toIso8601String(),
+    },
+  };
 }
-DriverApi identityReviewApi()=>_IdentityReviewApi();
-DriverLocationService identityReviewLocation()=>const _FakeLocationService();
+
+DriverApi identityReviewApi() => _IdentityReviewApi();
+DriverLocationService identityReviewLocation() => const _FakeLocationService();
+
 class _CancellationReviewRealtime implements DriverRealtimeService {
- final controller=StreamController<DriverRealtimeUpdate>.broadcast();
- @override Stream<DriverRealtimeUpdate> watch()=>controller.stream;
+  final controller = StreamController<DriverRealtimeUpdate>.broadcast();
+  @override
+  Stream<DriverRealtimeUpdate> watch() => controller.stream;
 }

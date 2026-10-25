@@ -1,3 +1,4 @@
+import {renderSupportRideContext} from './support-ride-context.js';
 import { passengerDisplayName } from './passenger-directory.js';
 import {createGuideAdmin} from './guide-admin.js';
 let guideAdmin=null;
@@ -9406,6 +9407,7 @@ function supportRequesterLabel(ticket) {
   return `${type} ${id || 'não identificado'}`;
 }
 
+
 function renderSupportSelection() {
   const ticket = selectedSupportTicket();
   const card = byId('support-response-card');
@@ -9424,6 +9426,7 @@ function renderSupportSelection() {
   byId('support-response-status').textContent =
     supportStatusLabel(ticket.status);
   byId('support-driver-message').textContent = ticket.message;
+  renderSupportRideContext(ticket, {section: byId('support-ride-context'), container: byId('support-ride-context-content')});
   byId('support-ticket-status').value =
     ticket.status === 'open' ? 'in_progress' : ticket.status;
   byId('support-ticket-response').value = ticket.response ?? '';

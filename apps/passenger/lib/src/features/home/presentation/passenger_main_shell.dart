@@ -1,3 +1,4 @@
+import '../../rides/domain/passenger_activity.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../guide/data/local_guide_service.dart';
@@ -32,6 +33,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.accessToken,
     required this.tourService,
     this.guideService,
+    this.onResumeRide,
     this.supportService,
     this.privacyService,
     this.socialLinksService,
@@ -45,6 +47,8 @@ class PassengerMainShell extends StatefulWidget {
     ValueListenable<RamoPlace?> destination,
   )
   homeBuilder;
+  final Future<void> Function(BuildContext context, PassengerActivityRide ride)?
+  onResumeRide;
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
   final PassengerPaymentService? paymentService;
@@ -65,6 +69,7 @@ class PassengerMainShell extends StatefulWidget {
 
 class _PassengerMainShellState extends State<PassengerMainShell> {
   int _index = 0;
+  PassengerActivityRide? _currentRide;
   final ValueNotifier<RamoPlace?> _guideDestination = ValueNotifier(null);
 
   @override
@@ -160,7 +165,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
               NavigationDestination(
                 icon: Icon(Icons.receipt_long_outlined),
                 selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Atividade',
+                label: 'Atividades',
               ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline_rounded),
@@ -177,7 +182,40 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      widget.homeBuilder(() => _select(3), () => _select(1), _guideDestination),
+      Column(
+        children: [
+          if (_currentRide != null)
+            SafeArea(
+              bottom: false,
+              child: Material(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.route_outlined),
+                  title: Text(
+                    _currentRide!.activityData.awaitingPayment
+                        ? 'Você tem um pagamento pendente'
+                        : 'Você tem uma corrida em andamento',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  subtitle: const Text(
+                    'Ver em Atividades',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _select(2),
+                ),
+              ),
+            ),
+          Expanded(
+            child: widget.homeBuilder(
+              () => _select(3),
+              () => _select(1),
+              _guideDestination,
+            ),
+          ),
+        ],
+      ),
       widget.guideService == null
           ? AgencyToursScreen(service: widget.tourService)
           : LocalGuideScreen(
@@ -188,7 +226,24 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
                 _guideDestination.value = destination;
               },
             ),
-      PassengerActivityScreen(service: widget.activityService),
+      PassengerActivityScreen(
+        service: widget.activityService,
+        visible: _index == 2,
+        onLoaded: (snapshot) {
+          final active = snapshot.rides.where((r) => !r.activityData.terminal);
+          final next = active.isEmpty ? null : active.first;
+          if (next?.id != _currentRide?.id ||
+              next?.state != _currentRide?.state) {
+            setState(() => _currentRide = next);
+          }
+        },
+        onResume: widget.onResumeRide == null
+            ? null
+            : (ride) => widget.onResumeRide!(context, ride),
+        support: widget.supportService is RamoRideSupportApi
+            ? widget.supportService as RamoRideSupportApi
+            : null,
+      ),
       PassengerProfileScreen(
         authService: widget.authService,
         accessToken: widget.accessToken,

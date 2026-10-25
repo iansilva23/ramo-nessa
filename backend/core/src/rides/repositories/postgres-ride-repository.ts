@@ -167,8 +167,15 @@ const RETURNING = `
 `;
 
 export class PostgresRideRepository implements RideRepository {
+  async listActivityEvents(rideId: string): Promise<import('../ride-support-context.js').RideActivityEvent[]> {
+    const result = await this.pool.query(`SELECT state, payment_status, driver_id, recorded_at, driver_location, vehicle_snapshot
+      FROM ride_activity_events WHERE ride_id = $1 ORDER BY id`, [rideId]);
+    return result.rows.map(row => ({state: row.state, paymentStatus: row.payment_status,
+      driverId: row.driver_id, recordedAt: row.recorded_at.toISOString(), driverLocation: row.driver_location, vehicleSnapshot: row.vehicle_snapshot}));
+  }
+
   async findRecoverableByPassengerId(passengerId:string):Promise<RideRecord|null>{
-    const result=await this.pool.query<RideRow>("SELECT * FROM rides WHERE passenger_id=$1 AND state=ANY($2::text[]) ORDER BY (state='IN_PROGRESS') DESC,updated_at DESC,id DESC LIMIT 1",[passengerId,RECOVERABLE_RIDE_STATES]);
+    const result=await this.pool.query<RideRow>("SELECT * FROM rides WHERE passenger_id=$1 AND state=ANY($2::text[]) ORDER BY CASE WHEN state='IN_PROGRESS' THEN 0 WHEN state IN ('DRIVER_ARRIVED','DRIVER_ASSIGNED','DRIVER_ARRIVING') THEN 1 WHEN state IN ('PAID','SEARCHING_DRIVER','NO_DRIVER_FOUND') THEN 2 ELSE 3 END,updated_at DESC,id DESC LIMIT 1",[passengerId,RECOVERABLE_RIDE_STATES]);
     return result.rows[0]?mapRow(result.rows[0]):null;
   }
   constructor(private readonly pool: Pool | PoolClient) {}
@@ -290,7 +297,7 @@ export class PostgresRideRepository implements RideRepository {
           'IN_PROGRESS',
           'COMPLETED'
         )
-      ORDER BY updated_at DESC
+      ORDER BY (state = 'COMPLETED') ASC, (state = 'IN_PROGRESS') DESC, updated_at DESC, id DESC
       LIMIT 1
       `,
       [driverId],

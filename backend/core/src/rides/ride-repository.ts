@@ -68,6 +68,7 @@ export interface PassengerRatingRecord {
 }
 
 export interface RideRepository {
+  listActivityEvents?(rideId: string): Promise<import('./ride-support-context.js').RideActivityEvent[]>;
   findPassengerRating(rideId: string, driverId: string): Promise<PassengerRatingRecord | null>;
   recordPassengerRating(rating: PassengerRatingRecord): Promise<{rating: PassengerRatingRecord; created: boolean} | null>;
   create(ride: RideRecord): Promise<RideRecord>;

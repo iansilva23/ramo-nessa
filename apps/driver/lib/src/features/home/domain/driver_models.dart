@@ -68,10 +68,11 @@ class DriverLocationRef {
     return raw
         .split(RegExp('[-_]'))
         .where((part) => part.isNotEmpty)
-        .map((part) =>
-            part.length == 1
-                ? part.toUpperCase()
-                : '${part[0].toUpperCase()}${part.substring(1)}')
+        .map(
+          (part) => part.length == 1
+              ? part.toUpperCase()
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
         .join(' ');
   }
 }
@@ -105,8 +106,8 @@ class DriverOffer {
       id: json['id'] as String,
       rideId: json['rideId'] as String,
       expiresAt: DateTime.parse(json['expiresAt'] as String),
-      approximatePickupDistanceKm:
-          (json['approximatePickupDistanceKm'] as num).toDouble(),
+      approximatePickupDistanceKm: (json['approximatePickupDistanceKm'] as num)
+          .toDouble(),
       tripDistanceKm: (json['tripDistanceKm'] as num?)?.toDouble(),
       pickupInstructions: json['pickupInstructions'] as String?,
       dropoffInstructions: json['dropoffInstructions'] as String?,
@@ -123,13 +124,11 @@ class DriverOffer {
         json['destination'] as Map<String, dynamic>,
       ),
       driverEarningsCents: (json['driverEarningsCents'] as num).toInt(),
-      pickupCompensationCents:
-          (json['pickupCompensationCents'] as num).toInt(),
+      pickupCompensationCents: (json['pickupCompensationCents'] as num).toInt(),
       paymentMethod: json['paymentMethod'] as String?,
-      cashCollectionAmountCents:
-          (json['cashCollectionAmountCents'] as num?)?.toInt(),
-      cashCommissionCents:
-          (json['cashCommissionCents'] as num?)?.toInt(),
+      cashCollectionAmountCents: (json['cashCollectionAmountCents'] as num?)
+          ?.toInt(),
+      cashCommissionCents: (json['cashCommissionCents'] as num?)?.toInt(),
     );
   }
 
@@ -157,13 +156,13 @@ class DriverOffer {
   bool get isCash => paymentMethod == 'cash';
 
   String get categoryLabel => switch (category) {
-        'moto' => 'Moto',
-        'car' => 'Carro',
-        'comfort_black' => 'Comfort / Black',
-        'buggy' => 'Buggy',
-        'delivery' => 'Entrega',
-        _ => category,
-      };
+    'moto' => 'Moto',
+    'car' => 'Carro',
+    'comfort_black' => 'Comfort / Black',
+    'buggy' => 'Buggy',
+    'delivery' => 'Entrega',
+    _ => category,
+  };
 }
 
 class AcceptedDriverRide {
@@ -177,6 +176,8 @@ class AcceptedDriverRide {
     required this.driverEarningsCents,
     required this.pickupCompensationCents,
     this.paymentMethod,
+    this.paymentStatus,
+    this.totalAmountCents,
     this.driverHoldExpiresAt,
     this.cashCollectionAmountCents,
     this.cashCommissionCents,
@@ -201,14 +202,16 @@ class AcceptedDriverRide {
         json['destination'] as Map<String, dynamic>,
       ),
       driverEarningsCents: (json['driverEarningsCents'] as num).toInt(),
-      pickupCompensationCents:
-          (json['pickupCompensationCents'] as num).toInt(),
+      pickupCompensationCents: (json['pickupCompensationCents'] as num).toInt(),
       paymentMethod: json['paymentMethod'] as String?,
-      driverHoldExpiresAt: DateTime.tryParse(json['driverHoldExpiresAt'] as String? ?? ''),
-      cashCollectionAmountCents:
-          (json['cashCollectionAmountCents'] as num?)?.toInt(),
-      cashCommissionCents:
-          (json['cashCommissionCents'] as num?)?.toInt(),
+      paymentStatus: json['paymentStatus'] as String?,
+      totalAmountCents: (json['totalAmountCents'] as num?)?.toInt(),
+      driverHoldExpiresAt: DateTime.tryParse(
+        json['driverHoldExpiresAt'] as String? ?? '',
+      ),
+      cashCollectionAmountCents: (json['cashCollectionAmountCents'] as num?)
+          ?.toInt(),
+      cashCommissionCents: (json['cashCommissionCents'] as num?)?.toInt(),
       pickupInstructions: json['pickupInstructions'] as String?,
       dropoffInstructions: json['dropoffInstructions'] as String?,
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
@@ -226,7 +229,8 @@ class AcceptedDriverRide {
   final DriverLocationRef destination;
   final int driverEarningsCents;
   final int pickupCompensationCents;
-  final String? paymentMethod;
+  final String? paymentMethod, paymentStatus;
+  final int? totalAmountCents;
   final DateTime? driverHoldExpiresAt;
   final int? cashCollectionAmountCents;
   final int? cashCommissionCents;
@@ -246,7 +250,6 @@ String formatCents(int cents) {
   return 'R\$ $reais,$centavos';
 }
 
-
 class DriverRideCompletion {
   const DriverRideCompletion({
     required this.ride,
@@ -257,11 +260,8 @@ class DriverRideCompletion {
   factory DriverRideCompletion.fromJson(Map<String, dynamic> json) {
     final settlement = json['settlement'] as Map<String, dynamic>;
     return DriverRideCompletion(
-      ride: AcceptedDriverRide.fromJson(
-        json['ride'] as Map<String, dynamic>,
-      ),
-      driverBalanceCents:
-          (settlement['driverBalanceCents'] as num).toInt(),
+      ride: AcceptedDriverRide.fromJson(json['ride'] as Map<String, dynamic>),
+      driverBalanceCents: (settlement['driverBalanceCents'] as num).toInt(),
       duplicateSettlement: settlement['duplicate'] as bool? ?? false,
     );
   }
@@ -270,7 +270,6 @@ class DriverRideCompletion {
   final int driverBalanceCents;
   final bool duplicateSettlement;
 }
-
 
 class DriverRideChatMessage {
   const DriverRideChatMessage({
@@ -314,12 +313,12 @@ class DriverFinanceSummary {
 
   factory DriverFinanceSummary.fromJson(Map<String, dynamic> json) {
     return DriverFinanceSummary(
-      availableBalanceCents:
-          (json['availableBalanceCents'] as num).toInt(),
-      payoutPendingCents:
-          (json['payoutPendingCents'] as num).toInt(),
-      anticipationMinimumCents: (json['anticipationMinimumCents'] as num?)?.toInt() ?? 8000,
-      anticipationFeeCents: (json['anticipationFeeCents'] as num?)?.toInt() ?? 1000,
+      availableBalanceCents: (json['availableBalanceCents'] as num).toInt(),
+      payoutPendingCents: (json['payoutPendingCents'] as num).toInt(),
+      anticipationMinimumCents:
+          (json['anticipationMinimumCents'] as num?)?.toInt() ?? 8000,
+      anticipationFeeCents:
+          (json['anticipationFeeCents'] as num?)?.toInt() ?? 1000,
       cashCommissionDebtCents:
           (json['cashCommissionDebtCents'] as num?)?.toInt() ?? 0,
     );
@@ -352,16 +351,11 @@ class DriverStatementItem {
       id: json['id'] as String,
       kind: json['kind'] as String,
       title: json['title'] as String? ?? 'Movimentação financeira',
-      availableDeltaCents:
-          (json['availableDeltaCents'] as num?)?.toInt() ?? 0,
-      pendingDeltaCents:
-          (json['pendingDeltaCents'] as num?)?.toInt() ?? 0,
-      debtDeltaCents:
-          (json['debtDeltaCents'] as num?)?.toInt() ?? 0,
-      platformFeeCents:
-          (json['platformFeeCents'] as num?)?.toInt() ?? 0,
-      balanceAfterCents:
-          (json['balanceAfterCents'] as num?)?.toInt() ?? 0,
+      availableDeltaCents: (json['availableDeltaCents'] as num?)?.toInt() ?? 0,
+      pendingDeltaCents: (json['pendingDeltaCents'] as num?)?.toInt() ?? 0,
+      debtDeltaCents: (json['debtDeltaCents'] as num?)?.toInt() ?? 0,
+      platformFeeCents: (json['platformFeeCents'] as num?)?.toInt() ?? 0,
+      balanceAfterCents: (json['balanceAfterCents'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
       rideId: json['rideId'] as String?,
       payoutId: json['payoutId'] as String?,
@@ -400,9 +394,9 @@ class DriverFinanceStatement {
       ),
       items: rawItems is List
           ? rawItems
-              .whereType<Map<String, dynamic>>()
-              .map(DriverStatementItem.fromJson)
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(DriverStatementItem.fromJson)
+                .toList(growable: false)
           : const [],
     );
   }
@@ -411,7 +405,6 @@ class DriverFinanceStatement {
   final DriverFinanceSummary finance;
   final List<DriverStatementItem> items;
 }
-
 
 class DriverPayoutDestination {
   const DriverPayoutDestination({
@@ -438,13 +431,13 @@ class DriverPayoutDestination {
   final DateTime? updatedAt;
 
   String get typeLabel => switch (pixKeyType) {
-        'cpf' => 'CPF',
-        'cnpj' => 'CNPJ',
-        'email' => 'E-mail',
-        'phone' => 'Celular',
-        'random' => 'Chave aleatória',
-        _ => 'Pix',
-      };
+    'cpf' => 'CPF',
+    'cnpj' => 'CNPJ',
+    'email' => 'E-mail',
+    'phone' => 'Celular',
+    'random' => 'Chave aleatória',
+    _ => 'Pix',
+  };
 }
 
 class DriverPayoutReservation {
@@ -464,8 +457,7 @@ class DriverPayoutReservation {
     return DriverPayoutReservation(
       id: payout['id'] as String,
       amountCents: (payout['amountCents'] as num).toInt(),
-      requestedAmountCents:
-          (payout['requestedAmountCents'] as num?)?.toInt(),
+      requestedAmountCents: (payout['requestedAmountCents'] as num?)?.toInt(),
       feeCents: (payout['feeCents'] as num?)?.toInt() ?? 0,
       payoutKind: payout['payoutKind'] as String? ?? 'legacy',
       status: payout['status'] as String,
@@ -487,7 +479,6 @@ class DriverPayoutReservation {
 
   int get grossAmountCents => requestedAmountCents ?? amountCents;
 }
-
 
 class DriverProfileSnapshot {
   const DriverProfileSnapshot({
@@ -515,10 +506,12 @@ class DriverProfileSnapshot {
   factory DriverProfileSnapshot.fromJson(Map<String, dynamic> json) {
     final profile = json['profile'];
     final vehicle = json['vehicle'];
-    final profileMap =
-        profile is Map<String, dynamic> ? profile : <String, dynamic>{};
-    final vehicleMap =
-        vehicle is Map<String, dynamic> ? vehicle : <String, dynamic>{};
+    final profileMap = profile is Map<String, dynamic>
+        ? profile
+        : <String, dynamic>{};
+    final vehicleMap = vehicle is Map<String, dynamic>
+        ? vehicle
+        : <String, dynamic>{};
     final categories = vehicleMap['categories'];
 
     return DriverProfileSnapshot(
@@ -542,8 +535,7 @@ class DriverProfileSnapshot {
           ? categories.whereType<String>().toList(growable: false)
           : const [],
       vehicleFourByFour: vehicleMap['fourByFour'] as bool? ?? false,
-      vehicleSeatCapacity:
-          (vehicleMap['seatCapacity'] as num?)?.toInt(),
+      vehicleSeatCapacity: (vehicleMap['seatCapacity'] as num?)?.toInt(),
     );
   }
 
@@ -567,12 +559,11 @@ class DriverProfileSnapshot {
   final bool vehicleFourByFour;
   final int? vehicleSeatCapacity;
 
-  String get displayName =>
-      preferredName?.trim().isNotEmpty == true
-          ? preferredName!.trim()
-          : fullName?.trim().isNotEmpty == true
-              ? fullName!.trim()
-              : 'Motorista Ramo Nessa';
+  String get displayName => preferredName?.trim().isNotEmpty == true
+      ? preferredName!.trim()
+      : fullName?.trim().isNotEmpty == true
+      ? fullName!.trim()
+      : 'Motorista Ramo Nessa';
 
   String get vehicleLabel {
     final parts = [
@@ -631,18 +622,18 @@ class DriverDocumentItem {
   final DateTime updatedAt;
 
   String get title => switch (documentType) {
-        'driver_license' => 'CNH',
-        'vehicle_registration' => 'CRLV',
-        _ => documentType,
-      };
+    'driver_license' => 'CNH',
+    'vehicle_registration' => 'CRLV',
+    _ => documentType,
+  };
 
   String get statusLabel => switch (effectiveStatus) {
-        'approved' => 'Aprovado',
-        'pending' => 'Em análise',
-        'rejected' => 'Rejeitado',
-        'expired' => 'Vencido',
-        _ => effectiveStatus,
-      };
+    'approved' => 'Aprovado',
+    'pending' => 'Em análise',
+    'rejected' => 'Rejeitado',
+    'expired' => 'Vencido',
+    _ => effectiveStatus,
+  };
 }
 
 class DriverDocumentsSnapshot {
@@ -658,9 +649,9 @@ class DriverDocumentsSnapshot {
     return DriverDocumentsSnapshot(
       items: rawItems is List
           ? rawItems
-              .whereType<Map<String, dynamic>>()
-              .map(DriverDocumentItem.fromJson)
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(DriverDocumentItem.fromJson)
+                .toList(growable: false)
           : const [],
       requiredDocumentTypes: rawRequired is List
           ? rawRequired.whereType<String>().toList(growable: false)
@@ -680,7 +671,6 @@ class DriverDocumentsSnapshot {
     return null;
   }
 }
-
 
 class DriverSecuritySnapshot {
   const DriverSecuritySnapshot({
@@ -722,7 +712,6 @@ class DriverSessionRevokeResult {
   final int disabledDevices;
 }
 
-
 class DriverSupportTicket {
   const DriverSupportTicket({
     required this.id,
@@ -763,20 +752,20 @@ class DriverSupportTicket {
   final DateTime updatedAt;
 
   String get categoryLabel => switch (category) {
-        'ride' => 'Corrida',
-        'payment' => 'Pagamento',
-        'account' => 'Conta',
-        'document' => 'Documentos',
-        _ => 'Outro',
-      };
+    'ride' => 'Corrida',
+    'payment' => 'Pagamento',
+    'account' => 'Conta',
+    'document' => 'Documentos',
+    _ => 'Outro',
+  };
 
   String get statusLabel => switch (status) {
-        'open' => 'Aberto',
-        'in_progress' => 'Em atendimento',
-        'resolved' => 'Resolvido',
-        'closed' => 'Encerrado',
-        _ => status,
-      };
+    'open' => 'Aberto',
+    'in_progress' => 'Em atendimento',
+    'resolved' => 'Resolvido',
+    'closed' => 'Encerrado',
+    _ => status,
+  };
 }
 
 class DriverSupportSnapshot {
@@ -787,16 +776,15 @@ class DriverSupportSnapshot {
     return DriverSupportSnapshot(
       tickets: raw is List
           ? raw
-              .whereType<Map<String, dynamic>>()
-              .map(DriverSupportTicket.fromJson)
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(DriverSupportTicket.fromJson)
+                .toList(growable: false)
           : const [],
     );
   }
 
   final List<DriverSupportTicket> tickets;
 }
-
 
 class DriverActivityRide {
   const DriverActivityRide({
@@ -810,6 +798,7 @@ class DriverActivityRide {
     required this.platformFeeCents,
     required this.updatedAt,
     this.paymentMethod,
+    this.paymentStatus,
   });
 
   factory DriverActivityRide.fromJson(Map<String, dynamic> json) {
@@ -823,13 +812,11 @@ class DriverActivityRide {
       destination: DriverLocationRef.fromJson(
         json['destination'] as Map<String, dynamic>,
       ),
-      driverEarningsCents:
-          (json['driverEarningsCents'] as num).toInt(),
-      totalAmountCents:
-          (json['totalAmountCents'] as num?)?.toInt() ?? 0,
-      platformFeeCents:
-          (json['platformFeeCents'] as num?)?.toInt() ?? 0,
+      driverEarningsCents: (json['driverEarningsCents'] as num).toInt(),
+      totalAmountCents: (json['totalAmountCents'] as num?)?.toInt() ?? 0,
+      platformFeeCents: (json['platformFeeCents'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod'] as String?,
+      paymentStatus: json['paymentStatus'] as String?,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -842,28 +829,28 @@ class DriverActivityRide {
   final int driverEarningsCents;
   final int totalAmountCents;
   final int platformFeeCents;
-  final String? paymentMethod;
+  final String? paymentMethod, paymentStatus;
   final DateTime updatedAt;
 
   String get stateLabel => switch (state) {
-        'COMPLETED' => 'Concluída',
-        'CANCELLED_BY_PASSENGER' => 'Cancelada pelo passageiro',
-        'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
-        'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
-        'IN_PROGRESS' => 'Em andamento',
-        'DRIVER_ARRIVED' => 'No embarque',
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho',
-        _ => state,
-      };
+    'COMPLETED' => 'Concluída',
+    'CANCELLED_BY_PASSENGER' => 'Cancelada pelo passageiro',
+    'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
+    'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
+    'IN_PROGRESS' => 'Em andamento',
+    'DRIVER_ARRIVED' => 'No embarque',
+    'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho',
+    _ => state,
+  };
 
   String get categoryLabel => switch (category) {
-        'moto' => 'Moto',
-        'car' => 'Carro',
-        'comfort_black' => 'Comfort / Black',
-        'buggy' => 'Buggy',
-        'delivery' => 'Entrega',
-        _ => category,
-      };
+    'moto' => 'Moto',
+    'car' => 'Carro',
+    'comfort_black' => 'Comfort / Black',
+    'buggy' => 'Buggy',
+    'delivery' => 'Entrega',
+    _ => category,
+  };
 }
 
 class DriverActivitySnapshot {
@@ -883,33 +870,29 @@ class DriverActivitySnapshot {
   });
 
   factory DriverActivitySnapshot.fromJson(Map<String, dynamic> json) {
-    final summary = json['summary'] as Map<String, dynamic>? ??
-        const <String, dynamic>{};
+    final summary =
+        json['summary'] as Map<String, dynamic>? ?? const <String, dynamic>{};
     final rides = json['rides'];
     return DriverActivitySnapshot(
       total: (summary['total'] as num?)?.toInt() ?? 0,
       completed: (summary['completed'] as num?)?.toInt() ?? 0,
       cancelled: (summary['cancelled'] as num?)?.toInt() ?? 0,
       inProgress: (summary['inProgress'] as num?)?.toInt() ?? 0,
-      earningsCents:
-          (summary['earningsCents'] as num?)?.toInt() ?? 0,
-      grossCents:
-          (summary['grossCents'] as num?)?.toInt() ?? 0,
-      platformFeeCents:
-          (summary['platformFeeCents'] as num?)?.toInt() ?? 0,
+      earningsCents: (summary['earningsCents'] as num?)?.toInt() ?? 0,
+      grossCents: (summary['grossCents'] as num?)?.toInt() ?? 0,
+      platformFeeCents: (summary['platformFeeCents'] as num?)?.toInt() ?? 0,
       averageEarningsCents:
           (summary['averageEarningsCents'] as num?)?.toInt() ?? 0,
       payoutsRequestedCents:
           (summary['payoutsRequestedCents'] as num?)?.toInt() ?? 0,
-      payoutsPaidCents:
-          (summary['payoutsPaidCents'] as num?)?.toInt() ?? 0,
+      payoutsPaidCents: (summary['payoutsPaidCents'] as num?)?.toInt() ?? 0,
       availableBalanceCents:
           (summary['availableBalanceCents'] as num?)?.toInt() ?? 0,
       rides: rides is List
           ? rides
-              .whereType<Map<String, dynamic>>()
-              .map(DriverActivityRide.fromJson)
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(DriverActivityRide.fromJson)
+                .toList(growable: false)
           : const [],
     );
   }
@@ -928,7 +911,6 @@ class DriverActivitySnapshot {
   final List<DriverActivityRide> rides;
 }
 
-
 class NearbyDriverPosition {
   const NearbyDriverPosition({
     required this.driverId,
@@ -946,8 +928,7 @@ class NearbyDriverPosition {
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       busy: json['busy'] as bool? ?? false,
-      locationAgeSeconds:
-          (json['locationAgeSeconds'] as num?)?.toInt() ?? 0,
+      locationAgeSeconds: (json['locationAgeSeconds'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -967,16 +948,15 @@ class NearbyDriversSnapshot {
   });
 
   factory NearbyDriversSnapshot.fromJson(Map<String, dynamic> json) {
-    final raw=json['drivers'];
+    final raw = json['drivers'];
     return NearbyDriversSnapshot(
       enabled: json['enabled'] as bool? ?? false,
-      refreshAfterSeconds:
-          (json['refreshAfterSeconds'] as num?)?.toInt() ?? 30,
+      refreshAfterSeconds: (json['refreshAfterSeconds'] as num?)?.toInt() ?? 30,
       drivers: raw is List
           ? raw
-              .whereType<Map<String,dynamic>>()
-              .map(NearbyDriverPosition.fromJson)
-              .toList(growable:false)
+                .whereType<Map<String, dynamic>>()
+                .map(NearbyDriverPosition.fromJson)
+                .toList(growable: false)
           : const [],
     );
   }

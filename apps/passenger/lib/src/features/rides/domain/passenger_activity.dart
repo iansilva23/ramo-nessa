@@ -1,3 +1,5 @@
+import 'package:ramo_design_system/ramo_design_system.dart';
+
 class PassengerActivityRide {
   const PassengerActivityRide({
     required this.id,
@@ -9,6 +11,9 @@ class PassengerActivityRide {
     required this.createdAt,
     required this.updatedAt,
     this.paymentMethod,
+    this.paymentStatus,
+    this.driverName,
+    this.vehicleLabel,
   });
 
   factory PassengerActivityRide.fromJson(Map<String, dynamic> json) {
@@ -20,6 +25,11 @@ class PassengerActivityRide {
       destination: _locationLabel(json['destination']),
       totalAmountCents: (json['totalAmountCents'] as num).toInt(),
       paymentMethod: json['paymentMethod'] as String?,
+      paymentStatus: json['paymentStatus'] as String?,
+      driverName: (json['driver'] as Map?)?['name'] as String?,
+      vehicleLabel: ((json['driver'] as Map?)?['vehicle'] as Map?)?.values
+          .whereType<String>()
+          .join(' · '),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -31,46 +41,61 @@ class PassengerActivityRide {
   final String origin;
   final String destination;
   final int totalAmountCents;
-  final String? paymentMethod;
+  final String? paymentMethod, paymentStatus, driverName, vehicleLabel;
+  RamoRideActivityData get activityData => RamoRideActivityData(
+    id: id,
+    state: state,
+    origin: origin,
+    destination: destination,
+    category: category,
+    amountCents: totalAmountCents,
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
+    participant: driverName,
+    vehicle: vehicleLabel,
+    date: createdAt,
+  );
   final DateTime createdAt;
   final DateTime updatedAt;
 
   String get stateLabel => switch (state) {
-        'COMPLETED' => 'Concluída',
-        'CANCELLED_BY_PASSENGER' => 'Cancelada por você',
-        'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
-        'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
-        'IN_PROGRESS' => 'Em andamento',
-        'DRIVER_ARRIVED' => 'Motorista chegou',
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Motorista a caminho',
-        'SEARCHING_DRIVER' => 'Procurando motorista',
-        'REFUNDED' => 'Reembolsada',
-        'PAYMENT_FAILED' => 'Falha no pagamento',
-        'AWAITING_PAYMENT' => 'Aguardando pagamento',
-        _ => state,
-      };
+    'COMPLETED' => 'Concluída',
+    'CANCELLED_BY_PASSENGER' => 'Cancelada por você',
+    'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
+    'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
+    'IN_PROGRESS' => 'Em andamento',
+    'DRIVER_ARRIVED' => 'Motorista chegou',
+    'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Motorista a caminho',
+    'SEARCHING_DRIVER' => 'Procurando motorista',
+    'REFUNDED' => 'Reembolsada',
+    'PAYMENT_FAILED' => 'Falha no pagamento',
+    'AWAITING_PAYMENT' => 'Aguardando pagamento',
+    _ => state,
+  };
 
   String get categoryLabel => switch (category) {
-        'moto' => 'Moto',
-        'car' => 'Carro',
-        'comfort_black' => 'Comfort / Black',
-        'buggy' => 'Buggy',
-        'delivery' => 'Entrega',
-        _ => category,
-      };
+    'moto' => 'Moto',
+    'car' => 'Carro',
+    'comfort_black' => 'Comfort / Black',
+    'buggy' => 'Buggy',
+    'delivery' => 'Entrega',
+    _ => category,
+  };
 
   static String _locationLabel(dynamic raw) {
     if (raw is! Map) return 'Local';
-    final map=Map<String,dynamic>.from(raw);
-    final locality=map['localityId'] as String?;
-    final zone=map['zoneId'] as String?;
-    final value=locality ?? zone ?? 'local';
+    final map = Map<String, dynamic>.from(raw);
+    final locality = map['localityId'] as String?;
+    final zone = map['zoneId'] as String?;
+    final value = locality ?? zone ?? 'local';
     return value
         .split(RegExp(r'[-_]'))
         .where((part) => part.isNotEmpty)
-        .map((part) => part.length == 1
-            ? part.toUpperCase()
-            : '${part[0].toUpperCase()}${part.substring(1)}')
+        .map(
+          (part) => part.length == 1
+              ? part.toUpperCase()
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
         .join(' ');
   }
 }
@@ -86,21 +111,21 @@ class PassengerActivitySnapshot {
   });
 
   factory PassengerActivitySnapshot.fromJson(Map<String, dynamic> json) {
-    final summary=json['summary'] as Map<String,dynamic>? ??
-        const <String,dynamic>{};
-    final rides=json['rides'];
+    final summary =
+        json['summary'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    final rides = json['rides'];
     return PassengerActivitySnapshot(
-      total:(summary['total'] as num?)?.toInt() ?? 0,
-      active:(summary['active'] as num?)?.toInt() ?? 0,
-      completed:(summary['completed'] as num?)?.toInt() ?? 0,
-      cancelled:(summary['cancelled'] as num?)?.toInt() ?? 0,
+      total: (summary['total'] as num?)?.toInt() ?? 0,
+      active: (summary['active'] as num?)?.toInt() ?? 0,
+      completed: (summary['completed'] as num?)?.toInt() ?? 0,
+      cancelled: (summary['cancelled'] as num?)?.toInt() ?? 0,
       completedAmountCents:
           (summary['completedAmountCents'] as num?)?.toInt() ?? 0,
-      rides:rides is List
+      rides: rides is List
           ? rides
-              .whereType<Map<String,dynamic>>()
-              .map(PassengerActivityRide.fromJson)
-              .toList(growable:false)
+                .whereType<Map<String, dynamic>>()
+                .map(PassengerActivityRide.fromJson)
+                .toList(growable: false)
           : const [],
     );
   }

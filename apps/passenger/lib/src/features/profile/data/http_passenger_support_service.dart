@@ -1,3 +1,4 @@
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -5,39 +6,35 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/ramo_core_config.dart';
 import 'passenger_support_service.dart';
 
-class HttpPassengerSupportService implements PassengerSupportService {
+class HttpPassengerSupportService
+    implements PassengerSupportService, RamoRideSupportApi {
   HttpPassengerSupportService({
     required Uri baseUrl,
     required String accessToken,
     http.Client? client,
-  })  : _baseUrl = baseUrl,
-        _accessToken = accessToken,
-        _client = client ?? http.Client();
+  }) : _baseUrl = baseUrl,
+       _accessToken = accessToken,
+       _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _accessToken;
   final http.Client _client;
 
   Map<String, String> get _headers => {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'authorization': 'Bearer $_accessToken',
-      };
+    'accept': 'application/json',
+    'content-type': 'application/json',
+    'authorization': 'Bearer $_accessToken',
+  };
 
   @override
   Future<List<PassengerSupportTicket>> listTickets() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/passenger/me/support'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/passenger/me/support'), headers: _headers)
         .timeout(RamoCoreConfig.requestTimeout);
     final payload = _decode(response);
     final tickets = payload['tickets'];
     if (tickets is! List) {
-      throw const PassengerSupportException(
-        'Resposta de suporte inválida.',
-      );
+      throw const PassengerSupportException('Resposta de suporte inválida.');
     }
     return tickets
         .whereType<Map>()
@@ -66,6 +63,44 @@ class HttpPassengerSupportService implements PassengerSupportService {
     return PassengerSupportTicket.fromJson(_decode(response));
   }
 
+  @override
+  Future<List<Map<String, dynamic>>> rideSupportTickets(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl
+              .resolve('/v1/passenger/me/support')
+              .replace(queryParameters: {'rideId': rideId}),
+          headers: _headers,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    return ((_decode(response)['tickets'] as List?) ?? [])
+        .whereType<Map>()
+        .map((t) => Map<String, dynamic>.from(t))
+        .where((t) => t['rideId'] == rideId)
+        .toList();
+  }
+
+  @override
+  Future<void> createRideSupportTicket({
+    required String rideId,
+    required String reason,
+    required String description,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/passenger/me/support'),
+          headers: _headers,
+          body: jsonEncode({
+            'rideId': rideId,
+            'category': 'ride',
+            'subject': reason,
+            'message': description.isEmpty ? reason : '$reason. $description',
+          }),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    _decode(response);
+  }
+
   Map<String, dynamic> _decode(http.Response response) {
     dynamic decoded;
     try {
@@ -73,15 +108,11 @@ class HttpPassengerSupportService implements PassengerSupportService {
           ? <String, dynamic>{}
           : jsonDecode(response.body);
     } catch (_) {
-      throw const PassengerSupportException(
-        'Resposta de suporte inválida.',
-      );
+      throw const PassengerSupportException('Resposta de suporte inválida.');
     }
-    if (
-      response.statusCode < 200 ||
-      response.statusCode >= 300 ||
-      decoded is! Map<String, dynamic>
-    ) {
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        decoded is! Map<String, dynamic>) {
       final message = decoded is Map
           ? decoded['message']?.toString().trim()
           : null;

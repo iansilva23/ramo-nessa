@@ -18,6 +18,7 @@ function activityRideView(
     totalAmountCents: ride.quote.totalAmountCents,
     platformFeeCents: ride.quote.platformCommissionCents,
     paymentMethod: ride.paymentMethod ?? null,
+    paymentStatus: ride.paymentStatus,
     updatedAt: ride.updatedAt,
   };
 }
