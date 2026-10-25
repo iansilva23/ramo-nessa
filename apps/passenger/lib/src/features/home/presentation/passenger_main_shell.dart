@@ -202,7 +202,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
                   ),
                   subtitle: Text(
                     _activityFresh ? 'Ver em Atividades' : 'Atualização indisponível. Ver em Atividades',
-                    style: TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _select(2),

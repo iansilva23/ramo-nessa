@@ -42,6 +42,25 @@ class SupportFixture implements RamoRideSupportApi {
 }
 
 void main() {
+  test('cash cancellation is terminal and never offers payment', () {
+    const cancelled = RamoRideActivityData(id: 'cash-cancelled',
+      state: 'CANCELLED_BY_DRIVER', origin: 'Jeri', destination: 'Preá',
+      category: 'buggy', amountCents: 100, paymentMethod: 'cash', paymentStatus: 'authorized');
+    expect(cancelled.terminal, isTrue);
+    expect(cancelled.awaitingPayment, isFalse);
+    expect(cancelled.statusLabel, 'Cancelada pelo motorista');
+    expect(cancelled.paymentLabel, 'Dinheiro · corrida encerrada');
+  });
+  test('refund retains original cancellation authorship separately', () {
+    const refunded = RamoRideActivityData(id: 'pix-refunded',
+      state: 'REFUNDED', cancellationState: 'CANCELLED_BY_DRIVER', origin: 'Jeri', destination: 'Preá',
+      category: 'buggy', amountCents: 100, paymentMethod: 'pix', paymentStatus: 'refunded');
+    expect(refunded.terminal, isTrue);
+    expect(refunded.awaitingPayment, isFalse);
+    expect(refunded.cancellationState, 'CANCELLED_BY_DRIVER');
+    expect(refunded.paymentLabel, 'Pix reembolsado');
+  });
+
   for (final dark in [false, true]) {
     testWidgets(
         'driver card fits 320 px and opening never starts a ride ($dark)',

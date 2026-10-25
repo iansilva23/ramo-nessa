@@ -47,3 +47,11 @@ test('late confirmed Pix is recorded against cancelled ride without reactivation
  const closed=(await c.rides.findById(c.ride.id))!;
  assert.equal((await c.rides.save({...closed,state:'REFUND_PENDING'})).cancellationState,'CANCELLED_BY_DRIVER');
 });
+test('activity rechecks the current ride when parallel reads straddle cancellation',async()=>{
+ const c=await fixture();const old=c.ride;
+ c.rides.findRecoverableByPassengerId=async()=>old;
+ await c.rides.save({...old,state:'CANCELLED_BY_DRIVER'});
+ const activity=await passengerActivityForApp({rides:c.rides,passengerId:old.passengerId});
+ assert.equal(activity.rides.filter(r=>r.id===old.id).length,1);
+ assert.equal(activity.rides[0]?.state,'CANCELLED_BY_DRIVER');
+});

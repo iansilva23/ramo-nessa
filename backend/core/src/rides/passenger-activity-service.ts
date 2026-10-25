@@ -13,7 +13,10 @@ export async function passengerActivityForApp(input: {
     input.rides.findRecoverableByPassengerId(input.passengerId),
   ]);
 
-  const rides = current == null ? recent : [current, ...recent.filter(ride => ride.id !== current.id)];
+  // Parallel queries may straddle a cancellation. Do not let an older recoverable
+  // snapshot override the more recent terminal record for the same ID.
+  const freshCurrent = current == null ? null : await input.rides.findById(current.id);
+  const rides = freshCurrent == null ? recent : [freshCurrent, ...recent.filter(ride => ride.id !== freshCurrent.id)];
   return {
     summary,
     rides: await Promise.all(rides.map(async (ride) => ({

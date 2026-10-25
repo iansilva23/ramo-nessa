@@ -52,11 +52,13 @@ class ResumedRideScreen extends StatelessWidget {
   Widget _buildRide(BuildContext context) {
     final ride = data['ride'] as Map<String, dynamic>,
         payment = data['payment'] as Map<String, dynamic>?;
-    final details = PassengerActivityRide.fromJson({
-      ...ride,
-      'totalAmountCents': (ride['quote'] as Map<String, dynamic>)['totalAmountCents'],
-    }).activityData;
-    if (details.terminal && !details.awaitingPayment) {
+    final state = ride['state'] as String;
+    if (state.startsWith('CANCELLED_') ||
+        const {'COMPLETED', 'REFUND_PENDING', 'REFUNDED', 'EXPIRED'}.contains(state)) {
+      final details = PassengerActivityRide.fromJson({
+        ...ride,
+        'totalAmountCents': (ride['quote'] as Map<String, dynamic>)['totalAmountCents'],
+      }).activityData;
       return RamoRideDetailsScreen(ride: details, onHelp: null);
     }
     final awaiting = const {
