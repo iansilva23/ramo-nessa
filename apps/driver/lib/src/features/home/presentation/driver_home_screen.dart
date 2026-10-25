@@ -1924,6 +1924,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final panelIdentity = showOffer ? 'offer-${_offer!.id}' :
         presentedRide == null ? null : 'ride-${presentedRide.id}';
     final collapsed = panelIdentity != null && _collapsedRidePanel == panelIdentity;
+    // Only active ride details dock edge-to-edge. Incoming offers, minimized
+    // summaries and availability retain their own floating presentation.
+    final docked = !showOffer && presentedRide != null && !collapsed;
     void minimize() => setState(() => _collapsedRidePanel = panelIdentity);
     void restore() => setState(() => _collapsedRidePanel = null);
 
@@ -1998,12 +2001,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             child: SafeArea(child: _CompactMapMessage(message: _message!)),
           ),
         Positioned(
-          left: 14,
-          right: 14,
+          left: docked ? 0 : 14,
+          right: docked ? 0 : 14,
           top: _navigationMode && _activeRide != null ? 224 : 82,
-          bottom: 14,
+          bottom: docked ? 0 : 14,
           child: SafeArea(
             top: false,
+            bottom: false,
             child: Align(
               alignment: Alignment.bottomCenter,
               // Mount only one presentation: no outgoing expanded/compact duplicate.
@@ -4369,12 +4373,11 @@ class _ActiveRideCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Activity uses this card without map-panel controls. Preserve its layout.
-    if (onMinimize != null &&
-        ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS', 'COMPLETED'].contains(ride.state)) {
+    if (onMinimize != null) {
       return _DriverActiveDesign(
         identity:identity,
         ride: ride, busy: busy, route: route,
-        onMinimize: onMinimize!, onArrived: onArrived,
+        onMinimize: onMinimize!, onArrived: onArrived, onStart: onStart,
         onRatePassenger: onRatePassenger, onComplete: onComplete, onCancel: onCancel, onChat: onChat, chatIcon: chatIcon,
         canNavigate: _canNavigate, navigationActive: navigationActive,
         onNavigate: onNavigate, onStopNavigation: onStopNavigation,
@@ -4629,13 +4632,7 @@ class _ActiveRideCard extends StatelessWidget {
         ],
       ),
     ));
-    if (onMinimize == null) return legacyCard;
-    return _DriverDesignFrame(
-      onMinimize: onMinimize!,
-      header: const SizedBox.shrink(),
-      actions: const SizedBox.shrink(),
-      body: legacyCard,
-    );
+    return legacyCard;
   }
 }
 
