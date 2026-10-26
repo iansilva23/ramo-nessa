@@ -14,6 +14,8 @@ function activityRideView(
     category: ride.category,
     origin: ride.origin,
     destination: ride.destination,
+    pickupLabel: ride.pickupLabel ?? null,
+    dropoffLabel: ride.dropoffLabel ?? null,
     driverEarningsCents: ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
     totalAmountCents: ride.quote.totalAmountCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
     platformFeeCents: ride.quote.platformCommissionCents,

@@ -44,21 +44,21 @@ test(`${browserName}: boarding settings persist explicit activation, category ex
     const origin = 'http://127.0.0.1:' + server.address().port;
     await page.goto(origin);
     const status = page.getByRole('status'), enabled = page.getByLabel('Exigir código de embarque', { exact: true });
-    await status.getByText('Código desativado.', { exact: false }).waitFor();
+    await status.getByText('Desativado. Nenhum código será exigido', { exact: false }).waitFor();
     assert.equal(await enabled.isChecked(), false); assert.equal(mutations.length, 0);
     await page.getByLabel('Entregas', { exact: true }).uncheck();
     await page.getByRole('button', { name: 'Salvar configuração', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('button[type="submit"]').disabled);
     assert.equal(policy.enabled, false); assert.equal(policy.categories.delivery, false);
     await enabled.check(); await page.getByRole('button', { name: 'Salvar configuração', exact: true }).click();
-    await status.getByText('Código ativado', { exact: false }).waitFor();
-    await page.reload(); await status.getByText('Código ativado', { exact: false }).waitFor();
+    await status.getByText('Configuração salva.', { exact: false }).waitFor();
+    await page.reload(); await status.getByText('Ativado para novas corridas', { exact: false }).waitFor();
     assert.equal(await enabled.isChecked(), true); assert.equal(await page.getByLabel('Entregas', { exact: true }).isChecked(), false);
     conflict = true;
     await enabled.uncheck(); await page.getByRole('button', { name: 'Salvar configuração', exact: true }).click();
     await status.getByText('Outro administrador', { exact: false }).waitFor(); assert.equal(policy.enabled, true);
     conflict = false;
-    await page.getByText('Liberar embarque excepcional pelo suporte', { exact: true }).click();
+    await page.getByText('Liberação excepcional pelo suporte', { exact: true }).click();
     await page.getByLabel('Identificador da corrida', { exact: true }).fill('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     await page.getByLabel('Motivo da liberação', { exact: true }).fill('Encontro confirmado pelo suporte com as duas partes');
     page.once('dialog', dialog => dialog.dismiss());
@@ -74,9 +74,9 @@ test(`${browserName}: boarding settings persist explicit activation, category ex
     await page.screenshot({ path: `artifacts/ride-recovery/${browserName}-boarding-mobile.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.goto(origin + '/?readonly');
-    await status.getByText('Código ativado', { exact: false }).waitFor();
+    await status.getByText('Ativado para novas corridas', { exact: false }).waitFor();
     assert.equal(await enabled.isDisabled(), true);
-    await page.getByText('Liberar embarque excepcional pelo suporte', { exact: true }).click();
+    await page.getByText('Liberação excepcional pelo suporte', { exact: true }).click();
     assert.equal(await page.getByRole('button', { name: 'Registrar liberação', exact: true }).isDisabled(), true);
     assert.deepEqual(errors, []);
   } finally {

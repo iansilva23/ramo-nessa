@@ -9,10 +9,10 @@ test(`${browserName}: independent occurrence controls stay off on load and prese
  try{browser=await launchTestBrowser();const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let mutations=0;
   let policy={enabled:false,bonusEnabled:false,bonusCents:{moto:0,car:0,buggy:0,delivery:0,comfort_black:0},revision:0};
   await page.route('**/v1/admin/occurrence-policy',async route=>{const req=route.request();assert.equal(req.headers().authorization,'Bearer test-session');if(req.method()==='PUT'){mutations++;const body=req.postDataJSON();assert.equal(body.revision,policy.revision);policy={...body,revision:policy.revision+1};}await route.fulfill({json:policy});});
-  const url='http://127.0.0.1:'+server.address().port;await page.goto(url);await page.getByRole('status').filter({hasText:'Configuração carregada'}).waitFor();
+  const url='http://127.0.0.1:'+server.address().port;await page.goto(url);await page.getByRole('status').filter({hasText:'Ocorrências:'}).waitFor();
   const b=page.getByLabel('Novos cancelamentos e ocorrências',{exact:true}),c=page.getByLabel('Adicional e bônus na próxima corrida',{exact:true});assert.equal(await b.isChecked(),false);assert.equal(await c.isChecked(),false);assert.equal(mutations,0);
-  await b.check();await page.getByRole('button',{name:'Salvar configurações'}).click();await page.getByRole('status').filter({hasText:'Atualizado.'}).waitFor();assert.equal(policy.enabled,true);assert.equal(policy.bonusEnabled,false);
-  await page.reload();await page.getByRole('status').filter({hasText:'Configuração carregada'}).waitFor();assert.equal(await b.isChecked(),true);assert.equal(await c.isChecked(),false);
-  await page.goto(url+'/?readonly');await page.getByRole('status').filter({hasText:'Configuração carregada'}).waitFor();assert.equal(await b.isDisabled(),true);assert.equal(await c.isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Salvar configurações'}).isDisabled(),true);assert.equal(mutations,1);assert.deepEqual(errors,[]);
+  await b.check();await page.getByRole('button',{name:'Salvar configurações'}).click();await page.getByRole('status').filter({hasText:'Configurações salvas.'}).waitFor();assert.equal(policy.enabled,true);assert.equal(policy.bonusEnabled,false);
+  await page.reload();await page.getByRole('status').filter({hasText:'Ocorrências:'}).waitFor();assert.equal(await b.isChecked(),true);assert.equal(await c.isChecked(),false);
+  await page.goto(url+'/?readonly');await page.getByRole('status').filter({hasText:'Ocorrências:'}).waitFor();assert.equal(await b.isDisabled(),true);assert.equal(await c.isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Salvar configurações'}).isDisabled(),true);assert.equal(mutations,1);assert.deepEqual(errors,[]);
  }finally{await browser?.close();server.closeAllConnections();await new Promise(r=>server.close(r));}
 });

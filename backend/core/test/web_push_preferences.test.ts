@@ -76,3 +76,16 @@ test('FCM Web usa data-only, TTL da oferta e não entrega links/metadados arbitr
   const native = fcmMessagePayload({ ...registration, platform: 'ios', tokenProvider: 'fcm', message: { type: 'ride.updated', title: 'Title', body: 'Body' } });
   assert.ok('notification' in native); assert.ok('apns' in native); assert.ok(!('webpush' in native));
 });
+
+
+test('FCM Web mantém somente o identificador da corrida e tipo original', () => {
+  const rideId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const request: PushDeliveryRequest = { ...registration, tokenProvider: 'fcm', message: {
+    type: 'passenger.ride.driver_accepted', title: 'Motorista encontrado', body: 'Confira no app',
+    data: { rideId, url: 'https://evil.example', type: 'spoof', token: 'private' },
+  } };
+  assert.deepEqual(fcmMessagePayload(request).data, { type: request.message.type,
+    title: request.message.title, body: request.message.body, rideId });
+  const invalid = fcmMessagePayload({ ...request, message: { ...request.message, data: { rideId: 'https://evil.example' } } });
+  assert.ok(!('rideId' in invalid.data));
+});

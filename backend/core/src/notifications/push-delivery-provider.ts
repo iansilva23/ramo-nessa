@@ -179,7 +179,7 @@ function parseFcmErrorCode(body: string): string | null {
 }
 
 export function fcmMessagePayload(input: PushDeliveryRequest) {
-  const data = { ...(input.message.data ?? {}), type: input.message.type };
+  const data: Record<string, string> = { ...(input.message.data ?? {}), type: input.message.type };
   if (input.platform === 'web') {
     // Dados apenas: o worker exibe UMA notificação e usa o destino local fixo.
     // Não enviar URLs, Bearers ou instruções de aceite a partir do push.

@@ -200,12 +200,12 @@ class DriverFirebasePushRegistrationService {
   }
 
   Future<void> stop() async {
+    _generation++;
     await _openedSubscription?.cancel();
     await _foregroundSubscription?.cancel();
     _openedSubscription = null;
     _foregroundSubscription = null;
     clearNotificationIntents();
-    _generation++;
     _registered = false;
     _pushToken = null;
     _baseUrl = null;

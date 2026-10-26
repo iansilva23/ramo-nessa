@@ -514,7 +514,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     }
 
     return RamoPlace(
-      name: 'Embarque',
+      name: snapshot?.pickupLabel ?? 'Embarque',
       address: 'Ponto de embarque da corrida',
       position: LatLng(latitude, longitude),
     );
@@ -530,7 +530,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     }
 
     return RamoPlace(
-      name: 'Destino',
+      name: snapshot?.dropoffLabel ?? 'Destino',
       address: 'Destino da corrida',
       position: LatLng(latitude, longitude),
     );
@@ -564,7 +564,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
             child: RamoLiveMap(
               controller: _mapController,
               origin: _pickup(snapshot),
-              destination: snapshot?.dropoffLabel ?? _dropoff(snapshot),
+              destination: _dropoff(snapshot),
               routePoints: _route?.points ?? const [],
               routePhase: snapshot == null ? null : _routeStage(snapshot),
               driverPosition: driverPosition,

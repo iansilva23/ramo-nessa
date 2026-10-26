@@ -65,6 +65,8 @@ test('preparação usa distância roteada e congela compensação antes do pagam
     drivers: ctx.drivers,
     routing: new FakeRouting(9),
     passengerId: 'passenger-prepare',
+    pickupLabel: 'Pousada do Preá',
+    dropoffLabel: 'Café Jijoca',
     quoteRequest: {
       origin: { zoneId: 'prea' },
       destination: { zoneId: 'jijoca' },
@@ -77,6 +79,9 @@ test('preparação usa distância roteada e congela compensação antes do pagam
   });
 
   assert.equal(ride.state, 'AWAITING_PAYMENT');
+  const stored = await ctx.rides.findById(ride.id);
+  assert.equal(stored?.pickupLabel, 'Pousada do Preá');
+  assert.equal(stored?.dropoffLabel, 'Café Jijoca');
   assert.equal(ride.pickupLatitude, -2.82017);
   assert.equal(ride.pickupLongitude, -40.41467);
   assert.equal(ride.dropoffLatitude, -2.89860);

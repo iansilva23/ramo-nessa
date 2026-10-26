@@ -822,6 +822,8 @@ class DriverActivityRide {
     required this.updatedAt,
     this.paymentMethod,
     this.paymentStatus,
+    this.pickupLabel,
+    this.dropoffLabel,
   });
 
   factory DriverActivityRide.fromJson(Map<String, dynamic> json) {
@@ -840,6 +842,8 @@ class DriverActivityRide {
       platformFeeCents: (json['platformFeeCents'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod'] as String?,
       paymentStatus: json['paymentStatus'] as String?,
+      pickupLabel: json['pickupLabel'] as String?,
+      dropoffLabel: json['dropoffLabel'] as String?,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -854,6 +858,10 @@ class DriverActivityRide {
   final int platformFeeCents;
   final String? paymentMethod, paymentStatus;
   final DateTime updatedAt;
+  final String? pickupLabel, dropoffLabel;
+
+  String get originDisplayName => _ridePointLabel(pickupLabel, null, origin.displayName);
+  String get destinationDisplayName => _ridePointLabel(dropoffLabel, null, destination.displayName);
 
   String get stateLabel => switch (state) {
     'COMPLETED' => 'Concluída',

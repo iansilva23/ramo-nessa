@@ -7,7 +7,7 @@ class RamoNotificationIntent {
   final String type;
   final String? rideId, title, body;
   final bool foreground;
-  bool get isRide => type.startsWith('driver.offer.') || type.startsWith('driver.ride.') || type.startsWith('passenger.ride.') || type.startsWith('ride.chat.');
+  bool get isRide => type.startsWith('driver.offer.') || type.startsWith('driver.ride.') || type.startsWith('passenger.ride.') || type.startsWith('passenger.payment.') || type.startsWith('ride.chat.');
 }
 final _intents = StreamController<RamoNotificationIntent>.broadcast(sync: true);
 RamoNotificationIntent? _pending;
