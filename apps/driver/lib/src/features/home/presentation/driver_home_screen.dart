@@ -475,7 +475,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         _startLocationTracking();
-        await _refreshActiveRoute(force: true);
+        if (['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+          await _startInAppNavigation();
+        } else {
+          await _refreshActiveRoute(force: true);
+        }
         if (ride.state == 'AWAITING_PAYMENT') _startPolling();
       } else if (supply.online) {
         _startPolling();
@@ -1218,7 +1222,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         if (!_webBackgrounded) _startLocationTracking();
-        await _refreshActiveRoute();
+        if (previousId == null && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+          await _startInAppNavigation();
+        } else {
+          await _refreshActiveRoute();
+        }
       }
       if (previousId != null && ride == null) {
         unawaited(_refreshActivity());

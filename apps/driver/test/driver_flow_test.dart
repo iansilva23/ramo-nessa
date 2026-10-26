@@ -28,6 +28,7 @@ void main() {
       api._offerAvailable = false;
       api._currentRide = AcceptedDriverRide(
         id: 'palette-ride', state: state, category: 'car', passengers: 1,
+        dropoffLatitude: -2.895, dropoffLongitude: -40.448,
         origin: const DriverLocationRef(zoneId: 'prea'),
         destination: const DriverLocationRef(zoneId: 'jijoca'),
         driverEarningsCents: 11000, pickupCompensationCents: 200,
@@ -47,6 +48,9 @@ void main() {
       if (state == 'DRIVER_ARRIVED') {
         expect(Theme.of(tester.element(find.text('Você chegou'))).brightness, Brightness.light);
         expect(find.text('Iniciar corrida'), findsOneWidget);
+      }
+      if (state == 'IN_PROGRESS') {
+        expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).navigationMode, isTrue);
       }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
