@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/http_pricing_quote_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -15,21 +14,16 @@ import 'package:ramo_nessa_passenger/src/features/pricing/domain/managed_pricing
 import 'package:ramo_nessa_passenger/src/features/service_area/domain/service_area_policy.dart';
 
 void main() {
-  test('Web quote sends session selector and coordinates; native transport stays unchanged', () async {
+  test('all platforms send the authenticated quote and exact coordinates', () async {
     const token = 'ramo_web_passenger_v1_11111111111111111111111111111111';
     final service = HttpPricingQuoteService(
       baseUrl: Uri.parse('https://example.invalid'),
       accessToken: token,
       client: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (kIsWeb) {
-          expect(request.headers['authorization'], 'Bearer $token');
-          expect(body['pickup'], {'latitude': -2.82, 'longitude': -40.41});
-          expect(body['dropoff'], {'latitude': -2.83, 'longitude': -40.42});
-        } else {
-          expect(request.headers.containsKey('authorization'), isFalse);
-          expect(body.containsKey('pickup'), isFalse);
-        }
+        expect(request.headers['authorization'], 'Bearer $token');
+        expect(body['pickup'], {'latitude': -2.82, 'longitude': -40.41});
+        expect(body['dropoff'], {'latitude': -2.83, 'longitude': -40.42});
         return http.Response(jsonEncode({'kind': 'exact', 'ruleId': 'synthetic', 'totalAmountCents': 2700}), 200);
       }),
     );
@@ -44,7 +38,7 @@ void main() {
   });
 
   tearDown(() => ManagedPricingCatalog.update(enabled: false, zones: null, categories: null));
-  test('managed coverage and presentation apply only to Web', () {
+  test('managed coverage and admin presentation apply on every platform', () {
     PassengerPricingPolicy.fromJson({
       'managementMode': 'managed',
       'enabledCategories': ['moto'],
@@ -62,11 +56,7 @@ void main() {
         {'id': 'moto', 'name': 'Synthetic motorcycle', 'description': 'Configured in admin', 'icon': 'car'},
       ],
     });
-    expect(ManagedPricingCatalog.enabled, kIsWeb);
-    if (!kIsWeb) {
-      expect(ServiceType.moto.label, 'Mototáxi');
-      return;
-    }
+    expect(ManagedPricingCatalog.enabled, isTrue);
     const point = LatLng(-2.82, -40.41);
     expect(ManagedPricingCatalog.zoneFor(point)?.localityId, 'small');
     expect(RamoServiceArea.zoneFor(point)?.localityId, 'small');

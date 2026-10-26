@@ -1,5 +1,4 @@
 import '../domain/managed_pricing_catalog.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:latlong2/latlong.dart';
 import '../../service_area/domain/service_zone.dart';
 import 'package:http/http.dart' as http;
@@ -96,7 +95,7 @@ class PassengerPricingPolicy {
   final bool managementMode;
   final Map<String, Set<String>> managedRegionCategories;
 
-  bool get usesManagedRegions => kIsWeb && managementMode;
+  bool get usesManagedRegions => managementMode;
 
   Set<String> managedCategoriesForTrip(String originId, String destinationId) {
     if (!usesManagedRegions) return const {};
