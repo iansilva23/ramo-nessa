@@ -49,9 +49,6 @@ void main() {
         expect(Theme.of(tester.element(find.text('Você chegou'))).brightness, Brightness.light);
         expect(find.text('Iniciar corrida'), findsOneWidget);
       }
-      if (state == 'IN_PROGRESS') {
-        expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).navigationMode, isTrue);
-      }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });

@@ -11,3 +11,7 @@ Empacotamento: análise/testes e builds conectados dos dois apps para as duas pl
 O fluxo iPhone existente não possui assinatura/provisionamento Apple: o pacote gerado é explicitamente identificado SEM-ASSINATURA e não pode ser instalado diretamente. Não cria IPA instalável nem publica TestFlight. A distribuição exige configuração Apple pelo responsável; não pedir senhas, certificados privados ou tokens pelo chat.
 
 Compilações em andamento. Aceitação física e assinatura/distribuição iPhone permanecem pendentes.
+
+## Restrição posterior do responsável
+
+Preservar mapa/GPS em Android E iOS. O pacote retira a recuperação automática da navegação e defaults Web do PR #79, mantendo o mapa/GPS da fonte 5f51e1f7 e apenas os ajustes de paleta branca. O teste visual conserva os cinco estados sem exigir a navegação excluída. O workflow compila a própria revisão consolidada e substitui a execução anterior. Artefatos anteriores não devem ser entregues. A versão instalada em cada aparelho ainda não foi identificada individualmente.
