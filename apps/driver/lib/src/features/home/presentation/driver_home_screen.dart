@@ -478,7 +478,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         _startLocationTracking();
-        await _refreshActiveRoute(force: true);
+        // Preserve the published Web GPS resume; native camera behavior stays unchanged.
+        if (kIsWeb && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+          await _startInAppNavigation();
+        } else {
+          await _refreshActiveRoute(force: true);
+        }
         if (ride.state == 'AWAITING_PAYMENT') _startPolling();
       } else if (supply.online) {
         _startPolling();
@@ -1322,7 +1327,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         if (!_webBackgrounded) _startLocationTracking();
-        await _refreshActiveRoute();
+        if (kIsWeb && previousId == null && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+          await _startInAppNavigation();
+        } else {
+          await _refreshActiveRoute();
+        }
       }
       if (previousId != null && ride == null) {
         unawaited(_refreshActivity());
