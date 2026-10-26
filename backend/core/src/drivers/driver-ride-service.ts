@@ -21,6 +21,8 @@ export function driverRideView(ride: RideRecord) {
     passengers: ride.passengers,
     origin: ride.origin,
     destination: ride.destination,
+    pickupLabel: ride.pickupLabel ?? null,
+    dropoffLabel: ride.dropoffLabel ?? null,
     pickupInstructions: ride.pickupInstructions ?? null,
     dropoffInstructions: ride.dropoffInstructions ?? null,
     pickupLatitude: ride.pickupLatitude,

@@ -520,9 +520,9 @@ class _DriverOfferDesign extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _RideRouteBlock(
-            origin: offer.pickupInstructions ?? offer.origin.displayName,
+            origin: offer.originDisplayName,
             destination:
-                offer.dropoffInstructions ?? offer.destination.displayName,
+                offer.destinationDisplayName,
             pickupDistance: pickup,
             tripDistance: trip,
           ),
@@ -664,9 +664,9 @@ class _DriverActiveDesign extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           _RideRouteBlock(
-            origin: ride.pickupInstructions ?? ride.origin.displayName,
+            origin: ride.originDisplayName,
             destination:
-                ride.dropoffInstructions ?? ride.destination.displayName,
+                ride.destinationDisplayName,
             originLabel: done
                 ? 'Origem'
                 : underway

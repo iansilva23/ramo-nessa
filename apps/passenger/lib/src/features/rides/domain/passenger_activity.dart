@@ -22,8 +22,8 @@ class PassengerActivityRide {
       id: json['id'] as String,
       state: json['state'] as String,
       category: json['category'] as String,
-      origin: _locationLabel(json['origin']),
-      destination: _locationLabel(json['destination']),
+      origin: _pointLabel(json['pickupLabel'], _locationLabel(json['origin'])),
+      destination: _pointLabel(json['dropoffLabel'], _locationLabel(json['destination'])),
       totalAmountCents: (json['totalAmountCents'] as num).toInt(),
       paymentMethod: json['paymentMethod'] as String?,
       cancellationState: json['cancellationState'] as String?,
@@ -141,3 +141,5 @@ class PassengerActivitySnapshot {
   final int completedAmountCents;
   final List<PassengerActivityRide> rides;
 }
+
+String _pointLabel(Object? label, String fallback) => label is String && label.trim().isNotEmpty ? label.trim() : fallback;

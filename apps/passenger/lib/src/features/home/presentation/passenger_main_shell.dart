@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:ramo_push/ramo_push.dart';
 import '../../rides/domain/passenger_activity.dart';
 import 'package:flutter/foundation.dart';
 
@@ -34,6 +36,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.tourService,
     this.guideService,
     this.onResumeRide,
+    this.onOpenRideChat,
     this.supportService,
     this.privacyService,
     this.socialLinksService,
@@ -49,6 +52,7 @@ class PassengerMainShell extends StatefulWidget {
   homeBuilder;
   final Future<void> Function(BuildContext context, PassengerActivityRide ride)?
   onResumeRide;
+  final Future<void> Function(BuildContext context, String rideId)? onOpenRideChat;
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
   final PassengerPaymentService? paymentService;
@@ -73,8 +77,48 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
   bool _activityFresh = true;
   final ValueNotifier<RamoPlace?> _guideDestination = ValueNotifier(null);
 
+  StreamSubscription<RamoNotificationIntent>? _notificationSubscription;
+  @override
+  void initState() {
+    super.initState();
+    _notificationSubscription = ramoNotificationIntents.listen(_onNotification);
+    startNotificationIntentBridge();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = takePendingNotificationIntent();
+      if (pending != null) _onNotification(pending);
+    });
+  }
+  Future<void> _openNotificationRide(RamoNotificationIntent intent) async {
+    _select(2);
+    if (intent.rideId == null || widget.activityService == null || widget.onResumeRide == null) return;
+    try {
+      final snapshot = await widget.activityService!.fetch();
+      if (!mounted) return;
+      for (final ride in snapshot.rides) {
+        if (ride.id == intent.rideId && !ride.activityData.terminal) {
+          if (intent.type == 'ride.chat.message' && widget.onOpenRideChat != null) {
+            await widget.onOpenRideChat!(context, ride.id);
+          } else {
+            await widget.onResumeRide!(context, ride);
+          }
+          return;
+        }
+      }
+    } catch (_) { /* Activities remains available for an authenticated retry. */ }
+  }
+  void _onNotification(RamoNotificationIntent intent) {
+    if (!mounted) return;
+    if (intent.foreground) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(intent.title ?? 'Nova notificação'),
+        action: intent.isRide ? SnackBarAction(label:'Ver',onPressed:()=>unawaited(_openNotificationRide(intent))) : null,
+      ));
+    } else if (intent.isRide) {unawaited(_openNotificationRide(intent));}
+  }
+
   @override
   void dispose() {
+    _notificationSubscription?.cancel();
     _guideDestination.dispose();
     super.dispose();
   }

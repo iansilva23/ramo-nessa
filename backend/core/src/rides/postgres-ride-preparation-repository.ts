@@ -78,10 +78,10 @@ export class PostgresRidePreparationRepository
           pricing_catalog_version_id, pricing_catalog_version_number,
           base_amount_cents, pickup_compensation_cents,
           total_amount_cents, platform_commission_cents, driver_net_cents,
-          created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at
+          created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at, pickup_label, dropoff_label
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40
         )
         `,
         [
@@ -123,6 +123,8 @@ export class PostgresRidePreparationRepository
           ride.pickupInstructions ?? null,
           ride.dropoffInstructions ?? null,
           ride.paymentExpiresAt ?? null,
+          ride.pickupLabel ?? null,
+          ride.dropoffLabel ?? null,
         ],
       );
 

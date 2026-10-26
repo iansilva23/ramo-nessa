@@ -18,6 +18,7 @@ class DriverFirebasePushRegistrationService {
       DriverFirebasePushRegistrationService._();
 
   StreamSubscription<String>? _refreshSubscription;
+  StreamSubscription<RemoteMessage>? _openedSubscription, _foregroundSubscription;
   Uri? _baseUrl;
   String? _accessToken;
   String? _pushToken;
@@ -155,6 +156,16 @@ class DriverFirebasePushRegistrationService {
         );
       }
 
+      await _openedSubscription?.cancel();
+      await _foregroundSubscription?.cancel();
+      _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        if (generation == _generation) publishNotificationIntent(message.data, messageId:message.messageId);
+      });
+      _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
+        if (generation == _generation) publishNotificationIntent(message.data, title:message.notification?.title, body:message.notification?.body, foreground:true);
+      });
+      final initialMessage = await messaging.getInitialMessage();
+      if (generation == _generation && initialMessage != null) publishNotificationIntent(initialMessage.data, messageId:initialMessage.messageId);
       final token = await messaging.getToken();
       if (generation != _generation) return false;
       if (token != null && token.trim().length >= 20) {
@@ -190,6 +201,11 @@ class DriverFirebasePushRegistrationService {
 
   Future<void> stop() async {
     _generation++;
+    await _openedSubscription?.cancel();
+    await _foregroundSubscription?.cancel();
+    _openedSubscription = null;
+    _foregroundSubscription = null;
+    clearNotificationIntents();
     _registered = false;
     _pushToken = null;
     _baseUrl = null;

@@ -72,16 +72,16 @@ class RideBottomSheet extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         child: Material(
                           key: const Key('destination-guidance-card'),
-                          color: isLight ? Colors.white : RamoColors.brandBlack,
+                          color: colors.surface,
                           elevation: isLight ? 7 : 4,
                           shadowColor: isLight
                               ? Colors.black.withValues(alpha: .20)
                               : Colors.black54,
-                          borderRadius: BorderRadius.circular(25),
+                          borderRadius: BorderRadius.circular(16),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 12,
+                              horizontal: 12,
+                              vertical: 8,
                             ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -90,17 +90,9 @@ class RideBottomSheet extends StatelessWidget {
                                 Text(
                                   'Escolha seu destino',
                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontSize: 20,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w800,
-                                    color: isLight ? colors.onSurface : Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Escolha sua origem e o destino no mapa',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: isLight ? colors.onSurface : Colors.white,
+                                    color: colors.onSurface,
                                   ),
                                 ),
                               ],

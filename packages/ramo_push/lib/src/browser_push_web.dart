@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'notification_intent.dart';
 import 'dart:js_interop';
 
 @JS('ramoWebSetup.snapshot')
@@ -87,4 +89,17 @@ String browserPushStatus() {
   } catch (_) {
     return 'unsupported';
   }
+}
+
+@JS('ramoWebPush.setOpenHandler')
+external void _setOpenHandler(JSFunction callback);
+void startNotificationIntentBridge() {
+  try {
+    _setOpenHandler(((JSString value) {
+      try {
+        final data = jsonDecode(value.toDart);
+        if (data is Map<String, dynamic>) publishNotificationIntent(data);
+      } catch (_) {}
+    }).toJS);
+  } catch (_) {}
 }

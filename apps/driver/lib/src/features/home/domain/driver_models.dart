@@ -84,6 +84,8 @@ class DriverOffer {
     required this.expiresAt,
     required this.approximatePickupDistanceKm,
     this.tripDistanceKm,
+    this.pickupLabel,
+    this.dropoffLabel,
     this.pickupInstructions,
     this.dropoffInstructions,
     this.pickupLatitude,
@@ -111,6 +113,8 @@ class DriverOffer {
       approximatePickupDistanceKm: (json['approximatePickupDistanceKm'] as num)
           .toDouble(),
       tripDistanceKm: (json['tripDistanceKm'] as num?)?.toDouble(),
+      pickupLabel: json['pickupLabel'] as String?,
+      dropoffLabel: json['dropoffLabel'] as String?,
       pickupInstructions: json['pickupInstructions'] as String?,
       dropoffInstructions: json['dropoffInstructions'] as String?,
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
@@ -139,6 +143,9 @@ class DriverOffer {
   final DateTime expiresAt;
   final double approximatePickupDistanceKm;
   final double? tripDistanceKm;
+  final String? pickupLabel, dropoffLabel;
+  String get originDisplayName => _ridePointLabel(pickupLabel, pickupInstructions, origin.displayName);
+  String get destinationDisplayName => _ridePointLabel(dropoffLabel, dropoffInstructions, destination.displayName);
   final String? pickupInstructions;
   final String? dropoffInstructions;
   final double? pickupLatitude;
@@ -186,6 +193,8 @@ class AcceptedDriverRide {
     this.driverHoldExpiresAt,
     this.cashCollectionAmountCents,
     this.cashCommissionCents,
+    this.pickupLabel,
+    this.dropoffLabel,
     this.pickupInstructions,
     this.dropoffInstructions,
     this.pickupLatitude,
@@ -219,6 +228,8 @@ class AcceptedDriverRide {
       cashCollectionAmountCents: (json['cashCollectionAmountCents'] as num?)
           ?.toInt(),
       cashCommissionCents: (json['cashCommissionCents'] as num?)?.toInt(),
+      pickupLabel: json['pickupLabel'] as String?,
+      dropoffLabel: json['dropoffLabel'] as String?,
       pickupInstructions: json['pickupInstructions'] as String?,
       dropoffInstructions: json['dropoffInstructions'] as String?,
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
@@ -243,6 +254,9 @@ class AcceptedDriverRide {
   final DateTime? driverHoldExpiresAt;
   final int? cashCollectionAmountCents;
   final int? cashCommissionCents;
+  final String? pickupLabel, dropoffLabel;
+  String get originDisplayName => _ridePointLabel(pickupLabel, pickupInstructions, origin.displayName);
+  String get destinationDisplayName => _ridePointLabel(dropoffLabel, dropoffInstructions, destination.displayName);
   final String? pickupInstructions;
   final String? dropoffInstructions;
   final double? pickupLatitude;
@@ -808,6 +822,8 @@ class DriverActivityRide {
     required this.updatedAt,
     this.paymentMethod,
     this.paymentStatus,
+    this.pickupLabel,
+    this.dropoffLabel,
   });
 
   factory DriverActivityRide.fromJson(Map<String, dynamic> json) {
@@ -826,6 +842,8 @@ class DriverActivityRide {
       platformFeeCents: (json['platformFeeCents'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod'] as String?,
       paymentStatus: json['paymentStatus'] as String?,
+      pickupLabel: json['pickupLabel'] as String?,
+      dropoffLabel: json['dropoffLabel'] as String?,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -840,6 +858,10 @@ class DriverActivityRide {
   final int platformFeeCents;
   final String? paymentMethod, paymentStatus;
   final DateTime updatedAt;
+  final String? pickupLabel, dropoffLabel;
+
+  String get originDisplayName => _ridePointLabel(pickupLabel, null, origin.displayName);
+  String get destinationDisplayName => _ridePointLabel(dropoffLabel, null, destination.displayName);
 
   String get stateLabel => switch (state) {
     'COMPLETED' => 'Concluída',
@@ -973,4 +995,11 @@ class NearbyDriversSnapshot {
   final bool enabled;
   final int refreshAfterSeconds;
   final List<NearbyDriverPosition> drivers;
+}
+
+String _ridePointLabel(String? name, String? address, String fallback) {
+  for (final value in [name, address]) {
+    if (value != null && value.trim().isNotEmpty) return value.trim();
+  }
+  return fallback;
 }

@@ -38,6 +38,8 @@ export interface RideRecord {
   /** Payment deadline is independent of the short, exclusive driver hold. */
   paymentExpiresAt?: string;
   driverSearchMaxDistanceKm?: number;
+  pickupLabel?: string | undefined;
+  dropoffLabel?: string | undefined;
   pickupInstructions?: string | undefined;
   dropoffInstructions?: string | undefined;
   pickupLatitude?: number;

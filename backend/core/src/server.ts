@@ -8133,6 +8133,8 @@ const server = createServer(async (request, response) => {
         quoteRequest: body.quoteRequest,
         pricing,
         pickupInstructions: body.pickupInstructions,
+        pickupLabel: body.pickupLabel,
+        dropoffLabel: body.dropoffLabel,
         dropoffInstructions: body.dropoffInstructions,
         pickup: body.pickup,
         dropoff: body.dropoff,

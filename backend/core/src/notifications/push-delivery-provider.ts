@@ -179,13 +179,14 @@ function parseFcmErrorCode(body: string): string | null {
 }
 
 export function fcmMessagePayload(input: PushDeliveryRequest) {
-  const data = { ...(input.message.data ?? {}), type: input.message.type };
+  const data: Record<string, string> = { ...(input.message.data ?? {}), type: input.message.type };
   if (input.platform === 'web') {
     // Dados apenas: o worker exibe UMA notificação e usa o destino local fixo.
     // Não enviar URLs, Bearers ou instruções de aceite a partir do push.
     return {
       token: input.token,
-      data: { type: input.message.type, title: input.message.title, body: input.message.body },
+      data: { type: input.message.type, title: input.message.title, body: input.message.body,
+        ...(typeof data.rideId === 'string' && /^[0-9a-f-]{36}$/i.test(data.rideId) ? {rideId:data.rideId} : {}) },
       webpush: { headers: {
         TTL: input.message.type === 'driver.offer.new' ? '35' : '60',
         Urgency: 'high',
