@@ -75,11 +75,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(DraggableScrollableSheet), findsNothing);
     expect(find.text('Escolha seu destino'), findsOneWidget);
-    expect(find.text('Escolha sua origem e o destino no mapa'), findsOneWidget);
+    expect(find.text('Escolha sua origem e o destino no mapa'), findsNothing);
+    expect(tester.getSize(find.byKey(const Key('destination-guidance-card'))).height, lessThan(48));
     final guidanceCard = tester.widget<Material>(
       find.byKey(const Key('destination-guidance-card')),
     );
-    expect(guidanceCard.color, Colors.white);
+    expect(guidanceCard.color, RamoTheme.light.colorScheme.surface);
     expect(guidanceCard.elevation, 7);
     expect(guidanceCard.shadowColor, Colors.black.withValues(alpha: .20));
     expect(find.byKey(const Key('floating-trip-card')), findsOneWidget);
@@ -145,15 +146,11 @@ void main() {
     final darkGuidance = tester.widget<Material>(
       find.byKey(const Key('destination-guidance-card')),
     );
-    expect(darkGuidance.color, RamoColors.brandBlack);
+    expect(darkGuidance.color, RamoTheme.dark.colorScheme.surface);
     expect(darkGuidance.elevation, 4);
     expect(
       tester.widget<Text>(find.text('Escolha seu destino')).style?.color,
-      Colors.white,
-    );
-    expect(
-      tester.widget<Text>(find.text('Escolha sua origem e o destino no mapa')).style?.color,
-      Colors.white,
+      RamoTheme.dark.colorScheme.onSurface,
     );
     await tester.pumpWidget(MaterialApp(
       theme: RamoTheme.light,

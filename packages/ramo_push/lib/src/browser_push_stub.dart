@@ -10,3 +10,4 @@ String browserPushStatus() => 'native';
 Future<Map<String, Object?>> browserSetupSnapshot() async => {};
 Future<String> requestBrowserSetupLocation() async => 'unsupported';
 Future<String> installBrowserSetupApp() async => 'manual';
+void startNotificationIntentBridge() {}

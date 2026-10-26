@@ -564,7 +564,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
             child: RamoLiveMap(
               controller: _mapController,
               origin: _pickup(snapshot),
-              destination: _dropoff(snapshot),
+              destination: snapshot?.dropoffLabel ?? _dropoff(snapshot),
               routePoints: _route?.points ?? const [],
               routePhase: snapshot == null ? null : _routeStage(snapshot),
               driverPosition: driverPosition,

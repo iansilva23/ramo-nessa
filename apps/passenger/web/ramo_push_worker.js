@@ -7,8 +7,13 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find(client => client.url.startsWith(appBase.href));
-    if (existing) return existing.focus();
-    return self.clients.openWindow(appBase.href);
+    const raw = event.notification.data ?? {};
+    const intent = {type: typeof raw.type === 'string' ? raw.type : '', rideId: typeof raw.rideId === 'string' ? raw.rideId : ''};
+    if (existing) { await existing.focus(); existing.postMessage({ramoNotificationOpen:intent}); return; }
+    const target = new URL(appBase.href);
+    if (/^[a-z][a-z0-9_.]{1,100}$/.test(intent.type)) target.searchParams.set('notificationType',intent.type);
+    if (/^[0-9a-f-]{36}$/i.test(intent.rideId)) target.searchParams.set('notificationRide',intent.rideId);
+    return self.clients.openWindow(target.href);
   })());
 });
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
@@ -27,7 +32,7 @@ if (self.ramoPushConfig) {
       body: String(data.body).slice(0, 500),
       icon: new URL('icons/Icon-192.png', appBase).href,
       tag: 'ramo-' + String(data.type ?? 'notice').slice(0, 80),
-      data: { ramo: true },
+      data: { ramo: true, type: data.type, rideId: data.rideId },
     });
   });
 }

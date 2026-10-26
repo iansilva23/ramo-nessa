@@ -8381,7 +8381,7 @@ function renderNotificationHistory() {
     const delivered = Number(campaign.deliveredCount ?? 0);
     const devices = Number(campaign.deviceCount ?? 0);
     const summary = document.createElement('strong');
-    summary.textContent = `${delivered}/${devices}`;
+    summary.textContent = `${delivered}/${devices} aceitos pelo provedor`;
     const provider = document.createElement('small');
     provider.className = 'table-subtext';
     provider.textContent =
@@ -9021,7 +9021,7 @@ async function handleNotificationSubmit(event) {
       globalMessage,
       campaign == null
         ? 'Notificação enviada.'
-        : `Notificação processada: ${campaign.deliveredCount}/${campaign.deviceCount} aparelhos.`,
+        : `Envio aceito pelo provedor: ${campaign.deliveredCount}/${campaign.deviceCount}. A chegada no aparelho ainda precisa ser conferida.`,
       'success',
     );
     await loadCommunications({ announce: false });

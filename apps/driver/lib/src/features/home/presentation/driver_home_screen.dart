@@ -1,3 +1,4 @@
+import 'package:ramo_push/ramo_push.dart';
 import '../data/passenger_rating_api.dart';
 import 'passenger_rating_sheet.dart';
 import 'boarding_code_dialog.dart';
@@ -217,9 +218,32 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _webSafetyInFlight = false;
   bool _webSafetyRecheck = false;
 
+  StreamSubscription<RamoNotificationIntent>? _notificationSubscription;
+  void _onNotification(RamoNotificationIntent intent) {
+    if (!mounted) return;
+    if (intent.foreground) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content:Text(intent.title ?? 'Nova notificação')));
+      return;
+    }
+    if (intent.isRide) unawaited(_restoreNotificationRide(intent));
+  }
+  Future<void> _restoreNotificationRide(RamoNotificationIntent intent) async {
+    try {
+    await _restoreCurrentRide();
+    await _refreshOffer();
+    if (!mounted) return;
+    if (intent.type == 'ride.chat.message' && _activeRide?.id == intent.rideId) await _openRideChat();
+    } catch (_) { /* Retry through the existing ride recovery controls. */ }
+  }
   @override
   void initState() {
     super.initState();
+    _notificationSubscription = ramoNotificationIntents.listen(_onNotification);
+    startNotificationIntentBridge();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = takePendingNotificationIntent();
+      if (pending != null) _onNotification(pending);
+    });
     WidgetsBinding.instance.addObserver(this);
     _load();
     unawaited(_loadSocialLinks());
@@ -409,6 +433,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
+    _notificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _ticker?.cancel();
@@ -2223,8 +2248,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                 route: _activeRoute,
                 currentPosition: LatLng(supply.latitude, supply.longitude),
                 targetLabel: _activeRide!.state == 'IN_PROGRESS'
-                    ? _activeRide!.destination.displayName
-                    : _activeRide!.origin.displayName,
+                    ? _activeRide!.destinationDisplayName
+                    : _activeRide!.originDisplayName,
                 onStop: _stopInAppNavigation,
                 onExternal: _openExternalNavigation,
               ),
@@ -2395,8 +2420,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       RamoRideActivityData(
         id: ride.id,
         state: ride.state,
-        origin: ride.origin.displayName,
-        destination: ride.destination.displayName,
+        origin: ride.originDisplayName,
+        destination: ride.destinationDisplayName,
         category: ride.category,
         amountCents:
             ride.totalAmountCents ??
@@ -2410,8 +2435,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       RamoRideActivityData(
         id: ride.id,
         state: ride.state,
-        origin: ride.origin.displayName,
-        destination: ride.destination.displayName,
+        origin: ride.originDisplayName,
+        destination: ride.destinationDisplayName,
         category: ride.category,
         amountCents: ride.totalAmountCents,
         paymentMethod: ride.paymentMethod,
@@ -4578,8 +4603,8 @@ class _ActiveRideCompactBar extends StatelessWidget {
       : ride!.state == 'COMPLETED'
       ? formatCents(ride!.driverEarningsCents)
       : ride!.state == 'IN_PROGRESS'
-      ? ride!.destination.displayName
-      : ride!.origin.displayName;
+      ? ride!.destinationDisplayName
+      : ride!.originDisplayName;
 
   String get _status => offer != null
       ? 'Nova corrida'
@@ -4899,9 +4924,9 @@ class _ActiveRideCard extends StatelessWidget {
             ],
             if (identity != null) identity!,
             _DriverRouteTimeline(
-              origin: ride.pickupInstructions ?? ride.origin.displayName,
+              origin: ride.originDisplayName,
               destination:
-                  ride.dropoffInstructions ?? ride.destination.displayName,
+                  ride.destinationDisplayName,
             ),
             const SizedBox(height: 14),
             Row(

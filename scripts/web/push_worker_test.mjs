@@ -41,7 +41,7 @@ test('clique preserva a tela de corrida e foca só janela do próprio aplicativo
   let focused = 0, wrong = 0;
   const w = worker('passenger', [
     { url: 'https://ramo.example/motorista/', focus: async () => wrong++ },
-    { url: 'https://ramo.example/passageiro/ride', focus: async () => focused++ },
+    { url: 'https://ramo.example/passageiro/ride', focus: async () => focused++, postMessage: () => {} },
   ]); let task;
   w.events.get('notificationclick')({ notification: { close() {} }, stopImmediatePropagation() {}, waitUntil(value) { task = value; } });
   await task; assert.equal(focused, 1); assert.equal(wrong, 0); assert.equal(w.opened.length, 0);

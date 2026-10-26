@@ -63,6 +63,8 @@ class PassengerRideTrackingSnapshot {
     required this.state,
     required this.category,
     this.occurrencesEnabled = false,
+    this.pickupLabel,
+    this.dropoffLabel,
     this.pickupLatitude,
     this.pickupLongitude,
     this.dropoffLatitude,
@@ -83,6 +85,8 @@ class PassengerRideTrackingSnapshot {
       state: ride['state'] as String,
       category: ride['category'] as String,
       occurrencesEnabled: ride['occurrencesEnabled'] == true,
+      pickupLabel: ride['pickupLabel'] as String?,
+      dropoffLabel: ride['dropoffLabel'] as String?,
       pickupLatitude: (ride['pickupLatitude'] as num?)?.toDouble(),
       pickupLongitude: (ride['pickupLongitude'] as num?)?.toDouble(),
       dropoffLatitude: (ride['dropoffLatitude'] as num?)?.toDouble(),
@@ -100,6 +104,7 @@ class PassengerRideTrackingSnapshot {
   final String state;
   final String category;
   final bool occurrencesEnabled;
+  final String? pickupLabel, dropoffLabel;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;

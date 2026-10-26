@@ -39,6 +39,8 @@ interface RideRow {
   driver_hold_expires_at: Date | null;
   payment_expires_at: Date | null;
   driver_search_max_distance_km: string | null;
+  pickup_label: string | null;
+  dropoff_label: string | null;
   pickup_instructions: string | null;
   dropoff_instructions: string | null;
   pickup_latitude: string | null;
@@ -92,6 +94,8 @@ function mapRow(row: RideRow): RideRecord {
       ? { driverHoldExpiresAt: row.driver_hold_expires_at.toISOString() }
       : {}),
     ...(row.payment_expires_at == null ? {} : { paymentExpiresAt: row.payment_expires_at.toISOString() }),
+    ...(row.pickup_label == null ? {} : { pickupLabel: row.pickup_label }),
+    ...(row.dropoff_label == null ? {} : { dropoffLabel: row.dropoff_label }),
     ...(row.pickup_instructions == null ? {} : { pickupInstructions: row.pickup_instructions }),
     ...(row.dropoff_instructions == null ? {} : { dropoffInstructions: row.dropoff_instructions }),
     ...(row.pickup_latitude != null
@@ -158,7 +162,7 @@ function mapRow(row: RideRow): RideRecord {
 const RETURNING = `
   id, passenger_id, state, payment_status, payment_method, driver_id, manual_refund, cancellation_state, occurrence_bonus, occurrence_terms,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
-  pickup_instructions, dropoff_instructions,
+  pickup_label, dropoff_label, pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
   dropoff_latitude, dropoff_longitude,
   origin_zone_id, origin_locality_id,
@@ -225,10 +229,10 @@ export class PostgresRideRepository implements RideRepository {
         pricing_catalog_version_id, pricing_catalog_version_number,
         base_amount_cents, pickup_compensation_cents,
         total_amount_cents, platform_commission_cents, driver_net_cents,
-        promotion_snapshot, created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at
+        promotion_snapshot, created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at, pickup_label, dropoff_label
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41
       )
       RETURNING ${RETURNING}
       `,
@@ -272,6 +276,8 @@ export class PostgresRideRepository implements RideRepository {
         ride.pickupInstructions ?? null,
         ride.dropoffInstructions ?? null,
         ride.paymentExpiresAt ?? null,
+        ride.pickupLabel ?? null,
+        ride.dropoffLabel ?? null,
       ],
     );
 

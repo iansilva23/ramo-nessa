@@ -109,6 +109,8 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
               'pickupInstructions': origin.address,
             if (destination.address.trim().isNotEmpty && destination.address != 'Coordenada aprovada pelo catálogo vigente')
               'dropoffInstructions': destination.address,
+            'pickupLabel': origin.displayName.trim(),
+            'dropoffLabel': destination.displayName.trim(),
             'pickup': {
               'latitude': origin.position.latitude,
               'longitude': origin.position.longitude,

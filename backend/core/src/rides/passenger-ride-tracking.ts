@@ -19,6 +19,8 @@ export interface PassengerRideTrackingSnapshot {
     category: RideRecord['category'];
     origin: RideRecord['origin'];
     destination: RideRecord['destination'];
+    pickupLabel?: string | null;
+    dropoffLabel?: string | null;
     pickupLatitude?: number;
     pickupLongitude?: number;
     dropoffLatitude?: number;
@@ -108,6 +110,8 @@ export async function passengerRideTracking(input: {
       category: ride.category,
       origin: ride.origin,
       destination: ride.destination,
+      pickupLabel: ride.pickupLabel ?? null,
+      dropoffLabel: ride.dropoffLabel ?? null,
       ...(ride.pickupLatitude != null
         ? { pickupLatitude: ride.pickupLatitude }
         : {}),

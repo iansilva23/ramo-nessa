@@ -216,7 +216,7 @@ function start(args) {
         void registration.showNotification(String(data.title).slice(0, 120), {
           body: String(data.body).slice(0, 500), icon: new URL('icons/Icon-192.png', base).href,
           tag: 'ramo-' + String(data.type ?? 'notice').slice(0, 80),
-          data: { ramo: true },
+          data: { ramo: true, type: data.type, rideId: data.rideId },
         }).catch(() => {});
       });
       return ok;
@@ -257,4 +257,28 @@ addEventListener('storage', event => {
 // Firebase Messaging usa appId como chave no IndexedDB. AppIds distintos são
 // obrigatórios para que um logout nunca invalide o token do outro aplicativo.
 try { if (configured()) localStorage.setItem('ramo.push.appid:' + base.pathname, globalThis.ramoPushConfig.appId); } catch {}
-globalThis.ramoWebPush = Object.freeze({ start, setPreference, stop, status });
+let openHandler = null;
+let pendingOpen = null;
+function deliverOpen(raw) {
+  if (!raw || typeof raw.type !== 'string' || !/^[a-z][a-z0-9_.]{1,100}$/.test(raw.type)) return;
+  const intent = {type:raw.type};
+  if (typeof raw.rideId === 'string' && /^[0-9a-f-]{36}$/i.test(raw.rideId)) intent.rideId=raw.rideId;
+  if (openHandler) openHandler(JSON.stringify(intent)); else pendingOpen=intent;
+}
+function setOpenHandler(handler) {
+  openHandler=handler;
+  if (pendingOpen) {const pending=pendingOpen;pendingOpen=null;deliverOpen(pending);}
+}
+if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', event => {
+  if (event.source?.scriptURL !== new URL('ramo_push_worker.js',base).href) return;
+  deliverOpen(event.data?.ramoNotificationOpen);
+});
+try {
+  const url=new URL(location.href);
+  if(url.searchParams.has('notificationType')) {
+    deliverOpen({type:url.searchParams.get('notificationType'),rideId:url.searchParams.get('notificationRide')});
+    url.searchParams.delete('notificationType');url.searchParams.delete('notificationRide');
+    history.replaceState(history.state,'',url.href);
+  }
+} catch {}
+globalThis.ramoWebPush = Object.freeze({ start, setPreference, stop, status, setOpenHandler });
