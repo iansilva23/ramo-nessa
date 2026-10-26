@@ -2,6 +2,19 @@ import type {IncomingMessage,ServerResponse} from 'node:http';
 import {DriverNavigationControlStore,NavigationControlError,type NavigationMode} from './driver-navigation-control.js';
 import type {RoutingRouteProvider} from './route-provider.js';
 
+// With economy enabled, anonymous legacy requests must authenticate even in staging.
+// Otherwise dropping the bearer header would bypass the ride's shared budget.
+export async function genericNavigationRouteAllowed(input:{
+ production:boolean;hasAuthorization:boolean;policyEnabled:()=>Promise<boolean>;
+ authenticate:()=>Promise<{subjectType:string;subjectId:string}>;
+ hasActiveRide:(driverId:string)=>Promise<boolean>;
+}):Promise<boolean>{
+ const enabled=await input.policyEnabled();
+ if(!input.production&&!input.hasAuthorization&&!enabled)return true;
+ const session=await input.authenticate();
+ return !(enabled&&session.subjectType==='driver'&&await input.hasActiveRide(session.subjectId));
+}
+
 export async function driverNavigationRoutes(input:{request:IncomingMessage;response:ServerResponse;url:URL;
  store:DriverNavigationControlStore|null;provider:RoutingRouteProvider|null;
  authenticate:()=>Promise<string>;readJson:(request:IncomingMessage)=>Promise<unknown>;

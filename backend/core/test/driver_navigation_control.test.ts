@@ -5,6 +5,25 @@ import {initialNavigationState,reserveNavigation,NavigationControlError,DriverNa
 import {createPostgresPool} from '../src/db/postgres.js';
 import {PostgresRideRepository} from '../src/rides/repositories/postgres-ride-repository.js';
 import {createRide} from '../src/rides/create-ride.js';
+import {genericNavigationRouteAllowed} from '../src/routing/driver-navigation-routes.js';
+
+test('enabled economy blocks legacy active-driver routes and requires authentication without a header in staging',async()=>{
+ const input={production:false,hasAuthorization:false,policyEnabled:async()=>true,
+  authenticate:async()=>({subjectType:'driver',subjectId:'driver-1'}),hasActiveRide:async()=>true};
+ await assert.rejects(genericNavigationRouteAllowed({...input,authenticate:async()=>{throw new Error('UNAUTHORIZED');}}),/UNAUTHORIZED/);
+ assert.equal(await genericNavigationRouteAllowed(input),false);
+ assert.equal(await genericNavigationRouteAllowed({...input,hasAuthorization:true}),false);
+ assert.equal(await genericNavigationRouteAllowed({...input,hasActiveRide:async()=>false}),true);
+ assert.equal(await genericNavigationRouteAllowed({...input,authenticate:async()=>({subjectType:'passenger',subjectId:'passenger-1'})}),true);
+});
+test('disabled economy preserves legacy staging behavior and production authentication',async()=>{
+ let calls=0;
+ const input={production:false,hasAuthorization:false,policyEnabled:async()=>false,
+  authenticate:async()=>{calls++;throw new Error('UNAUTHORIZED');},hasActiveRide:async()=>true};
+ assert.equal(await genericNavigationRouteAllowed(input),true);assert.equal(calls,0);
+ await assert.rejects(genericNavigationRouteAllowed({...input,production:true}),/UNAUTHORIZED/);
+ await assert.rejects(genericNavigationRouteAllowed({...input,hasAuthorization:true}),/UNAUTHORIZED/);
+});
 
 test('one route per phase plus four additional requests; no budget reset on a new phase',()=>{
  let s=initialNavigationState();

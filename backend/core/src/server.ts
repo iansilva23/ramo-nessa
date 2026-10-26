@@ -1,5 +1,5 @@
 import {NavigationControlError} from './routing/driver-navigation-control.js';
-import {driverNavigationRoutes} from './routing/driver-navigation-routes.js';
+import {driverNavigationRoutes,genericNavigationRouteAllowed} from './routing/driver-navigation-routes.js';
 import {OccurrenceError} from './rides/ride-occurrence-store.js';
 import {passengerPayableCents} from './promotions/promotion-service.js';
 import {bonusForMethod} from './rides/occurrence-bonus.js';
@@ -2694,16 +2694,17 @@ const server = createServer(async (request, response) => {
       requestUrl.pathname === '/v1/maps/route'
     ) {
       const authorization = headerValue(request, 'authorization');
-      if (process.env.NODE_ENV === 'production' || authorization != null) {
-        const session=await authenticateBearer({
+      const allowed=await genericNavigationRouteAllowed({
+        production:process.env.NODE_ENV==='production',hasAuthorization:authorization!=null,
+        policyEnabled:async()=>(await driverNavigationControlStore?.policy())?.enabled===true,
+        authenticate:()=>authenticateBearer({
           repository: authSessionRepository,
           identities: authOtpRepository,
           headers: request.headers,
-        });
-        if(session.subjectType==='driver'&&(await driverNavigationControlStore?.policy())?.enabled&&await rideRepository.findActiveByDriverId(session.subjectId)) {
-          json(response,409,{error:'USE_RIDE_NAVIGATION',message:'Use a navegação vinculada à corrida.'});return;
-        }
-      }
+        }),
+        hasActiveRide:async driverId=>(await rideRepository.findActiveByDriverId(driverId))!=null,
+      });
+      if(!allowed){json(response,409,{error:'USE_RIDE_NAVIGATION',message:'Use a navegação vinculada à corrida.'});return;}
 
       if (routingRouteProvider == null) {
         json(response, 503, {
