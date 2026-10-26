@@ -441,7 +441,7 @@ class _DriverOfferDesign extends StatelessWidget {
     final trip =
         tripRoute?.distanceLabel ?? _rideDistance(offer.tripDistanceKm);
     return _DriverDesignFrame(
-      darkHeader: true,
+      darkHeader: false,
       onMinimize: onMinimize,
       header: Row(
         children: [
@@ -471,13 +471,13 @@ class _DriverOfferDesign extends StatelessWidget {
                 CircularProgressIndicator(
                   value: (seconds / 35).clamp(0, 1),
                   color: _rideYellow,
-                  backgroundColor: const Color(0xFF292D31),
+                  backgroundColor: const Color(0xFFE8E8EC),
                   strokeWidth: 4,
                 ),
                 Text(
                   '${seconds}s',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: _rideInk,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),

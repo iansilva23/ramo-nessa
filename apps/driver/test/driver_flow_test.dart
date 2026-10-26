@@ -2,6 +2,7 @@ import 'package:ramo_nessa_driver/src/features/home/data/passenger_rating_api.da
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/app.dart';
@@ -17,6 +18,41 @@ import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dar
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
+  for (final state in ['AWAITING_PAYMENT', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED']) {
+    testWidgets('expanded $state card stays white in dark appearance', (tester) async {
+      await RamoAppearance.instance.initialize(read: () async => 'dark', save: (_) async {});
+      addTearDown(() { RamoAppearance.instance.value = ThemeMode.system; });
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final api = _FakeDriverApi(initialOnline: true);
+      api._offerAvailable = false;
+      api._currentRide = AcceptedDriverRide(
+        id: 'palette-ride', state: state, category: 'car', passengers: 1,
+        origin: const DriverLocationRef(zoneId: 'prea'),
+        destination: const DriverLocationRef(zoneId: 'jijoca'),
+        driverEarningsCents: 11000, pickupCompensationCents: 200,
+        pickupLatitude: -2.82017, pickupLongitude: -40.41467,
+      );
+      await tester.pumpWidget(RamoNessaDriverApp(api: api,
+        locationService: const _FakeLocationService()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      final handle = find.byKey(const ValueKey('ride-drag-handle'));
+      expect(handle, findsOneWidget);
+      expect(Theme.of(tester.element(handle)).colorScheme.surface, Colors.white);
+      final expanded = find.ancestor(of: handle, matching: find.byType(DecoratedBox));
+      expect(expanded.evaluate().any((e) =>
+        (e.widget as DecoratedBox).decoration is BoxDecoration &&
+        ((e.widget as DecoratedBox).decoration as BoxDecoration).color == Colors.white), isTrue);
+      if (state == 'DRIVER_ARRIVED') {
+        expect(Theme.of(tester.element(find.text('Você chegou'))).brightness, Brightness.light);
+        expect(find.text('Iniciar corrida'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
   testWidgets(
     'passenger cancellation immediately shows fee, refreshes balance and releases busy state',
     (tester) async {

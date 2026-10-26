@@ -4820,6 +4820,16 @@ class _ActiveRideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (onMinimize == null) return _buildCard(context);
+    // Expanded map cards retain the approved white palette in both themes.
+    // Build legacy arrival/payment content inside this theme, not outside it.
+    return Theme(
+      data: RamoTheme.light,
+      child: Builder(builder: _buildCard),
+    );
+  }
+
+  Widget _buildCard(BuildContext context) {
     // Activity uses this card without map-panel controls. Preserve its layout.
     if (onMinimize != null &&
         [
