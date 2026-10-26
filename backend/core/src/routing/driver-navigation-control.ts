@@ -68,7 +68,7 @@ export class DriverNavigationControlStore {
    const ride=await this.authorized(c,rideId,driverId),stage:NavigationStage=ride.state==='IN_PROGRESS'?'dropoff':'pickup';
    const latitude=Number(stage==='pickup'?ride.pickup_latitude:ride.dropoff_latitude);
    const longitude=Number(stage==='pickup'?ride.pickup_longitude:ride.dropoff_longitude);
-   if((stage==='pickup'?ride.pickup_latitude:ride.dropoff_latitude)==null||!Number.isFinite(latitude)||!Number.isFinite(longitude))throw new NavigationControlError('DESTINATION_UNAVAILABLE');
+   if((stage==='pickup'?ride.pickup_latitude:ride.dropoff_latitude)==null||(stage==='pickup'?ride.pickup_longitude:ride.dropoff_longitude)==null||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(longitude)||Math.abs(longitude)>180)throw new NavigationControlError('DESTINATION_UNAVAILABLE');
    const old=decode((await c.query('SELECT * FROM driver_navigation_control WHERE ride_id=$1',[rideId])).rows[0]);
    const initial=!(stage==='pickup'?old.pickupRequested:old.dropoffRequested);
    const state=reserveNavigation(old,stage,Date.now()),token=randomUUID();

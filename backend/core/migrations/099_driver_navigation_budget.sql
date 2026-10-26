@@ -1,6 +1,6 @@
 -- Metadata only: never stores Google route geometry or changes trip/financial state.
 CREATE TABLE driver_navigation_control (
- ride_id uuid PRIMARY KEY REFERENCES rides(id),
+ ride_id uuid PRIMARY KEY REFERENCES rides(id) ON DELETE CASCADE,
  mode text NOT NULL DEFAULT 'internal' CHECK(mode IN ('internal','paused','own','external')),
  recalculations integer NOT NULL DEFAULT 0 CHECK(recalculations BETWEEN 0 AND 4),
  pickup_requested boolean NOT NULL DEFAULT false,
@@ -12,7 +12,7 @@ CREATE TABLE driver_navigation_control (
 );
 CREATE TABLE driver_navigation_requests (
  id uuid PRIMARY KEY,
- ride_id uuid NOT NULL REFERENCES rides(id),
+ ride_id uuid NOT NULL REFERENCES rides(id) ON DELETE CASCADE,
  stage text NOT NULL CHECK(stage IN ('pickup','dropoff')),
  reason text NOT NULL CHECK(reason IN ('initial','off_route','resume')),
  outcome text NOT NULL DEFAULT 'reserved' CHECK(outcome IN ('reserved','success','provider_error')),

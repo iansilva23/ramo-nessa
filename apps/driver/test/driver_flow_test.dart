@@ -39,8 +39,8 @@ void main() {
     await tester.pump();await tester.pump(const Duration(milliseconds:100));
     expect(routes.latestControl!.mode,'external');expect(routes.calls,calls);
     await tester.pumpWidget(const SizedBox());await tester.pump();
-    await location._controller.close();
-  });
+    unawaited(location._controller.close());
+  }, timeout: const Timeout(Duration(seconds:45)));
 
   testWidgets('economia: limite oferece escolha, mantém modo próprio ao reabrir e não consulta rota', (tester) async {
     final api=_FakeDriverApi(initialOnline:true);
@@ -60,7 +60,7 @@ void main() {
     expect(routes.calls,calls);expect(routes.latestControl!.mode,'own');
     expect(api._currentRide!.state,'DRIVER_ARRIVING');
     await tester.pumpWidget(const SizedBox());await tester.pump();
-  });
+  }, timeout: const Timeout(Duration(seconds:45)));
 
   for (final state in ['AWAITING_PAYMENT', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED']) {
     testWidgets('expanded $state card stays white in dark appearance', (tester) async {

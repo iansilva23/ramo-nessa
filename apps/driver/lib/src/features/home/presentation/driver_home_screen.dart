@@ -2154,12 +2154,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
 
-    if(_routeRefreshInFlight || _navigationChoiceVisible || _routeModeSaving) return;
+    if(_routeRefreshInFlight || _routeModeSaving) return;
     if(_routeProtectionEnabled && _lastRouteRefreshAt!=null && DateTime.now().difference(_lastRouteRefreshAt!)<const Duration(seconds:15)) return;
     _routeRefreshInFlight=true;
     try {
-    if(!await _loadNavigationControl(ride.id) || _routeMode!='internal') return;
+    if(!await _loadNavigationControl(ride.id)) return;
     if(!mounted || _activeRide?.id!=ride.id) return;
+    if(_navigationChoiceVisible) {
+      if(_routeProtectionEnabled) return;
+      ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+      _navigationChoiceVisible=false;
+    }
+    if(_routeMode!='internal') return;
     final dropoff=ride.state=='IN_PROGRESS';
     final phaseChanged=_routeForRide!=ride.id || _routeWasDropoff!=dropoff;
     if(phaseChanged) {
