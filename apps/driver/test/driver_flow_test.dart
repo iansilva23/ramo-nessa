@@ -18,6 +18,50 @@ import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dar
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
+
+  testWidgets('economia: abrir Maps pausa rotas, mas mantém GPS em segundo plano e ao reabrir', (tester) async {
+    final api=_FakeDriverApi(initialOnline:true);
+    api._offerAvailable=false;api._currentRide=_budgetTestRide;
+    final routes=_BudgetRouteService(),location=_StreamingFakeLocationService(),navigation=_FakeNavigationService();
+    await tester.binding.setSurfaceSize(const Size(430,932));
+    addTearDown(()=>tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(RamoNessaDriverApp(api:api,locationService:location,routeService:routes,navigationService:navigation));
+    await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    await tester.ensureVisible(find.text('Abrir no Google Maps'));
+    await tester.tap(find.text('Abrir no Google Maps'));await tester.pump();await tester.pump(const Duration(milliseconds:100));
+    expect(routes.latestControl!.mode,'external');expect(navigation.lastLatitude,_budgetTestRide.pickupLatitude);
+    final calls=routes.calls;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    location.add(const DriverPosition(latitude:-2.83,longitude:-40.42));
+    await tester.pump();await tester.pump(const Duration(seconds:25));
+    expect(api.lastSyncedPosition!.latitude,-2.83);expect(routes.calls,calls);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();await tester.pump(const Duration(milliseconds:100));
+    expect(routes.latestControl!.mode,'external');expect(routes.calls,calls);
+    await tester.pumpWidget(const SizedBox());await tester.pump();
+    await location._controller.close();
+  });
+
+  testWidgets('economia: limite oferece escolha, mantém modo próprio ao reabrir e não consulta rota', (tester) async {
+    final api=_FakeDriverApi(initialOnline:true);
+    api._offerAvailable=false;api._currentRide=_budgetTestRide;
+    final routes=_BudgetRouteService(limitReached:true);
+    await tester.binding.setSurfaceSize(const Size(430,932));
+    addTearDown(()=>tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(RamoNessaDriverApp(api:api,locationService:const _FakeLocationService(),routeService:routes));
+    await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    expect(find.text('Seguir por conta própria'),findsOneWidget);
+    expect(find.text('Recalcular pelo Google Maps'),findsOneWidget);
+    await tester.tap(find.text('Seguir por conta própria'));await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    expect(routes.latestControl!.mode,'own');final calls=routes.calls;
+    await tester.pumpWidget(const SizedBox());await tester.pump();
+    await tester.pumpWidget(RamoNessaDriverApp(api:api,locationService:const _FakeLocationService(),routeService:routes));
+    await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    expect(routes.calls,calls);expect(routes.latestControl!.mode,'own');
+    expect(api._currentRide!.state,'DRIVER_ARRIVING');
+    await tester.pumpWidget(const SizedBox());await tester.pump();
+  });
+
   for (final state in ['AWAITING_PAYMENT', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED']) {
     testWidgets('expanded $state card stays white in dark appearance', (tester) async {
       await RamoAppearance.instance.initialize(read: () async => 'dark', save: (_) async {});
@@ -1463,4 +1507,25 @@ class _CancellationReviewRealtime implements DriverRealtimeService {
   final controller = StreamController<DriverRealtimeUpdate>.broadcast();
   @override
   Stream<DriverRealtimeUpdate> watch() => controller.stream;
+}
+
+const _budgetTestRide=AcceptedDriverRide(id:'budget-test-ride',state:'DRIVER_ARRIVING',category:'car',passengers:1,
+ origin:DriverLocationRef(zoneId:'prea'),destination:DriverLocationRef(zoneId:'jijoca'),driverEarningsCents:11000,pickupCompensationCents:200,
+ pickupLatitude:-2.82017,pickupLongitude:-40.41467,dropoffLatitude:-2.7956,dropoffLongitude:-40.5142);
+class _BudgetRouteService extends _CountingRouteService implements ControlledDriverRouteService {
+ _BudgetRouteService({bool limitReached=false}) {latestControl=DriverNavigationControl(mode:'internal',recalculations:limitReached?4:0,pickupRequested:limitReached,dropoffRequested:false,enabled:true);}
+ @override
+ DriverNavigationControl? latestControl;
+ @override
+ Future<DriverNavigationControl> navigationState(String rideId) async=>latestControl!;
+ @override
+ Future<DriverNavigationControl> setNavigationMode(String rideId,String mode) async {
+  latestControl=DriverNavigationControl(mode:mode,recalculations:latestControl!.recalculations,pickupRequested:latestControl!.pickupRequested,dropoffRequested:latestControl!.dropoffRequested,enabled:true);
+  return latestControl!;
+ }
+ @override
+ Future<DriverRouteInfo> rideRoute({required String rideId,required LatLng origin,required LatLng destination,required String reason}) async {
+  if(latestControl!.recalculations>=4){calls++;throw DriverRouteControlException('NAVIGATION_LIMIT',latestControl);}
+  return route(origin:origin,destination:destination);
+ }
 }

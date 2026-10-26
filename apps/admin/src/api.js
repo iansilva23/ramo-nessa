@@ -159,6 +159,9 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    navigationRequest(token,method='GET',body){
+      return request('/v1/admin/navigation-policy',{token,method,...(body===undefined?{}:{body})});
+    },
     occurrenceRequest(token,path,method='GET',body){
       if(!/^\/v1\/admin\/(occurrence-policy$|ride-occurrences(?:\/[0-9a-f-]{36}\/decision)?$)/i.test(path))throw new Error('Rota inválida.');
       return request(path,{token,method,...(body===undefined?{}:{body})});

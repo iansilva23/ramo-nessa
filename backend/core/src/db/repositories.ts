@@ -1,3 +1,4 @@
+import {DriverNavigationControlStore} from '../routing/driver-navigation-control.js';
 import {RideOccurrenceStore} from '../rides/ride-occurrence-store.js';
 import {MemoryGuideStore,PostgresGuideStore,type GuideStore} from '../guide/guide-store.js';
 import {PostgresBoardingStore} from '../rides/boarding-store.js';
@@ -80,6 +81,7 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  driverNavigationControlStore: DriverNavigationControlStore|null;
   boardingStore: PostgresBoardingStore|null;
   occurrenceStore: RideOccurrenceStore|null;
   documentExpiryNotifier: DocumentExpiryNotifier|null;
@@ -130,6 +132,7 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      driverNavigationControlStore: new DriverNavigationControlStore(pool),
       boardingStore: new PostgresBoardingStore(pool),
       occurrenceStore: new RideOccurrenceStore(pool),
       documentExpiryNotifier: new DocumentExpiryNotifier(pool),
@@ -199,6 +202,7 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
+    driverNavigationControlStore: null,
     boardingStore: null,
     occurrenceStore: null,
     documentExpiryNotifier: null,

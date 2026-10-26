@@ -367,7 +367,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) unawaited(_restoreCurrentRide());
+    if (state == AppLifecycleState.resumed) {
+      _navigationControlRideId=null;
+      unawaited(_restoreCurrentRide());
+    }
     if (!kIsWeb) return;
     if (DriverWebAvailabilityPolicy.isBackgroundTransition(state)) {
       if (_webBackgrounded) return;
@@ -1079,12 +1082,109 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
-  Future<void> _startInAppNavigation() async {
+  String? _navigationControlRideId;
+  DateTime? _navigationControlLoadedAt;
+  bool get _routeProtectionEnabled => _navigationControl?.enabled==true;
+  String _routeMode = 'internal';
+  bool _routeRefreshInFlight = false;
+  int _routeControlGeneration = 0;
+  bool _routeModeSaving = false;
+  bool _navigationChoiceVisible = false;
+  bool? _routeWasDropoff;
+  String? _routeForRide;
+  DateTime? _offRouteSince;
+  DriverNavigationControl? _navigationControl;
+
+  Future<bool> _loadNavigationControl(String rideId) async {
+    final service=_routeService;
+    if(service is! ControlledDriverRouteService) return true;
+    if(_navigationControlRideId==rideId && _navigationControlLoadedAt!=null && DateTime.now().difference(_navigationControlLoadedAt!)<const Duration(seconds:10)) return true;
+    final generation=_routeControlGeneration;
+    try {
+      final control=await service.navigationState(rideId);
+      if(!mounted || _activeRide?.id!=rideId || generation!=_routeControlGeneration) return false;
+      _navigationControlRideId=rideId;
+      _navigationControlLoadedAt=DateTime.now();
+      _navigationControl=control;
+      _routeMode=control.enabled?control.mode:'internal';
+      if(control.enabled && _routeMode!='internal') setState(() { _navigationMode=false; _activeRoute=null; });
+      return true;
+    } catch (_) {
+      if(mounted) setState(()=>_message='Navegação indisponível. Sua localização continua sendo enviada.');
+      return false;
+    }
+  }
+
+  Future<bool> _setRouteMode(String mode) async {
+    final rideId=_activeRide?.id;
+    if(rideId==null || _routeModeSaving) return false;
+    _routeModeSaving=true;
+    ++_routeControlGeneration;
+    final oldMode=_routeMode;
+    if(mode!='internal') {
+      _routeMode=mode;
+      ++_activeRouteRequestId;
+      if(mounted) setState(() { _navigationMode=false; _activeRoute=null; });
+    }
+    try {
+      final service=_routeService;
+      if(service is ControlledDriverRouteService) {
+        final control=await service.setNavigationMode(rideId,mode);
+        if(!mounted || _activeRide?.id!=rideId) return false;
+        _navigationControl=control;
+        _navigationControlRideId=rideId;
+        _routeMode=control.mode;
+      } else {
+        _routeMode=mode;
+      }
+      if(mounted) setState(() {});
+      return true;
+    } on DriverRouteControlException catch (error) {
+      _navigationControl=error.control??_navigationControl;
+      if(mode=='internal') _routeMode=oldMode;
+      if(error.code=='NAVIGATION_LIMIT') _showNavigationChoice();
+      return false;
+    } catch (_) {
+      if(mode=='internal') _routeMode=oldMode;
+      if(mounted) setState(()=>_message='Não foi possível salvar a navegação. Tente novamente; a corrida continua.');
+      return false;
+    } finally { _routeModeSaving=false; }
+  }
+
+  void _showNavigationChoice() {
+    if(!mounted || _navigationChoiceVisible) return;
+    _navigationChoiceVisible=true;
+    ScaffoldMessenger.of(context).showMaterialBanner(MaterialBanner(
+      content: const Text('Você está seguindo outro caminho. O limite de quatro recálculos foi atingido. Como prefere continuar?'),
+      actions: [
+        TextButton(onPressed: () async {
+          if(await _setRouteMode('own') && mounted) {
+            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+            _navigationChoiceVisible=false;
+          }
+        }, child: const Text('Seguir por conta própria')),
+        TextButton(onPressed: () async {
+          ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+          _navigationChoiceVisible=false;
+          await _openExternalNavigation();
+        }, child: const Text('Recalcular pelo Google Maps')),
+      ],
+    ));
+  }
+
+  Future<void> _startInAppNavigation({bool explicit = false}) async {
     final ride = _activeRide;
     final supply = _supply;
     if (ride == null || supply == null || ride.state == 'AWAITING_PAYMENT') {
       return;
     }
+
+    if(!await _loadNavigationControl(ride.id)) return;
+    if(_routeMode!='internal') {
+      if(!explicit) { if(mounted) setState(()=>_navigationMode=false); return; }
+      if(!await _setRouteMode('internal')) return;
+    }
+    if(!mounted || _activeRide?.id!=ride.id) return;
 
     final useDropoff = ride.state == 'IN_PROGRESS';
     final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
@@ -1126,6 +1226,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     setState(() {
       _navigationMode = false;
     });
+    if(_routeProtectionEnabled) unawaited(_setRouteMode('paused'));
   }
 
   Future<void> _openExternalNavigation() async {
@@ -1146,6 +1247,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
 
+    // Stop internal queries before handing control to another app. GPS subscription stays alive.
+    if(!await _loadNavigationControl(ride.id)) return;
+    if(_routeProtectionEnabled && !await _setRouteMode('external')) return;
     try {
       await _navigation.openNavigation(
         latitude: latitude,
@@ -2041,22 +2145,45 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final service = _routeService;
     final supply = _supply;
     final ride = _activeRide;
-    if (supply == null || ride == null || ride.state == 'AWAITING_PAYMENT') {
+    if (supply == null || ride == null || !['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].contains(ride.state)) {
+      if(mounted && _navigationChoiceVisible) { ScaffoldMessenger.of(context).hideCurrentMaterialBanner(); _navigationChoiceVisible=false; }
+      if(ride==null) { _navigationControlRideId=null; _navigationControl=null; _routeMode='internal'; _routeForRide=null; }
       if (mounted && _activeRoute != null) {
         setState(() => _activeRoute = null);
       }
       return;
     }
 
+    if(_routeRefreshInFlight || _navigationChoiceVisible || _routeModeSaving) return;
+    if(_routeProtectionEnabled && _lastRouteRefreshAt!=null && DateTime.now().difference(_lastRouteRefreshAt!)<const Duration(seconds:15)) return;
+    _routeRefreshInFlight=true;
+    try {
+    if(!await _loadNavigationControl(ride.id) || _routeMode!='internal') return;
+    if(!mounted || _activeRide?.id!=ride.id) return;
+    final dropoff=ride.state=='IN_PROGRESS';
+    final phaseChanged=_routeForRide!=ride.id || _routeWasDropoff!=dropoff;
+    if(phaseChanged) {
+      _activeRoute=null;
+      _lastRouteRefreshAt=null;
+      _offRouteSince=null;
+    }
     final now = DateTime.now();
     final currentPosition = LatLng(supply.latitude, supply.longitude);
-    final shouldFitRoute = force || _activeRoute == null;
+    final shouldFitRoute = phaseChanged || _activeRoute == null;
+    // Confirm a sustained deviation rather than reacting to one noisy GPS fix.
+    if(_routeProtectionEnabled && _activeRoute!=null) {
+      final offRoute=DriverRouteRefreshPolicy.distanceToRouteMeters(currentPosition,_activeRoute!.points)>=DriverRouteRefreshPolicy.offRouteThresholdMeters;
+      if(!offRoute) { _offRouteSince=null; return; }
+      _offRouteSince??=now;
+      if(now.difference(_offRouteSince!)<const Duration(seconds:20)) return;
+    }
     if (!DriverRouteRefreshPolicy.shouldRefresh(
       now: now,
       currentPosition: currentPosition,
       currentRoute: _activeRoute,
       lastAttemptAt: _lastRouteRefreshAt,
-      force: force,
+      force: _routeProtectionEnabled?phaseChanged:force,
+      protectionEnabled: _routeProtectionEnabled,
     )) {
       return;
     }
@@ -2069,10 +2196,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final routeRequestId = ++_activeRouteRequestId;
     _lastRouteRefreshAt = now;
     try {
-      final route = await service.route(
-        origin: currentPosition,
-        destination: LatLng(latitude, longitude),
-      );
+      final route = service is ControlledDriverRouteService && _routeProtectionEnabled
+        ? await service.rideRoute(rideId:ride.id,origin:currentPosition,
+            destination:LatLng(latitude,longitude),reason:phaseChanged?'initial':_activeRoute==null?'resume':'off_route')
+        : await service.route(origin:currentPosition,destination:LatLng(latitude,longitude));
+      if(service is ControlledDriverRouteService) _navigationControl=service.latestControl;
       if (!mounted ||
           !DriverRouteRefreshPolicy.isCurrentRouteResponse(
             requestId: routeRequestId,
@@ -2085,6 +2213,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         return;
       }
       setState(() => _activeRoute = route);
+      _routeForRide=ride.id;
+      _routeWasDropoff=useDropoff;
+      _offRouteSince=null;
       if (shouldFitRoute && _mapReady) {
         try {
           await _mapController.fitCoordinates(
@@ -2098,11 +2229,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           // não tiver concluído o layout necessário para ajustar a câmera.
         }
       }
+    } on DriverRouteControlException catch (error) {
+      _navigationControl=error.control??_navigationControl;
+      if(error.code=='NAVIGATION_LIMIT') _showNavigationChoice();
+      if(error.code=='NAVIGATION_PAUSED') {
+        _routeMode=error.control?.mode??'paused';
+        if(mounted) setState(() { _navigationMode=false; _activeRoute=null; });
+      }
     } catch (_) {
       // A navegação externa continua disponível mesmo quando a rota
       // embutida não puder ser recalculada. O timestamp do último
       // intento impede rajadas contra o provedor quando ele está instável.
     }
+    } finally { _routeRefreshInFlight=false; }
   }
 
   Future<void> _openRideChat() async {
@@ -2336,7 +2475,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             ride: presentedRide,
                             busy: _rideAction,
                             navigationActive: _navigationMode,
-                            onNavigate: _startInAppNavigation,
+                            onNavigate: () => _startInAppNavigation(explicit:true),
                             onStopNavigation: _stopInAppNavigation,
                             onExternalNavigation: _openExternalNavigation,
                             onArrived: _markArrived,

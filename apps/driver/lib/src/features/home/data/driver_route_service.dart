@@ -14,7 +14,29 @@ abstract interface class DriverRouteService {
   });
 }
 
-class CoreDriverRouteService implements DriverRouteService {
+class DriverNavigationControl {
+  const DriverNavigationControl({required this.mode,required this.recalculations,required this.pickupRequested,required this.dropoffRequested,this.enabled=false});
+  final bool enabled;
+  final String mode;
+  final int recalculations;
+  final bool pickupRequested;
+  final bool dropoffRequested;
+  factory DriverNavigationControl.fromJson(Map raw) => DriverNavigationControl(
+    enabled: raw['enabled']==true, mode: raw['mode'] as String, recalculations: (raw['recalculations'] as num).toInt(),
+    pickupRequested: raw['pickupRequested'] == true, dropoffRequested: raw['dropoffRequested'] == true);
+}
+class DriverRouteControlException implements Exception {
+  const DriverRouteControlException(this.code, [this.control]);
+  final String code;
+  final DriverNavigationControl? control;
+}
+abstract interface class ControlledDriverRouteService implements DriverRouteService {
+  DriverNavigationControl? get latestControl;
+  Future<DriverNavigationControl> navigationState(String rideId);
+  Future<DriverNavigationControl> setNavigationMode(String rideId,String mode);
+  Future<DriverRouteInfo> rideRoute({required String rideId,required LatLng origin,required LatLng destination,required String reason});
+}
+class CoreDriverRouteService implements ControlledDriverRouteService {
   CoreDriverRouteService({
     required Uri baseUrl,
     String? accessToken,
@@ -78,16 +100,36 @@ class CoreDriverRouteService implements DriverRouteService {
   }
 
   @override
-  Future<DriverRouteInfo> route({
-    required LatLng origin,
-    required LatLng destination,
-  }) async {
+  DriverNavigationControl? latestControl;
+
+  Future<DriverNavigationControl> _control(String rideId,[String? mode]) async {
+    final uri=_baseUrl.resolve('/v1/driver/me/rides/$rideId/navigation');
+    final headers={'authorization':'Bearer $_accessToken','content-type':'application/json'};
+    final response=await (mode==null ? _client.get(uri,headers:headers) :
+      _client.post(uri,headers:headers,body:jsonEncode({'mode':mode}))).timeout(DriverCoreConfig.requestTimeout);
+    final raw=jsonDecode(response.body);
+    final control=raw is Map && raw['control'] is Map ? DriverNavigationControl.fromJson(raw['control'] as Map) : null;
+    if(control!=null) latestControl=control;
+    if(response.statusCode!=200||control==null) throw DriverRouteControlException(raw is Map ? raw['error']?.toString()??'NAVIGATION_UNAVAILABLE':'NAVIGATION_UNAVAILABLE',control);
+    return control;
+  }
+  @override
+  Future<DriverNavigationControl> navigationState(String rideId)=>_control(rideId);
+  @override
+  Future<DriverNavigationControl> setNavigationMode(String rideId,String mode)=>_control(rideId,mode);
+  @override
+  Future<DriverRouteInfo> rideRoute({required String rideId,required LatLng origin,required LatLng destination,required String reason})=>
+    _requestRoute(origin:origin,destination:destination,path:'/v1/driver/me/rides/$rideId/navigation/route',reason:reason);
+  @override
+  Future<DriverRouteInfo> route({required LatLng origin,required LatLng destination})=>_requestRoute(origin:origin,destination:destination);
+
+  Future<DriverRouteInfo> _requestRoute({required LatLng origin,required LatLng destination,String path='/v1/maps/route',String? reason}) async {
     if (!_validPoint(origin) || !_validPoint(destination)) {
       throw const FormatException('Origem ou destino com GPS inválido.');
     }
     final response = await _client
         .post(
-          _baseUrl.resolve('/v1/maps/route'),
+          _baseUrl.resolve(path),
           headers: {
             'content-type': 'application/json',
             'accept': 'application/json',
@@ -95,6 +137,7 @@ class CoreDriverRouteService implements DriverRouteService {
               'authorization': 'Bearer $_accessToken',
           },
           body: jsonEncode({
+            if(reason!=null) 'reason':reason,
             'origin': {
               'latitude': origin.latitude,
               'longitude': origin.longitude,
@@ -114,6 +157,8 @@ class CoreDriverRouteService implements DriverRouteService {
       throw const FormatException('Resposta de rota inválida.');
     }
 
+    if(decoded is Map && decoded['control'] is Map) latestControl=DriverNavigationControl.fromJson(decoded['control'] as Map);
+    if(reason!=null && response.statusCode!=200) throw DriverRouteControlException(decoded is Map ? decoded['error']?.toString()??'NAVIGATION_UNAVAILABLE':'NAVIGATION_UNAVAILABLE',latestControl);
     if (response.statusCode != 200 || decoded is! Map<String, dynamic>) {
       final message = decoded is Map
           ? decoded['message']?.toString()
@@ -172,6 +217,7 @@ class CoreDriverRouteService implements DriverRouteService {
       distanceMeters: distance.toDouble(),
       duration: Duration(seconds: duration.round()),
       maneuvers: maneuvers,
+      estimatedFromLastRoute: reason != null,
     );
   }
 }
