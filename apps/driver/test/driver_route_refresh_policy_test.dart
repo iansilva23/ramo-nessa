@@ -38,6 +38,11 @@ void main() {
     );
   });
 
+  test('ativado no ADM, seguir a rota por horas não gera consulta periódica', () {
+    final last=DateTime(2026,9,25,8);
+    expect(DriverRouteRefreshPolicy.shouldRefresh(now:last.add(const Duration(hours:2)), currentPosition:const LatLng(-2.8150,-40.4140),currentRoute:route,lastAttemptAt:last,protectionEnabled:true),isFalse);
+  });
+
   test('recalcula cedo quando motorista sai da rota', () {
     final last = DateTime(2026, 9, 25, 8);
 

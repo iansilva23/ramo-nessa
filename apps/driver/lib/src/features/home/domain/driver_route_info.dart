@@ -42,12 +42,14 @@ class DriverRouteInfo {
     required this.distanceMeters,
     required this.duration,
     this.maneuvers = const [],
+    this.estimatedFromLastRoute = false,
   });
 
   final List<LatLng> points;
   final double distanceMeters;
   final Duration duration;
   final List<DriverRouteManeuver> maneuvers;
+  final bool estimatedFromLastRoute;
 
   DriverRouteManeuver? get nextManeuver =>
       maneuvers.isEmpty ? null : maneuvers.first;
@@ -94,9 +96,10 @@ class DriverRouteInfo {
 
   String get durationLabel {
     final minutes = duration.inMinutes < 1 ? 1 : duration.inMinutes;
-    if (minutes < 60) return '$minutes min';
+    final suffix = estimatedFromLastRoute ? ' (estimativa)' : '';
+    if (minutes < 60) return '$minutes min$suffix';
     final hours = minutes ~/ 60;
     final remaining = minutes % 60;
-    return remaining == 0 ? '$hours h' : '$hours h $remaining min';
+    return remaining == 0 ? '$hours h$suffix' : '$hours h $remaining min$suffix';
   }
 }

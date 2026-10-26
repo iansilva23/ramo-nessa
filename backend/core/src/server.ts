@@ -1,3 +1,5 @@
+import {NavigationControlError} from './routing/driver-navigation-control.js';
+import {driverNavigationRoutes,genericNavigationRouteAllowed} from './routing/driver-navigation-routes.js';
 import {OccurrenceError} from './rides/ride-occurrence-store.js';
 import {passengerPayableCents} from './promotions/promotion-service.js';
 import {bonusForMethod} from './rides/occurrence-bonus.js';
@@ -572,6 +574,7 @@ const {
   operationalSettingsRepository,
   manualCancellationStore,
   boardingStore,
+  driverNavigationControlStore,
   occurrenceStore,
   documentExpiryNotifier,
   passengerSavedPlaceRepository,
@@ -2673,18 +2676,35 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if(requestUrl.pathname==='/v1/admin/navigation-policy'){
+      const actor=await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:request.method==='GET'?'rides:read':'rides:write'});
+      if(!driverNavigationControlStore){json(response,503,{error:'POSTGRES_REQUIRED'});return;}
+      try{
+        if(request.method==='GET'){json(response,200,{...await driverNavigationControlStore.policy(),maxRecalculations:4,usage:await driverNavigationControlStore.usage()});return;}
+        if(request.method==='PUT'){json(response,200,await driverNavigationControlStore.savePolicy(await readJson(request),actor));return;}
+        json(response,405,{error:'METHOD_NOT_ALLOWED'});return;
+      }catch(error){if(error instanceof NavigationControlError){json(response,error.status,{error:error.code,message:error.code==='NAVIGATION_POLICY_CONFLICT'?'A configuração mudou. Recarregue antes de salvar.':'Configuração inválida.'});return;}throw error;}
+    }
+
+    if(await driverNavigationRoutes({request,response,url:requestUrl,store:driverNavigationControlStore,provider:routingRouteProvider,
+      authenticate:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),readJson,json}))return;
+
     if (
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/maps/route'
     ) {
       const authorization = headerValue(request, 'authorization');
-      if (process.env.NODE_ENV === 'production' || authorization != null) {
-        await authenticateBearer({
+      const allowed=await genericNavigationRouteAllowed({
+        production:process.env.NODE_ENV==='production',hasAuthorization:authorization!=null,
+        policyEnabled:async()=>(await driverNavigationControlStore?.policy())?.enabled===true,
+        authenticate:()=>authenticateBearer({
           repository: authSessionRepository,
           identities: authOtpRepository,
           headers: request.headers,
-        });
-      }
+        }),
+        hasActiveRide:async driverId=>(await rideRepository.findActiveByDriverId(driverId))!=null,
+      });
+      if(!allowed){json(response,409,{error:'USE_RIDE_NAVIGATION',message:'Use a navegação vinculada à corrida.'});return;}
 
       if (routingRouteProvider == null) {
         json(response, 503, {

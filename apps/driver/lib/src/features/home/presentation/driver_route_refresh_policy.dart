@@ -30,6 +30,7 @@ class DriverRouteRefreshPolicy {
     required DriverRouteInfo? currentRoute,
     required DateTime? lastAttemptAt,
     bool force = false,
+    bool protectionEnabled = false,
   }) {
     if (force || currentRoute == null || lastAttemptAt == null) {
       return true;
@@ -48,7 +49,7 @@ class DriverRouteRefreshPolicy {
       return true;
     }
 
-    return age >= onRouteRefreshInterval;
+    return !protectionEnabled && age >= onRouteRefreshInterval;
   }
 
   static double distanceToRouteMeters(

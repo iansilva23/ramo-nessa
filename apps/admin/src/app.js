@@ -1,3 +1,4 @@
+import {createNavigationAdmin} from './navigation-admin.js';
 import {createOccurrencesAdmin} from './ride-occurrences-admin.js';
 import {renderSupportRideContext} from './support-ride-context.js';
 import { passengerDisplayName } from './passenger-directory.js';
@@ -10911,7 +10912,7 @@ function initializeRouteView(view) {
   if (view === 'finance') {
     renderFinance(state.finance);
     if(hasScope('finance:read'))createCancellationAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
-    if(hasScope('rides:read'))createBoardingAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
+    if(hasScope('rides:read')){createBoardingAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});createNavigationAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});}
     if(hasScope('support:read'))createOccurrencesAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view:'finance'});
     renderPaymentPolicy(state.finance.policy);
     if (hasScope('finance:read')) {
