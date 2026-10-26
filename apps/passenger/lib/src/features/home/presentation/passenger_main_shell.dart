@@ -36,6 +36,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.tourService,
     this.guideService,
     this.onResumeRide,
+    this.onOpenRideChat,
     this.supportService,
     this.privacyService,
     this.socialLinksService,
@@ -51,6 +52,7 @@ class PassengerMainShell extends StatefulWidget {
   homeBuilder;
   final Future<void> Function(BuildContext context, PassengerActivityRide ride)?
   onResumeRide;
+  final Future<void> Function(BuildContext context, String rideId)? onOpenRideChat;
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
   final PassengerPaymentService? paymentService;
@@ -94,7 +96,11 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       if (!mounted) return;
       for (final ride in snapshot.rides) {
         if (ride.id == intent.rideId && !ride.activityData.terminal) {
-          await widget.onResumeRide!(context, ride);
+          if (intent.type == 'ride.chat.message' && widget.onOpenRideChat != null) {
+            await widget.onOpenRideChat!(context, ride.id);
+          } else {
+            await widget.onResumeRide!(context, ride);
+          }
           return;
         }
       }
@@ -105,7 +111,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
     if (intent.foreground) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
         content: Text(intent.title ?? 'Nova notificação'),
-        action: intent.isRide ? SnackBarAction(label:'Ver',onPressed:()=>_select(2)) : null,
+        action: intent.isRide ? SnackBarAction(label:'Ver',onPressed:()=>unawaited(_openNotificationRide(intent))) : null,
       ));
     } else if (intent.isRide) {unawaited(_openNotificationRide(intent));}
   }

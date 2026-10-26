@@ -1,3 +1,4 @@
+import 'features/rides/presentation/passenger_ride_chat_screen.dart';
 import 'features/guide/data/local_guide_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
@@ -139,6 +140,11 @@ class RamoNessaPassengerApp extends StatelessWidget {
         authService: authService,
         paymentService: services.payments,
         activityService: services.activity,
+        onOpenRideChat: resolvedTracking == null ? null : (context, rideId) async {
+          await Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => PassengerRideChatScreen(service: resolvedTracking, rideId: rideId),
+          ));
+        },
         onResumeRide: resolvedTracking is! PassengerSelectedRideResumeService
             ? null
             : (context, ride) async {

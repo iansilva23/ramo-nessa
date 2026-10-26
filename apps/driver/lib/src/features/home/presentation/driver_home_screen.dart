@@ -222,7 +222,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   void _onNotification(RamoNotificationIntent intent) {
     if (!mounted) return;
     if (intent.foreground) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content:Text(intent.title ?? 'Nova notificação')));
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content:Text(intent.title ?? 'Nova notificação'),
+        action: intent.isRide ? SnackBarAction(label: 'Ver', onPressed: () => unawaited(_restoreNotificationRide(intent))) : null));
       return;
     }
     if (intent.isRide) unawaited(_restoreNotificationRide(intent));

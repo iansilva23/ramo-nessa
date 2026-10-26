@@ -52,3 +52,30 @@ test('cópias entregues de bridge e worker correspondem ao código compartilhado
     assert.equal(await readFile(new URL('../../apps/' + role + '/web/' + file, import.meta.url), 'utf8'), canonical);
   }
 });
+
+for (const role of ['passenger', 'driver']) {
+  test('clique ' + role + ' conserva corrida e tipo ao abrir o aplicativo fechado', async () => {
+    const w = worker(role);
+    const rideId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    let task;
+    w.events.get('notificationclick')({notification: {data: {type: 'ride.chat.message', rideId, url: 'https://evil.example'}, close() {}},
+      stopImmediatePropagation() {}, waitUntil(value) { task = value; }});
+    await task;
+    const target = new URL(w.opened[0]);
+    assert.equal(target.origin, 'https://ramo.example');
+    assert.equal(target.pathname, role === 'driver' ? '/motorista/' : '/passageiro/');
+    assert.equal(target.searchParams.get('notificationType'), 'ride.chat.message');
+    assert.equal(target.searchParams.get('notificationRide'), rideId);
+  });
+  test('clique ' + role + ' entrega intenção à janela existente sem trocar a URL', async () => {
+    const received = [], rideId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const w = worker(role, [{url: 'https://ramo.example/' + (role === 'driver' ? 'motorista/' : 'passageiro/'),
+      focus: async () => {}, postMessage: data => received.push(data)}]);
+    let task;
+    w.events.get('notificationclick')({notification: {data: {type: 'ride.chat.message', rideId}, close() {}},
+      stopImmediatePropagation() {}, waitUntil(value) { task = value; }});
+    await task;
+    assert.deepEqual(JSON.parse(JSON.stringify(received)), [{ramoNotificationOpen: {type: 'ride.chat.message', rideId}}]);
+    assert.equal(w.opened.length, 0);
+  });
+}

@@ -43,7 +43,7 @@ test(`${browserName}: boarding settings persist explicit activation, category ex
     const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
     const origin = 'http://127.0.0.1:' + server.address().port;
     await page.goto(origin);
-    const status = page.getByRole('status'), enabled = page.getByLabel('Exigir código de embarque', { exact: true });
+    const status = page.getByRole('status'), enabled = page.getByRole('checkbox', { name: /^Exigir código de embarque/ });
     await status.getByText('Desativado. Nenhum código será exigido', { exact: false }).waitFor();
     assert.equal(await enabled.isChecked(), false); assert.equal(mutations.length, 0);
     await page.getByLabel('Entregas', { exact: true }).uncheck();
