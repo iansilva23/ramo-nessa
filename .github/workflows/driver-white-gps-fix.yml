@@ -47,7 +47,7 @@ jobs:
           import pathlib, zipfile, hashlib, json
           root=pathlib.Path('apps/driver/build/web')
           files=[{'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(root.rglob('*')) if p.is_file()]
-          manifest={'schemaVersion':1,'role':'driver','sourceCommit':'6ca7e544eb014e994937560da5095250c0ff8b3b','expectedOrigin':'https://app.ramonessa.com.br','expectedProject':'ramo-nessa','basePath':'/motorista/','compiledFinanceTerms':True,'browserLoginChromium':True,'browserLoginWebKit':True,'realProviderAcceptance':False,'publicConfigSha256':hashlib.sha256((root/'ramo_push_config.js').read_bytes()).hexdigest(),'files':files}
+          manifest={'schemaVersion':1,'role':'driver','sourceCommit':'f84acc46292537266e85215bf39253b2dc1dbec7','expectedOrigin':'https://app.ramonessa.com.br','expectedProject':'ramo-nessa','basePath':'/motorista/','compiledFinanceTerms':True,'browserLoginChromium':True,'browserLoginWebKit':True,'realProviderAcceptance':False,'publicConfigSha256':hashlib.sha256((root/'ramo_push_config.js').read_bytes()).hexdigest(),'files':files}
           with zipfile.ZipFile('release/RamoNessa-Motorista-Branco-GPS.zip','w',zipfile.ZIP_DEFLATED) as z:
               z.writestr('release.driver.json',json.dumps(manifest))
               for f in files: z.write(root/f['path'],'driver/'+f['path'])
@@ -99,4 +99,4 @@ jobs:
           cd release
           sha256sum -c RamoNessa-Motorista-Branco-GPS.zip.sha256
           sha256sum -c Instalador-Motorista-Branco-GPS.tar.gz.sha256
-          gh release create driver-white-gps-20261026-r1 ./* --target "$GITHUB_SHA" --prerelease --latest=false --title 'Motorista — cartões brancos e GPS Cinema' --notes 'Driver source 6ca7e544. Mantém base atual de destino/notificações. Testes Flutter e Web/PWA, troca e retorno ensaiados. Não instala na VPS automaticamente. Sem alterações no Core, banco, ADM ou Passageiro.'
+          gh release create driver-white-gps-20261026-r1 ./* --target "$GITHUB_SHA" --prerelease --latest=false --title 'Motorista — cartões brancos e GPS Cinema' --notes 'Driver source f84acc46. Mantém base atual de destino/notificações. Testes Flutter e Web/PWA, troca e retorno ensaiados. Não instala na VPS automaticamente. Sem alterações no Core, banco, ADM ou Passageiro.'
