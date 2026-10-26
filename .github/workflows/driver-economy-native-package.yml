@@ -1,0 +1,182 @@
+name: Driver economy - connected Android and unsigned iOS packages
+on:
+  push:
+    branches: [ops/driver-economy-live-20261026]
+    paths: [.github/workflows/driver-economy-native-package.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: driver-economy-native-packages-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SWIFT_VERSION: '5.0'
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  android:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            label: Passageiro
+            upper: PASSENGER
+          - app: driver
+            label: Motorista
+            upper: DRIVER
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 77fa0e56d9427a2b8103f1e9e46c17735598b210
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="${{ matrix.label }} Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="${{ matrix.label }} Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test driver including dynamic payout terms
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.${{ matrix.app }}.preview'\"))throw Error('Unexpected APK application ID')"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-${{ matrix.label }}-Android-Economia-20261026.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          cd artifacts/android
+          sha256sum RamoNessa-${{ matrix.label }}-Android-Economia-20261026.apk > SHA256SUMS
+          printf '%s\n' '${{ matrix.label }} Android conectado a https://app.ramonessa.com.br. Fonte 77fa0e56d9427a2b8103f1e9e46c17735598b210 (base consolidada dos apps em 26/10/2026). RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.${{ matrix.app }}.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Requer Core atualizado com migração 099 antes de instalar. Economia de rotas desligada por padrão no ADM. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-android-economia-conectado-20261026
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            label: Passageiro
+            upper: PASSENGER
+          - app: driver
+            label: Motorista
+            upper: DRIVER
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_IOS_{0}_API_KEY', matrix.upper)] }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 77fa0e56d9427a2b8103f1e9e46c17735598b210
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="${{ matrix.label }} iOS connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="${{ matrix.label }} iOS connected"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test native application
+        working-directory: apps/${{ matrix.app }}
+        run: flutter analyze && flutter test
+      - name: Build iPhone device without Apple signing
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package unsigned iPhone app separately
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app
+          mkdir -p artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app artifacts/ios/RamoNessa-${{ matrix.label }}-iPhone-SEM-ASSINATURA-Economia-20261026.zip
+          printf '%s\n' 'Build para iPhone SEM ASSINATURA APPLE. Nao pode ser instalado diretamente por este ZIP. Exige assinatura e provisionamento Apple pelo Xcode ou processo de distribuicao autorizado. Fonte 77fa0e56d9427a2b8103f1e9e46c17735598b210; Core https://app.ramonessa.com.br; RAMO_PREVIEW_MODE=false. GPS, login e push exigem aceite no aparelho; APNs exige provisionamento. Requer Core atualizado com migração 099 antes de instalar. Economia de rotas desligada por padrão no ADM. Nenhuma configuração do servidor é alterada.' > artifacts/ios/LEIA-ME.txt
+          cd artifacts/ios
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-iphone-economia-sem-assinatura-20261026
+          path: artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build simulator with the same application configuration
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --simulator --debug --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package simulator app
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app
+          mkdir -p artifacts/simulator
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app artifacts/simulator/RamoNessa-${{ matrix.label }}-SIMULADOR-Economia-20261026.zip
+          cd artifacts/simulator
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-ios-economia-simulador-20261026
+          path: artifacts/simulator/
+          if-no-files-found: error
+          retention-days: 14
