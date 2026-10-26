@@ -1,18 +1,17 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-/// Web compass-follow configuration restored from the official GPS Cinema build.
+/// Web-only, opt-in compass-follow map. Disabled in every existing build.
 /// A VECTOR Google Maps JavaScript Map ID is mandatory for real street
-/// rotation. This public ID is the same one used by the official 25/10 build.
-/// Explicit build overrides can still disable the feature or select another ID.
+/// rotation; the legacy raster map is deliberately preserved otherwise.
 abstract final class DriverWebHeadingConfig {
   static const enabledAtBuild = bool.fromEnvironment(
     'RAMO_WEB_2D_HEADING_ENABLED',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   static const rawMapId = String.fromEnvironment(
     'RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID',
-    defaultValue: 'de20bf289d6db3ad15fdb14b',
+    defaultValue: '',
   );
 
   static String get vectorMapId => rawMapId.trim();
@@ -35,7 +34,7 @@ abstract final class DriverWebHeadingConfig {
 
   static const cinematicTiltRequested = bool.fromEnvironment(
     'RAMO_WEB_CINEMATIC_TILT_ENABLED',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   static bool get cinematicTiltEnabled =>
