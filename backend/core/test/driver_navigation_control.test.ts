@@ -5,7 +5,22 @@ import {initialNavigationState,reserveNavigation,NavigationControlError,DriverNa
 import {createPostgresPool} from '../src/db/postgres.js';
 import {PostgresRideRepository} from '../src/rides/repositories/postgres-ride-repository.js';
 import {createRide} from '../src/rides/create-ride.js';
-import {genericNavigationRouteAllowed} from '../src/routing/driver-navigation-routes.js';
+import {driverNavigationRoutes,genericNavigationRouteAllowed} from '../src/routing/driver-navigation-routes.js';
+import type {IncomingMessage,ServerResponse} from 'node:http';
+
+test('route limit and pause responses retain the policy flag and never reach the provider',async()=>{
+ for(const code of ['NAVIGATION_LIMIT','NAVIGATION_PAUSED','NAVIGATION_COOLDOWN']){
+  const control={...initialNavigationState(),recalculations:4,enabled:true};
+  let providerCalls=0,status=0,body:unknown;
+  const store={reserve:async()=>{throw new NavigationControlError(code,409,control);},state:async()=>control} as unknown as DriverNavigationControlStore;
+  const handled=await driverNavigationRoutes({request:{method:'POST'} as IncomingMessage,response:{} as ServerResponse,
+   url:new URL('http://localhost/v1/driver/me/rides/00000000-0000-4000-8000-000000000001/navigation/route'),store,
+   provider:{route:async()=>{providerCalls++;throw Error('Provider must not be called');}},authenticate:async()=>'driver-1',
+   readJson:async()=>({origin:{latitude:-2.8,longitude:-40.4},reason:'off_route'}),json:(_r,s,b)=>{status=s;body=b;}});
+  assert.equal(handled,true);assert.equal(status,409);assert.equal(providerCalls,0);
+  assert.deepEqual(body,{error:code,control});
+ }
+});
 
 test('enabled economy blocks legacy active-driver routes and requires authentication without a header in staging',async()=>{
  const input={production:false,hasAuthorization:false,policyEnabled:async()=>true,

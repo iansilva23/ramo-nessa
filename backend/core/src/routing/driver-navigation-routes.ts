@@ -45,7 +45,9 @@ export async function driverNavigationRoutes(input:{request:IncomingMessage;resp
   await store.finish(rideId,reservation.token,true);
   json(response,200,{...route,control:await store.state(rideId,driverId)});
  }catch(error){
-  if(error instanceof NavigationControlError)json(response,error.status,{error:error.code,...(error.control?{control:error.control}:{})});
+  // Return the complete persisted control, including enabled. A bare reservation
+  // state has no policy flag and would make clients mistake a limit for policy OFF.
+  if(error instanceof NavigationControlError)json(response,error.status,{error:error.code,...(error.control?{control:await store.state(rideId,driverId)}:{})});
   else json(response,503,{error:'NAVIGATION_PROVIDER_UNAVAILABLE'});
  }
  return true;
