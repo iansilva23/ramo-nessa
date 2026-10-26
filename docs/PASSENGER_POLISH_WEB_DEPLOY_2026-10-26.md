@@ -33,4 +33,10 @@ Execução aprovada: https://github.com/iansilva23/ramo-nessa/actions/runs/40340
 
 O ZIP publicado foi baixado novamente: hash confirmado e todos os 130 arquivos extraídos e conferidos contra o manifesto restrito. A revisão posterior altera somente este relatório; o instalador da release continua na revisão testada.
 
-VPS ainda sem atualização deste lote. Aceitação visual e comprovação de entrega/toque de push em aparelhos reais permanecem pendentes. Satélite e distorção dos ícones seguem adiados.
+Instalação confirmada pelo recibo enviado pelo responsável em 26/10/2026: `DESTINO_NOTIFICACOES_WEB_ATUALIZADOS`, fonte `5f51e1f7b9fd714ded24801afb034de0c292f2fd`. Core, ADM, Passageiro e Motorista Web atualizados; configuração dos provedores preservada. Embarque, ocorrências e bônus permanecem desativados. O instalador retornou `webAcceptancePending:true` e `nativeAppsUpdated:false`.
+
+Backup verificado e restaurado em isolamento: `/var/backups/ramo-nessa-regions/2026-10-26T15-19-50-322Z-b6284899143ea1df5727`; manifesto `944ca12594a50cc54897535716ae36d4a45a3f5e455bbf19506447a9279b6267`. Recibo de preparação: `/opt/ramo-nessa-passenger-polish-web/5f51e1f7b9fd`, SHA-256 `319fcf774c6829e3047d97265ff084c355dbce4b2c4cbc30ab63a2c2e8113113`. Comando de retorno preservado no recibo; não foi executado. Nenhum banco ativo foi restaurado.
+
+Aceitação visual e comprovação de entrega/toque de push em aparelhos reais permanecem pendentes. Aplicativos nativos ainda não distribuídos neste lote. Satélite e distorção dos ícones seguem adiados.
+
+Conferência pública adicional após o recibo: `/health`, `/ready`, Passageiro, Motorista e ADM responderam HTTP 200. Bridge/worker de push dos dois aplicativos e `src/app.js` do ADM tiveram os hashes comparados com a fonte revisada: cinco correspondências. Isso não comprova recebimento de push no aparelho.
