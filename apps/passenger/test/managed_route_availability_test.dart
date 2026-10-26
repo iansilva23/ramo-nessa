@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -99,7 +98,7 @@ Future<RecordingRoutes> openTrip(WidgetTester tester, RamoPlace origin,
 void main() {
   tearDown(() => ManagedPricingCatalog.update(enabled: false, zones: null, categories: null));
 
-  test('managed category permissions fail closed and native stays on previous rollout', () {
+  test('managed category permissions fail closed on every platform', () {
     final json = policyJson();
     final regions = List<Map<String, dynamic>>.from(json['regions'] as List);
     json['regions'] = regions;
@@ -108,9 +107,9 @@ void main() {
       {'id': 'archived', 'enabled': true, 'archived': true, 'categoryIds': ['comfort_black']},
     ]);
     final policy = PassengerPricingPolicy.fromJson(json);
-    expect(policy.usesManagedRegions, kIsWeb);
+    expect(policy.usesManagedRegions, isTrue);
     expect(policy.managedCategoriesForTrip('jericoacoara', 'region-generated-0'),
-      kIsWeb ? {'comfort_black'} : isEmpty);
+      {'comfort_black'});
     for (final id in ['disabled', 'archived', 'unknown']) {
       expect(policy.managedCategoriesForTrip('jericoacoara', id), isEmpty);
     }
@@ -124,7 +123,6 @@ void main() {
   for (final destination in destinations) {
     for (final reverse in [false, true]) {
       testWidgets('managed route ${destination.name}, reverse=$reverse reaches authoritative quote', (tester) async {
-        if (!kIsWeb) return;
         final quotes = RecordingQuotes();
         final routes = await openTrip(tester,
           reverse ? destination : jeri, reverse ? jeri : destination, quotes);
@@ -142,7 +140,6 @@ void main() {
   }
 
   testWidgets('region without shared category never requests a route or quote', (tester) async {
-    if (!kIsWeb) return;
     final quotes = RecordingQuotes();
     final routes = await openTrip(tester, jeri, destinations.first, quotes, allowDestination: false);
     expect(routes.destinations, isEmpty);
@@ -152,7 +149,6 @@ void main() {
   });
 
   testWidgets('server rejects absent fare and cannot enable ride confirmation', (tester) async {
-    if (!kIsWeb) return;
     final quotes = RecordingQuotes(hasFare: false);
     await openTrip(tester, jeri, destinations.first, quotes);
     tester.widget<RideBottomSheet>(find.byType(RideBottomSheet)).onContinue();

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -13,7 +12,6 @@ void main() {
 
   for (final query in ['fortal', 'Fortaleza', 'Fortaleza CE', 'hotel', 'aeroporto', 'Caiçara']) {
     test('Google primary preserves query $query and provider ordering', () async {
-      if (!kIsWeb) return;
       Map<String, dynamic>? sent;
       final service = CorePlaceSearchService(baseUrl: Uri.parse('https://example.invalid'),
         client: MockClient((request) async {
@@ -34,7 +32,6 @@ void main() {
   }
 
   test('managed details do not reject a hotel by old city label or identifier', () async {
-    if (!kIsWeb) return;
     final service = CorePlaceSearchService(baseUrl: Uri.parse('https://example.invalid'),
       client: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -56,7 +53,6 @@ void main() {
   });
 
   test('manual managed Google results stay fresh and keep generated region references', () async {
-    if (!kIsWeb) return;
     var calls = 0;
     final service = CorePlaceSearchService(baseUrl: Uri.parse('https://example.invalid'),
       client: MockClient((request) async {
@@ -79,8 +75,8 @@ void main() {
     expect(second.single.placeProof, 'synthetic-proof-2');
   });
 
-  test('native search transport keeps existing aliases and does not opt into Web rollout', () async {
-    if (kIsWeb) return;
+  test('legacy catalog preserves aliases without enabling managed Google search', () async {
+    ManagedPricingCatalog.update(enabled: false, zones: null, categories: null);
     final service = CorePlaceSearchService(baseUrl: Uri.parse('https://example.invalid'),
       client: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, dynamic>;

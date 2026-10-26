@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../pricing/domain/managed_pricing_catalog.dart';
 
 import 'package:http/http.dart' as http;
@@ -33,7 +32,7 @@ class CorePlaceSearchService
   final String _accessToken;
   final http.Client _client;
   final Map<String, List<RamoPlace>> _cache = {};
-  bool get _googlePrimary => kIsWeb && ManagedPricingCatalog.enabled;
+  bool get _googlePrimary => ManagedPricingCatalog.enabled;
 
   Map<String, String> get _headers => {
         'content-type': 'application/json',

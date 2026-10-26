@@ -1,15 +1,14 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:latlong2/latlong.dart';
 import '../../service_area/domain/service_zone.dart';
 
-/// The Web rollout consumes server configuration. Native behavior is preserved
-/// until its separately authorized synchronization and device homologation.
+/// All passenger platforms consume the published server catalog.
+/// Legacy configuration remains available when management mode is disabled.
 abstract final class ManagedPricingCatalog {
   static bool _enabled = false;
   static List<ServiceZone> _zones = const [];
   static Map<String, Map<String, String>> _presentation = const {};
 
-  static bool get enabled => kIsWeb && _enabled;
+  static bool get enabled => _enabled;
   static List<ServiceZone>? get zones => enabled ? _zones : null;
 
   static void update({
@@ -17,7 +16,6 @@ abstract final class ManagedPricingCatalog {
     required List<ServiceZone>? zones,
     required dynamic categories,
   }) {
-    if (!kIsWeb) return;
     _enabled = enabled;
     _zones = enabled ? List.unmodifiable(zones ?? const <ServiceZone>[]) : const [];
     final entries = <String, Map<String, String>>{};
