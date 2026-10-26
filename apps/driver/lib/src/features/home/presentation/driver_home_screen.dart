@@ -475,7 +475,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         _startLocationTracking();
-        await _refreshActiveRoute(force: true);
+        if (['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+          await _startInAppNavigation();
+        } else {
+          await _refreshActiveRoute(force: true);
+        }
         if (ride.state == 'AWAITING_PAYMENT') _startPolling();
       } else if (supply.online) {
         _startPolling();
@@ -1218,7 +1222,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         if (!_webBackgrounded) _startLocationTracking();
-        await _refreshActiveRoute();
+        if (previousId == null && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+          await _startInAppNavigation();
+        } else {
+          await _refreshActiveRoute();
+        }
       }
       if (previousId != null && ride == null) {
         unawaited(_refreshActivity());
@@ -4820,6 +4828,16 @@ class _ActiveRideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (onMinimize == null) return _buildCard(context);
+    // Expanded map cards retain the approved white palette in both themes.
+    // Build legacy arrival/payment content inside this theme, not outside it.
+    return Theme(
+      data: RamoTheme.light,
+      child: Builder(builder: _buildCard),
+    );
+  }
+
+  Widget _buildCard(BuildContext context) {
     // Activity uses this card without map-panel controls. Preserve its layout.
     if (onMinimize != null &&
         [

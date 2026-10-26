@@ -26,10 +26,11 @@ void main() {
     expect(DriverWebHeadingConfig.northNeedleDegrees(double.nan), 0);
   });
 
-  test('production default remains off without explicit opt-in', () {
-    // In normal test/production configurations the new Web heading option
-    // is disabled, preserving the published legacy raster map.
-    const enabled = bool.fromEnvironment('RAMO_WEB_2D_HEADING_ENABLED');
+  test('Web defaults preserve official GPS Cinema configuration', () {
+    const enabled = bool.fromEnvironment('RAMO_WEB_2D_HEADING_ENABLED', defaultValue: true);
+    expect(DriverWebHeadingConfig.enabledAtBuild, enabled);
+    expect(DriverWebHeadingConfig.vectorMapId, isNot('DEMO_MAP_ID'));
+    expect(DriverWebHeadingConfig.isValidMapId(DriverWebHeadingConfig.vectorMapId), isTrue);
     if (!enabled) expect(DriverWebHeadingConfig.hasVectorMap, isFalse);
   });
 }
