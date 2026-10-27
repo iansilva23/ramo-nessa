@@ -1,0 +1,105 @@
+name: Driver camera - verified Web package
+on:
+  push:
+    branches: [ops/driver-camera-web-20261027]
+    paths-ignore: ['docs/**']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: driver-camera-web-package
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Confirm pinned Driver source and unchanged server and Passenger
+        run: git diff --exit-code 145d7d2623cb9ae9ff261379303c874ffd553b7d HEAD -- apps backend packages config
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Resolve locked dependencies and check Driver
+        working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+          flutter test --platform chrome test/driver_camera_follow_test.dart test/driver_map_gestures_test.dart test/web_map_camera_test.dart test/driver_map_config_test.dart test/driver_web_heading_config_test.dart test/driver_web_cinematic_camera_test.dart
+      - name: Compile unchanged Core for browser session fixture
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Build configured real Driver Web with restored production vector ID
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=driver
+          cd apps/driver
+          flutter build web --release --no-web-resources-cdn --base-href=/motorista/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+      - name: Verify bundle and retained GPS build configuration
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+          grep -Fq de20bf289d6db3ad15fdb14b apps/driver/build/web/main.dart.js
+          mkdir -p release
+          python3 - <<'PY'
+          import pathlib, zipfile, hashlib, json
+          root=pathlib.Path('apps/driver/build/web')
+          files=[{'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(root.rglob('*')) if p.is_file()]
+          manifest={'schemaVersion':1,'role':'driver','sourceCommit':'145d7d2623cb9ae9ff261379303c874ffd553b7d','expectedOrigin':'https://app.ramonessa.com.br','expectedProject':'ramo-nessa','basePath':'/motorista/','compiledFinanceTerms':True,'browserLoginChromium':True,'browserLoginWebKit':True,'realProviderAcceptance':False,'publicConfigSha256':hashlib.sha256((root/'ramo_push_config.js').read_bytes()).hexdigest(),'files':files}
+          with zipfile.ZipFile('release/RamoNessa-Motorista-Camera-Web.zip','w',zipfile.ZIP_DEFLATED) as z:
+              z.writestr('release.driver.json',json.dumps(manifest))
+              for f in files: z.write(root/f['path'],'driver/'+f['path'])
+          PY
+          cd release
+          sha256sum RamoNessa-Motorista-Camera-Web.zip > RamoNessa-Motorista-Camera-Web.zip.sha256
+      - name: Install browser engines
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Compiled Web and installed launch session regression
+        run: |
+          for engine in chromium webkit; do
+            RAMO_WEB_TEST_ROLE=driver RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+          done
+      - name: Rehearse driver-only switch and both recovery paths with Caddy
+        run: |
+          node --check deploy/staging/driver-camera-web-update.mjs
+          docker pull caddy:2.11.7-alpine
+          sudo env GITHUB_ACTIONS=true PATH="$PATH" node deploy/staging/test-driver-camera-web-update.mjs "$PWD/release/RamoNessa-Motorista-Camera-Web.zip"
+          git archive HEAD deploy/staging scripts/web | gzip -n > release/Instalador-Motorista-Camera-Web.tar.gz
+          cd release
+          sha256sum Instalador-Motorista-Camera-Web.tar.gz > Instalador-Motorista-Camera-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-camera-web-tested
+          path: release/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: driver-camera-web-browser-evidence
+          path: artifacts/web-csp/
+          if-no-files-found: ignore
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: driver-camera-web-tested, path: release}
+      - name: Publish verified operator package only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd release
+          sha256sum -c RamoNessa-Motorista-Camera-Web.zip.sha256
+          sha256sum -c Instalador-Motorista-Camera-Web.tar.gz.sha256
+          gh release create driver-camera-web-20261027-r1 ./* --target "$GITHUB_SHA" --prerelease --latest=false --title 'Motorista — câmera inclinada, gestos e controles' --notes 'Driver source 145d7d2623cb9ae9ff261379303c874ffd553b7d. Câmera inclinada, zoom adaptável, retomada após 3 segundos sem gestos e controles acima dos cartões. Mantém GPS, rotas e economia atuais. Testes Flutter e Web/PWA, troca e retorno ensaiados. Não instala na VPS automaticamente. Sem alterações no Core, banco, ADM ou Passageiro.'
