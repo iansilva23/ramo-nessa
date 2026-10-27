@@ -480,7 +480,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         _startLocationTracking();
-        // Preserve the published Web GPS resume; native camera behavior stays unchanged.
+        // Restore the driving camera during an active trip; the navigation
+        // control below still honors an explicitly paused/external mode.
         if ((kIsWeb || ride.state == 'IN_PROGRESS') && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
           await _startInAppNavigation();
         } else {

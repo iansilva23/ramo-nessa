@@ -14,6 +14,7 @@ import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../../../core/map/driver_map_gestures.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
+import 'driver_camera_padding.dart';
 
 @visibleForTesting
 List<domain.LatLng> driverVisibleRoutePoints(
@@ -113,9 +114,7 @@ class DriverMapController {
       while (_queued != null && !followPaused.value && ready && generation == _generation) {
         var next = _queued!; _queued = null;
         if (kIsWeb) {
-          final fit = RamoMapCameraFit.calculate(points: [RamoMapPoint(next.target.latitude,next.target.longitude)],
-            viewport: _viewport, padding: _padding, edgePadding: 0, maxZoom: next.zoom);
-          if (fit != null) next = gm.CameraPosition(target: gm.LatLng(fit.center.latitude,fit.center.longitude),zoom:next.zoom,tilt:next.tilt,bearing:next.bearing);
+          next = driverWebPaddedCamera(next, _padding);
         }
         _lastCamera = next;
         _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
@@ -620,7 +619,8 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
     final driverPoint = _driverPoint;
     return LayoutBuilder(builder: (context, constraints) {
-      widget.controller.updateViewport(constraints.biggest, widget.mapPadding);
+      final padding = driverCameraPadding(constraints.biggest, widget.mapPadding);
+      widget.controller.updateViewport(constraints.biggest, padding);
       return Listener(
         onPointerDown: kIsWeb ? null : (_) => widget.controller.onMapPointerDown(),
         onPointerMove: kIsWeb ? null : (_) => widget.controller.onMapPointerMove(),
@@ -649,7 +649,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       onCameraMove: (position) { if (mounted) widget.controller.updateCamera(position); },
       onCameraMoveStarted: () { if (mounted) widget.controller.onCameraMoveStarted(); },
       onCameraIdle: () { if (mounted) widget.controller.onCameraIdle(); },
-      padding: widget.mapPadding,
+      padding: padding,
       webCameraControlEnabled: false,
       webCameraControlPosition: gm.WebCameraControlPosition.rightBottom,
       markers: _markers,
