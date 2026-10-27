@@ -29,6 +29,7 @@ void main() {
     await c.move(const LatLng(-2.82,-40.41));
     c.onCameraMoveStarted(); expect(c.followPaused.value, false, reason: 'SDK animation is not a user gesture');
     c.onMapPointerDown(); c.onMapPointerDown();
+    c.resumeNativeFollow(); expect(c.followPaused.value, true, reason: 'automatic stage updates cannot interrupt a held gesture');
     await c.followNavigation(const LatLng(-2.83,-40.42));
     await tester.pump(const Duration(seconds:4)); expect(sdk.commands, hasLength(1));
     c.onMapPointerUp(); await tester.pump(const Duration(seconds:4)); expect(c.followPaused.value, true);

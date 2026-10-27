@@ -14,8 +14,10 @@ class _DriverDesignFrame extends StatelessWidget {
     required this.actions,
     required this.onMinimize,
     this.darkHeader = false,
+    this.secondaryActions,
   });
   final Widget header, body, actions;
+  final Widget? secondaryActions;
   final VoidCallback onMinimize;
   final bool darkHeader;
 
@@ -26,6 +28,7 @@ class _DriverDesignFrame extends StatelessWidget {
         // On short viewports the title can scroll with the details. The gesture
         // handle and actions always remain outside that scrollable area.
         final scrollHeader = constraints.maxHeight < 360;
+        final scrollSecondaryActions = constraints.maxHeight < 260;
         final heading = Container(
           color: darkHeader ? _rideInk : Colors.white,
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
@@ -121,14 +124,31 @@ class _DriverDesignFrame extends StatelessWidget {
                           key: const ValueKey('ride-secondary-scroll'),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            children: [if (scrollHeader) heading, details],
+                            children: [
+                              if (scrollHeader) heading,
+                              details,
+                              if (scrollSecondaryActions && secondaryActions != null)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                                  child: secondaryActions,
+                                ),
+                            ],
                           ),
                         ),
                       ),
                       Container(
                         color: Colors.white,
                         padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
-                        child: actions,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!scrollSecondaryActions && secondaryActions != null) ...[
+                              secondaryActions!,
+                              const SizedBox(height: 8),
+                            ],
+                            actions,
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -773,26 +793,7 @@ class _DriverActiveDesign extends StatelessWidget {
                 icon: Icons.check_circle,
               ),
             )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _ridePair(
-                  _RideButton(
-                    'Mensagem com passageiro',
-                    onChat,
-                    leading: chatIcon,
-                    compact: true,
-                    icon: Icons.chat_outlined,
-                  ),
-                  _RideButton(
-                    'Abrir no Google Maps',
-                    canNavigate ? onExternalNavigation : null,
-                    compact: true,
-                    icon: Icons.chevron_right,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ridePair(
+          : _ridePair(
                   _RideButton(
                     underway ? 'Finalizar corrida' : 'Cancelar corrida',
                     busy
@@ -813,8 +814,21 @@ class _DriverActiveDesign extends StatelessWidget {
                     icon: Icons.flag_rounded,
                   ),
                 ),
-              ],
-            ),
+      secondaryActions: done ? null : _ridePair(
+                  _RideButton(
+                    'Mensagem com passageiro',
+                    onChat,
+                    leading: chatIcon,
+                    compact: true,
+                    icon: Icons.chat_outlined,
+                  ),
+                  _RideButton(
+                    'Abrir no Google Maps',
+                    canNavigate ? onExternalNavigation : null,
+                    compact: true,
+                    icon: Icons.chevron_right,
+                  ),
+                ),
     );
   }
 }

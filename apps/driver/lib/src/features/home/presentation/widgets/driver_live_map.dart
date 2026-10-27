@@ -97,7 +97,7 @@ class DriverMapController {
       if (resume != null) unawaited(resume().catchError((Object e) { debugPrint('Retomada da câmera indisponível: $e'); }));
     });
   }
-  void resumeNativeFollow() { _resumeTimer?.cancel(); if (!_disposed) followPaused.value = false; }
+  void resumeNativeFollow() { _resumeTimer?.cancel(); if (!_disposed && _touches == 0) followPaused.value = false; }
 
   /// Serializes SDK animations and coalesces GPS fixes. A gesture prevents any
   /// subsequent write; its resume action always uses the newest driver fix.
