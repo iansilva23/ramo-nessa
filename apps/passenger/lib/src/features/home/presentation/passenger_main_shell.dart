@@ -311,6 +311,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       ),
     ];
 
+    final darkGuide = _index == 1 && Theme.of(context).brightness == Brightness.dark;
     final guideNavigationTheme = ThemeData.dark(useMaterial3: true).copyWith(
       colorScheme: const ColorScheme.dark(
         surface: Color(0xFF111419),
@@ -335,9 +336,11 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       ),
     );
     return Scaffold(
-      backgroundColor: _index == 1 ? const Color(0xFF090B0E) : null,
+      backgroundColor: _index == 1
+          ? (darkGuide ? const Color(0xFF090B0E) : const Color(0xFFF5F6F8))
+          : null,
       body: _animatedTabs(pages),
-      bottomNavigationBar: _index == 1
+      bottomNavigationBar: darkGuide
           ? Theme(
               data: guideNavigationTheme,
               child: Builder(builder: _premiumBottomNavigation),
