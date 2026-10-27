@@ -10,15 +10,21 @@ extension type _Element(JSObject _) implements JSObject {
   external void remove();
   external void dispatchEvent(JSObject event);
 }
-@JS('PointerEvent') external JSObject _pointer(String type,JSObject options);
-@JS('WheelEvent') external JSObject _wheel(String type,JSObject options);
+@JS('PointerEvent')
+extension type _PointerEvent._(JSObject _) implements JSObject {
+  external factory _PointerEvent(String type, JSObject options);
+}
+@JS('WheelEvent')
+extension type _WheelEvent._(JSObject _) implements JSObject {
+  external factory _WheelEvent(String type, JSObject options);
+}
 extension type _Options._(JSObject _) implements JSObject {
   external factory _Options({int? pointerId,bool? bubbles});
 }
 class MapGestureFixture {
   final _map=_document.createElement('div'), _other=_document.createElement('button');
   MapGestureFixture(){_map.className='gm-style';_document.body.appendChild(_map);_document.body.appendChild(_other);}
-  void pointer(String type,{bool map=true})=>(map?_map:_other).dispatchEvent(_pointer(type,_Options(pointerId:1,bubbles:true)));
-  void wheel()=>_map.dispatchEvent(_wheel('wheel',_Options(bubbles:true)));
+  void pointer(String type,{bool map=true})=>(map?_map:_other).dispatchEvent(_PointerEvent(type,_Options(pointerId:1,bubbles:true)));
+  void wheel()=>_map.dispatchEvent(_WheelEvent('wheel',_Options(bubbles:true)));
   void dispose(){_map.remove();_other.remove();}
 }
