@@ -11,8 +11,10 @@ import '../../../../core/config/driver_map_config.dart';
 import '../../../../core/config/driver_web_cinematic_camera.dart';
 import '../../../../core/config/driver_web_heading_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
+import '../../../../core/map/driver_map_gestures.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
+import 'driver_camera_padding.dart';
 
 @visibleForTesting
 List<domain.LatLng> driverVisibleRoutePoints(
@@ -42,437 +44,156 @@ class DriverMapController {
   bool _disposed = false;
   double _currentZoom = DriverMapConfig.fallbackZoom;
   Size _viewport = Size.zero;
-  // Camera-only driving mode for Android/iOS. Web behaviour is untouched.
+  EdgeInsets _padding = EdgeInsets.zero;
   final ValueNotifier<bool> followPaused = ValueNotifier<bool>(false);
   final ValueNotifier<double> webHeading = ValueNotifier<double>(0);
-  bool _nativeNavigationActive = false;
-  bool _webNavigationActive = false;
-  DateTime _webCameraUntil = DateTime.fromMillisecondsSinceEpoch(0);
-  // Web only. A generation counter cancels stale frames after a map gesture,
-  // route transition, navigation exit or widget disposal.
-  bool _webDrivingPerspective = false;
-  bool _webTransitionActive = false;
-  int _webTransitionGeneration = 0;
-  double _webCurrentTilt = 0;
-  domain.LatLng? _webLastFollowPoint;
-  int _nativeMapTouches = 0;
+  Timer? _resumeTimer;
+  int _touches = 0, _generation = 0, _intent = 0;
+  bool _writing = false;
+  DateTime _automaticUntil = DateTime.fromMillisecondsSinceEpoch(0);
+  gm.CameraPosition? _queued, _lastCamera;
+  Future<void> Function()? _resumeAction;
   domain.LatLng? _lastCoursePoint;
-  double? _lastCourseBearing;
+  double? _lastCourseBearing, _navigationZoom;
 
-  void updateViewport(Size size) {
-    _viewport = size;
-  }
-
+  void updateViewport(Size size, [EdgeInsets padding = EdgeInsets.zero]) { _viewport = size; _padding = padding; }
   bool get ready => !_disposed && _nativeController != null;
-
   double get currentZoom => _currentZoom;
-
-  void attach(gm.GoogleMapController controller) {
-    if (_disposed) return;
-    _nativeController = controller;
-  }
-
-  void updateCamera(gm.CameraPosition position) {
-    _currentZoom = position.zoom;
-  }
-
+  void attach(gm.GoogleMapController controller) { if (!_disposed) _nativeController = controller; }
   void detach() {
-    _webTransitionGeneration++;
-    _webTransitionActive = false;
+    _generation++; _intent++; _resumeTimer?.cancel(); _resumeTimer = null;
+    _queued = null; _resumeAction = null; _touches = 0;
     _nativeController = null;
   }
-
-  void onMapPointerDown() {
-    if ((!kIsWeb && _nativeNavigationActive) ||
-        (DriverWebHeadingConfig.hasVectorMap && _webNavigationActive)) {
-      _nativeMapTouches++;
-    }
+  void updateCamera(gm.CameraPosition position) {
+    if (_disposed) return;
+    _lastCamera = position;
+    _currentZoom = position.zoom; webHeading.value = position.bearing;
+    if (followPaused.value && _touches == 0) _scheduleResume();
   }
-
-  void onMapPointerUp() {
-    if (_nativeMapTouches > 0) _nativeMapTouches--;
-  }
-
-  void onCameraMoveStarted() {
-    if (kIsWeb) {
-      if (!DriverWebHeadingConfig.hasVectorMap || !_webNavigationActive) return;
-      // HtmlElementView can consume pointer events before Flutter gets them.
-      // The camera update window separates GPS-driven moves from user pans.
-      if (_nativeMapTouches == 0 && DateTime.now().isBefore(_webCameraUntil)) {
-        return;
-      }
-      followPaused.value = true;
-      // Never let animation frames fight against manual map exploration.
-      _webTransitionGeneration++;
-      _webTransitionActive = false;
-      return;
-    }
-    if (!_nativeNavigationActive || _nativeMapTouches == 0) return;
+  void _pause() {
+    if (_disposed) return;
+    _resumeTimer?.cancel(); _queued = null;
     followPaused.value = true;
   }
-
-  void resumeNativeFollow() {
-    if (kIsWeb && !DriverWebHeadingConfig.hasVectorMap) return;
-    followPaused.value = false;
+  void onMapPointerDown() { _touches++; _pause(); }
+  void onMapPointerMove() { if (_touches > 0) _pause(); }
+  void onMapPointerUp() { if (_touches > 0) _touches--; if (_touches == 0) _scheduleResume(); }
+  void onMapWheel() { _pause(); if (_touches == 0) _scheduleResume(); }
+  void onCameraMoveStarted() {
+    if (_touches > 0) { _pause(); return; }
+    if (DateTime.now().isBefore(_automaticUntil)) return;
+    // Fallback for platform-view gestures not delivered as Flutter pointers.
+    _pause(); _scheduleResume();
   }
-
-  Future<void> _changeNativeCamera(gm.CameraPosition position) async {
-    final controller = _nativeController;
-    if (kIsWeb || !ready || controller == null) return;
-    try {
-      await controller.animateCamera(
-        gm.CameraUpdate.newCameraPosition(position),
-      );
-    } catch (error) {
-      // The native map can be destroyed mid-animation on a tab change or
-      // app background transition. Keep the trip and route functioning.
-      debugPrint('Motorista GPS 3D: movimentação da câmera indisponível: $error');
-    }
-  }
-
-  Future<void> followNavigation(
-    domain.LatLng point, {
-    List<domain.LatLng> route = const [],
-  }) async {
-    if (kIsWeb) {
-      if (!DriverWebHeadingConfig.hasVectorMap) {
-        return move(point, DriverMapConfig.navigationZoom);
-      }
-      _webNavigationActive = true;
-    } else {
-      _nativeNavigationActive = true;
-    }
-
-    final from = _lastCoursePoint;
-    final course =
-        from == null ? null : DriverMapConfig.courseFromMovement(from, point);
-    if (from == null ||
-        DriverMapConfig.distanceMeters(from, point) >=
-            DriverMapConfig.headingMinTravelMeters) {
-      _lastCoursePoint = point;
-    }
-    if (course != null) {
-      _lastCourseBearing = _lastCourseBearing == null
-          ? course
-          : DriverMapConfig.smoothBearing(_lastCourseBearing!, course);
-    } else {
-      _lastCourseBearing ??= DriverMapConfig.routeBearing(point, route);
-    }
-    if (followPaused.value) return;
-    final heading = _lastCourseBearing ?? 0;
-    if (kIsWeb) {
-      _webLastFollowPoint = point;
-      if (_webTransitionActive) return; // The entrance owns the camera.
-      final perspective = DriverWebHeadingConfig.cinematicTiltEnabled &&
-          _webDrivingPerspective;
-      final tilt = perspective
-          ? DriverWebCinematicCamera.drivingTilt
-          : DriverWebHeadingConfig.tilt;
-      final zoom = perspective
-          ? DriverWebCinematicCamera.drivingZoom
-          : DriverWebHeadingConfig.zoom;
-      final target = perspective
-          ? DriverWebCinematicCamera.lookAhead(
-              point, heading, DriverWebCinematicCamera.lookAheadMeters)
-          : point;
-      _currentZoom = zoom;
-      _webCurrentTilt = tilt;
-      webHeading.value = heading;
-      final controller = _nativeController;
-      if (!ready || controller == null) return;
-      _webCameraUntil = DateTime.now().add(const Duration(milliseconds: 900));
-      try {
-        await controller.animateCamera(gm.CameraUpdate.newCameraPosition(
-          gm.CameraPosition(
-            target: gm.LatLng(target.latitude, target.longitude),
-            zoom: zoom,
-            bearing: heading,
-            tilt: tilt,
-          ),
-        ));
-      } catch (error) {
-        debugPrint('GPS Web: câmera indisponível: $error');
-      }
-      return;
-    }
-    _currentZoom = DriverMapConfig.navigationZoom;
-    await _changeNativeCamera(gm.CameraPosition(
-      target: gm.LatLng(point.latitude, point.longitude),
-      zoom: DriverMapConfig.navigationZoom,
-      tilt: DriverMapConfig.navigationTilt,
-      bearing: heading,
-    ));
-  }
-
-  /// Called only after Core confirms the ride is IN_PROGRESS. Never fires
-  /// while simply travelling to collect a passenger. The existing map,
-  /// route, stage cards and native GPS 3D implementation are untouched.
-  Future<void> enterWebDrivingPerspective(
-    domain.LatLng point, {
-    List<domain.LatLng> route = const [],
-  }) async {
-    if (!kIsWeb || !DriverWebHeadingConfig.cinematicTiltEnabled ||
-        !ready || _disposed || _webDrivingPerspective) {
-      return;
-    }
-    _webDrivingPerspective = true;
-    _webNavigationActive = true;
-    final heading = _lastCourseBearing ??
-        DriverMapConfig.routeBearing(point, route) ?? 0.0;
-    _lastCourseBearing = heading;
-    _webLastFollowPoint = point;
-    if (followPaused.value) return; // Respect a user's manual pan.
-    final startZoom = _currentZoom;
-    final startTilt = _webCurrentTilt;
-    final generation = ++_webTransitionGeneration;
-    _webTransitionActive = true;
-    final controller = _nativeController;
-    if (controller == null) {
-      _webTransitionActive = false;
-      return;
-    }
-    try {
-      for (var step = 1; step <= DriverWebCinematicCamera.animationSteps; step++) {
-        if (_disposed || !ready || _nativeController != controller ||
-            generation != _webTransitionGeneration || followPaused.value ||
-            !_webNavigationActive) {
-          break;
-        }
-        final t = step / DriverWebCinematicCamera.animationSteps;
-        final easing = DriverWebCinematicCamera.ease(t);
-        final currentPoint = _webLastFollowPoint ?? point;
-        final target = DriverWebCinematicCamera.lookAhead(
-          currentPoint,
-          _lastCourseBearing ?? heading,
-          DriverWebCinematicCamera.lookAheadMeters * easing,
-        );
-        final zoom = DriverWebCinematicCamera.interpolate(
-          startZoom, DriverWebCinematicCamera.drivingZoom, t);
-        final tilt = DriverWebCinematicCamera.interpolate(
-          startTilt, DriverWebCinematicCamera.drivingTilt, t);
-        _webCurrentTilt = tilt;
-        _currentZoom = zoom;
-        webHeading.value = _lastCourseBearing ?? heading;
-        _webCameraUntil =
-            DateTime.now().add(const Duration(milliseconds: 1100));
-        await controller.animateCamera(gm.CameraUpdate.newCameraPosition(
-          gm.CameraPosition(
-            target: gm.LatLng(target.latitude, target.longitude),
-            zoom: zoom, bearing: _lastCourseBearing ?? heading, tilt: tilt,
-          ),
-        ));
-        if (step < DriverWebCinematicCamera.animationSteps) {
-          await Future<void>.delayed(DriverWebCinematicCamera.frameInterval);
-        }
-      }
-    } catch (error) {
-      debugPrint('GPS Web: transição cinematográfica interrompida: $error');
-    } finally {
-      if (generation == _webTransitionGeneration) {
-        _webTransitionActive = false;
-        // Avoid a subsequent GPS update snapping the view back to 2D.
-        if (!followPaused.value && _webNavigationActive && ready) {
-          final latest = _webLastFollowPoint ?? point;
-          unawaited(followNavigation(latest, route: route));
-        }
-      }
-    }
-  }
-
-  Future<void> stopNativeNavigation(domain.LatLng point) async {
-    if (kIsWeb) return;
-    if (!_nativeNavigationActive) return;
-    _nativeNavigationActive = false;
-    _nativeMapTouches = 0;
-    _lastCoursePoint = null;
-    _lastCourseBearing = null;
-    followPaused.value = false;
-    // Return to the familiar north-up map without changing the ride.
-    _currentZoom = DriverMapConfig.recenterMinimumZoom;
-    await _changeNativeCamera(gm.CameraPosition(
-      target: gm.LatLng(point.latitude, point.longitude),
-      zoom: DriverMapConfig.recenterMinimumZoom,
-    ));
-  }
-
-  Future<void> stopWebNavigation(domain.LatLng point) async {
-    if (!kIsWeb || !DriverWebHeadingConfig.hasVectorMap ||
-        !_webNavigationActive) {
-      return;
-    }
-    final wasPerspective = _webDrivingPerspective && _webCurrentTilt > 0;
-    _webNavigationActive = false;
-    _webDrivingPerspective = false;
-    _nativeMapTouches = 0;
-    final generation = ++_webTransitionGeneration;
-    _webTransitionActive = wasPerspective;
-    followPaused.value = false;
-    final controller = _nativeController;
-    if (!ready || controller == null) {
-      _webTransitionActive = false;
-      return;
-    }
-    final zoomStart = _currentZoom;
-    final tiltStart = _webCurrentTilt;
-    final bearingStart = webHeading.value;
-    final steps = wasPerspective
-        ? DriverWebCinematicCamera.animationSteps
-        : 1;
-    try {
-      for (var step = 1; step <= steps; step++) {
-        if (_disposed || !ready || _nativeController != controller ||
-            generation != _webTransitionGeneration || _webNavigationActive) {
-          break;
-        }
-        final t = step / steps;
-        final tilt = DriverWebCinematicCamera.interpolate(tiltStart, 0, t);
-        final bearing =
-            DriverWebCinematicCamera.interpolateBearing(bearingStart, 0, t);
-        final target = DriverWebCinematicCamera.lookAhead(
-          point, bearingStart,
-          DriverWebCinematicCamera.lookAheadMeters *
-              (1 - DriverWebCinematicCamera.ease(t)),
-        );
-        _webCurrentTilt = tilt;
-        _currentZoom = DriverWebCinematicCamera.interpolate(
-          zoomStart, DriverMapConfig.recenterMinimumZoom, t);
-        webHeading.value = bearing;
-        _webCameraUntil =
-            DateTime.now().add(const Duration(milliseconds: 1100));
-        await controller.animateCamera(gm.CameraUpdate.newCameraPosition(
-          gm.CameraPosition(
-            target: gm.LatLng(target.latitude, target.longitude),
-            zoom: _currentZoom,
-            tilt: tilt,
-            bearing: bearing,
-          ),
-        ));
-        if (step < steps) {
-          await Future<void>.delayed(DriverWebCinematicCamera.frameInterval);
-        }
-      }
-    } catch (error) {
-      debugPrint('GPS Web: retorno 2D indisponível: $error');
-    } finally {
-      if (generation == _webTransitionGeneration) {
-        _webTransitionActive = false;
-        _lastCoursePoint = null;
-        _lastCourseBearing = null;
-      }
-    }
-  }
-
-  void resetNavigationForNewMap() {
-    if (kIsWeb) {
-      _webTransitionGeneration++;
-      _webTransitionActive = false;
-      _webDrivingPerspective = false;
-      _webCurrentTilt = 0;
-      _webLastFollowPoint = null;
-      _webNavigationActive = false;
-      _nativeMapTouches = 0;
-      _lastCoursePoint = null;
-      _lastCourseBearing = null;
+  void onCameraIdle() { if (followPaused.value && _touches == 0) _scheduleResume(); }
+  void _scheduleResume() {
+    _resumeTimer?.cancel();
+    if (_disposed || !followPaused.value || _touches > 0) return;
+    final generation = _generation;
+    _resumeTimer = Timer(DriverMapConfig.gestureResumeDelay, () {
+      if (_disposed || generation != _generation || !ready || _touches > 0) return;
       followPaused.value = false;
-      webHeading.value = 0;
-      return;
+      final resume = _resumeAction;
+      if (resume != null) unawaited(resume().catchError((Object e) { debugPrint('Retomada da câmera indisponível: $e'); }));
+    });
+  }
+  void resumeNativeFollow() { _resumeTimer?.cancel(); if (!_disposed && _touches == 0) followPaused.value = false; }
+
+  /// Serializes SDK animations and coalesces GPS fixes. A gesture prevents any
+  /// subsequent write; its resume action always uses the newest driver fix.
+  Future<void> _animate(gm.CameraPosition position) async {
+    _intent++;
+    _resumeAction = () => _animate(position);
+    if (!ready || followPaused.value) return;
+    _queued = position;
+    if (_writing) return;
+    _writing = true;
+    final generation = _generation, controller = _nativeController!;
+    try {
+      while (_queued != null && !followPaused.value && ready && generation == _generation) {
+        var next = _queued!; _queued = null;
+        if (kIsWeb) {
+          next = driverWebPaddedCamera(next, _padding);
+        }
+        _lastCamera = next;
+        _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
+        _currentZoom = next.zoom; webHeading.value = next.bearing;
+        await controller.animateCamera(gm.CameraUpdate.newCameraPosition(next));
+      }
+    } catch (e) { debugPrint('Câmera do motorista indisponível: $e'); }
+    finally {
+      _writing = false;
+      final pending = _queued;
+      if (pending != null && ready && !followPaused.value) unawaited(_animate(pending));
     }
-    _nativeNavigationActive = false;
-    _nativeMapTouches = 0;
-    _lastCoursePoint = null;
-    _lastCourseBearing = null;
-    followPaused.value = false;
   }
 
-  Future<void> move(domain.LatLng point, [double? zoom]) async {
-    final controller = _nativeController;
-    if (!ready || controller == null) return;
-
-    final targetZoom = zoom ?? _currentZoom;
-    _currentZoom = targetZoom;
-
-    if (!kIsWeb) {
-      await _changeNativeCamera(gm.CameraPosition(
-        target: gm.LatLng(point.latitude, point.longitude),
-        zoom: targetZoom,
-      ));
-    } else {
-      await controller.animateCamera(
-        gm.CameraUpdate.newLatLngZoom(
-          gm.LatLng(point.latitude, point.longitude),
-          targetZoom,
-        ),
-      );
-    }
+  Future<void> zoomBy(double delta) async {
+    final controller = _nativeController, last = _lastCamera;
+    if (!ready || controller == null || last == null) return;
+    onMapWheel();
+    _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
+    try {
+      _currentZoom = (_currentZoom + delta).clamp(4.0,19.0).toDouble();
+      await controller.animateCamera(gm.CameraUpdate.newCameraPosition(gm.CameraPosition(
+        target:last.target, zoom:_currentZoom, tilt:last.tilt, bearing:last.bearing)));
+    } catch (e) { debugPrint('Zoom manual indisponível: $e'); }
   }
 
-  Future<void> fitCoordinates(
-    List<domain.LatLng> coordinates, {
-    double padding = 90,
-    double maxZoom = 16.5,
-    bool animate = true,
-  }) async {
+  Future<void> followNavigation(domain.LatLng point, {List<domain.LatLng> route = const []}) async {
+    final from = _lastCoursePoint;
+    final course = from == null ? null : DriverMapConfig.courseFromMovement(from, point);
+    if (from == null || DriverMapConfig.distanceMeters(from, point) >= DriverMapConfig.headingMinTravelMeters) _lastCoursePoint = point;
+    if (course != null) {
+      _lastCourseBearing = _lastCourseBearing == null ? course : DriverMapConfig.smoothBearing(_lastCourseBearing!, course);
+    } else { _lastCourseBearing ??= DriverMapConfig.routeBearing(point, route); }
+    final desired = DriverMapConfig.navigationZoomFor(DriverMapConfig.remainingRouteMeters(point, route));
+    _navigationZoom = _navigationZoom == null ? desired : _navigationZoom! + (desired - _navigationZoom!).clamp(-.15, .15);
+    final heading = _lastCourseBearing ?? 0;
+    final target = DriverWebCinematicCamera.lookAhead(point, heading, DriverWebCinematicCamera.lookAheadMeters);
+    await _animate(gm.CameraPosition(target: gm.LatLng(target.latitude, target.longitude),
+      zoom: _navigationZoom!, tilt: DriverMapConfig.navigationTilt, bearing: heading));
+  }
+  Future<void> enterWebDrivingPerspective(domain.LatLng point, {List<domain.LatLng> route = const []}) => followNavigation(point, route: route);
+  Future<void> stopNativeNavigation(domain.LatLng point) { _lastCoursePoint = null; _lastCourseBearing = null; _navigationZoom = null; return move(point, DriverMapConfig.fallbackZoom); }
+  Future<void> stopWebNavigation(domain.LatLng point) => stopNativeNavigation(point);
+  void resetNavigationForNewMap() {
+    _resumeTimer?.cancel(); _touches = 0; _lastCoursePoint = null; _lastCourseBearing = null; _navigationZoom = null;
+    followPaused.value = false; webHeading.value = 0;
+  }
+  Future<void> move(domain.LatLng point, [double? zoom]) => _animate(gm.CameraPosition(
+    target: gm.LatLng(point.latitude, point.longitude), zoom: zoom ?? DriverMapConfig.fallbackZoom, tilt: DriverMapConfig.homeTilt));
+
+  Future<void> fitCoordinates(List<domain.LatLng> coordinates, {double padding = 90, double maxZoom = 16.5, bool animate = true}) async {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
+    final intent = ++_intent;
+    final points = List<domain.LatLng>.of(coordinates);
+    _resumeAction = () => fitCoordinates(points, padding: padding, maxZoom: maxZoom, animate: animate);
+    if (followPaused.value) return;
+    _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
     if (kIsWeb) {
-      final fit = RamoMapCameraFit.calculate(
-        points: coordinates.map((p) => RamoMapPoint(p.latitude, p.longitude)).toList(),
-        viewport: _viewport,
-        edgePadding: padding,
-        maxZoom: maxZoom,
-      );
+      final fit = RamoMapCameraFit.calculate(points: points.map((p) => RamoMapPoint(p.latitude, p.longitude)).toList(),
+        viewport: _viewport, padding: _padding, edgePadding: padding, maxZoom: maxZoom);
       if (fit == null) return;
       _currentZoom = fit.zoom;
-      await controller.moveCamera(gm.CameraUpdate.newLatLngZoom(
-        gm.LatLng(fit.center.latitude, fit.center.longitude), fit.zoom,
-      ));
+      // Preview may show the whole route. Navigation never invokes fitBounds.
+      await controller.moveCamera(gm.CameraUpdate.newLatLngZoom(gm.LatLng(fit.center.latitude, fit.center.longitude), fit.zoom));
       return;
     }
-    if (coordinates.length == 1) {
-      await move(coordinates.first, maxZoom);
-      return;
-    }
-
-    var minLatitude = coordinates.first.latitude;
-    var maxLatitude = coordinates.first.latitude;
-    var minLongitude = coordinates.first.longitude;
-    var maxLongitude = coordinates.first.longitude;
-    for (final point in coordinates.skip(1)) {
-      minLatitude = math.min(minLatitude, point.latitude);
-      maxLatitude = math.max(maxLatitude, point.latitude);
-      minLongitude = math.min(minLongitude, point.longitude);
-      maxLongitude = math.max(maxLongitude, point.longitude);
-    }
-
-    final update = gm.CameraUpdate.newLatLngBounds(
-      gm.LatLngBounds(
-        southwest: gm.LatLng(minLatitude, minLongitude),
-        northeast: gm.LatLng(maxLatitude, maxLongitude),
-      ),
-      padding,
-    );
-    if (animate) {
-      await controller.animateCamera(update);
-    } else {
-      await controller.moveCamera(update);
-    }
-    final currentZoom = await controller.getZoomLevel();
-    if (currentZoom > maxZoom) {
-      if (animate) {
-        await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom));
-      } else {
-        await controller.moveCamera(gm.CameraUpdate.zoomTo(maxZoom));
-      }
+    if (points.length == 1) { await move(points.first, maxZoom); return; }
+    var minLat = points.first.latitude, maxLat = minLat, minLng = points.first.longitude, maxLng = minLng;
+    for (final p in points.skip(1)) { minLat = math.min(minLat, p.latitude); maxLat = math.max(maxLat, p.latitude); minLng = math.min(minLng, p.longitude); maxLng = math.max(maxLng, p.longitude); }
+    final update = gm.CameraUpdate.newLatLngBounds(gm.LatLngBounds(southwest: gm.LatLng(minLat,minLng), northeast: gm.LatLng(maxLat,maxLng)), padding);
+    if (animate) { await controller.animateCamera(update); } else { await controller.moveCamera(update); }
+    if (followPaused.value || !ready || intent != _intent) return;
+    final zoom = await controller.getZoomLevel();
+    if (zoom > maxZoom && !followPaused.value && intent == _intent) {
+      if (animate) { await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom)); } else { await controller.moveCamera(gm.CameraUpdate.zoomTo(maxZoom)); }
     }
   }
-
-  void dispose() {
-    _disposed = true;
-    _webTransitionGeneration++;
-    detach();
-    followPaused.dispose();
-    webHeading.dispose();
-  }
+  void dispose() { _disposed = true; detach(); followPaused.dispose(); webHeading.dispose(); }
 }
 
 class DriverLiveMap extends StatefulWidget {
@@ -483,6 +204,7 @@ class DriverLiveMap extends StatefulWidget {
     required this.activeRide,
     required this.route,
     this.navigationMode = false,
+    this.mapPadding = EdgeInsets.zero,
     this.nearbyDrivers = const [],
     this.onMapReady,
     this.networkTilesEnabled = true,
@@ -493,6 +215,7 @@ class DriverLiveMap extends StatefulWidget {
   final AcceptedDriverRide? activeRide;
   final DriverRouteInfo? route;
   final bool navigationMode;
+  final EdgeInsets mapPadding;
   final List<NearbyDriverPosition> nearbyDrivers;
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
@@ -505,6 +228,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     with TickerProviderStateMixin {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
+  void Function()? _disposeMapGestures;
   double _displayDriverBearing = 0;
   domain.LatLng? _displayDriverPoint;
   RamoRouteMotionPath? _driverMotionPath;
@@ -525,6 +249,11 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      _disposeMapGestures = subscribeDriverMapGestures(
+      down: () => widget.controller.onMapPointerDown(), move: () => widget.controller.onMapPointerMove(),
+      up: () => widget.controller.onMapPointerUp(), wheel: () => widget.controller.onMapWheel());
+    }
     final supply = widget.supply;
     if (supply != null) {
       _displayDriverPoint = domain.LatLng(supply.latitude, supply.longitude);
@@ -755,6 +484,10 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
   void _notifyMapReady() {
     widget.onMapReady?.call();
+    if (widget.navigationMode) {
+      unawaited(widget.controller.followNavigation(_driverPoint, route: widget.route?.points ?? const []));
+      return;
+    }
     final route = widget.route;
     if (kIsWeb && route != null && route.points.length >= 2) {
       // A route can arrive before tiles are ready, or survive a tab change
@@ -868,6 +601,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
   @override
   void dispose() {
+    _disposeMapGestures?.call();
     _driverMoveController.dispose();
     _routeDrawController.dispose();
     widget.controller.detach();
@@ -885,11 +619,13 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
     final driverPoint = _driverPoint;
     return LayoutBuilder(builder: (context, constraints) {
-      widget.controller.updateViewport(constraints.biggest);
+      final padding = driverCameraPadding(constraints.biggest, widget.mapPadding);
+      widget.controller.updateViewport(constraints.biggest, padding);
       return Listener(
-        onPointerDown: (_) => widget.controller.onMapPointerDown(),
-        onPointerUp: (_) => widget.controller.onMapPointerUp(),
-        onPointerCancel: (_) => widget.controller.onMapPointerUp(),
+        onPointerDown: kIsWeb ? null : (_) => widget.controller.onMapPointerDown(),
+        onPointerMove: kIsWeb ? null : (_) => widget.controller.onMapPointerMove(),
+        onPointerUp: kIsWeb ? null : (_) => widget.controller.onMapPointerUp(),
+        onPointerCancel: kIsWeb ? null : (_) => widget.controller.onMapPointerUp(),
         child: gm.GoogleMap(
           // Full-screen app maps must accept the first one-finger drag.
           // Leaving this automatic can select cooperative (two-finger) mode.
@@ -907,10 +643,15 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(driverPoint.latitude, driverPoint.longitude),
         zoom: DriverMapConfig.fallbackZoom,
+        tilt: DriverMapConfig.homeTilt,
       ),
       onMapCreated: _onMapCreated,
-      onCameraMove: widget.controller.updateCamera,
-      onCameraMoveStarted: widget.controller.onCameraMoveStarted,
+      onCameraMove: (position) { if (mounted) widget.controller.updateCamera(position); },
+      onCameraMoveStarted: () { if (mounted) widget.controller.onCameraMoveStarted(); },
+      onCameraIdle: () { if (mounted) widget.controller.onCameraIdle(); },
+      padding: padding,
+      webCameraControlEnabled: false,
+      webCameraControlPosition: gm.WebCameraControlPosition.rightBottom,
       markers: _markers,
       polylines: _polylines,
       minMaxZoomPreference: const gm.MinMaxZoomPreference(4, 19),
@@ -920,8 +661,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       myLocationEnabled: false,
       myLocationButtonEnabled: false,
       rotateGesturesEnabled: true,
-      tiltGesturesEnabled: widget.navigationMode &&
-          (!kIsWeb || DriverWebHeadingConfig.cinematicTiltEnabled),
+      tiltGesturesEnabled: true,
       buildingsEnabled: true,
       indoorViewEnabled: false,
       trafficEnabled: widget.navigationMode,

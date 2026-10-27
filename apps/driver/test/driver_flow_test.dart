@@ -522,7 +522,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byTooltip('Expandir corrida'), findsOneWidget);
+      final zoom = tester.getRect(find.byTooltip('Aumentar zoom'));
+      final compactRide = tester.getRect(find.byTooltip('Expandir corrida'));
+      expect(zoom.bottom, lessThan(compactRide.top), reason: 'zoom stays above the ride card');
+      expect(zoom.top, greaterThanOrEqualTo(0));
       expect(
+
         tester.takeException(),
         isNull,
         reason: 'aceite e mini-barra 320 px',

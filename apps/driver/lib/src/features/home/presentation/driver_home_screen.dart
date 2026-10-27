@@ -46,6 +46,7 @@ import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
+import 'widgets/driver_map_panel_extent.dart';
 import 'widgets/driver_web_heading_compass.dart';
 
 part 'widgets/driver_ride_design.dart';
@@ -164,6 +165,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DateTime? _lastOfferRouteAttemptAt;
   final DriverMapController _mapController = DriverMapController();
   bool _mapReady = false;
+  double _mapPanelHeight = 235;
   DateTime? _lastRouteRefreshAt;
   int _activeRouteRequestId = 0;
   bool _navigationMode = false;
@@ -478,8 +480,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         _startLocationTracking();
-        // Preserve the published Web GPS resume; native camera behavior stays unchanged.
-        if (kIsWeb && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+        // Restore the driving camera during an active trip; the navigation
+        // control below still honors an explicitly paused/external mode.
+        if ((kIsWeb || ride.state == 'IN_PROGRESS') && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
           await _startInAppNavigation();
         } else {
           await _refreshActiveRoute(force: true);
@@ -642,7 +645,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             point,
             _navigationMode
                 ? DriverMapConfig.navigationZoom
-                : _mapController.currentZoom,
+                : DriverMapConfig.fallbackZoom,
           ));
         }
       }
@@ -1327,7 +1330,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         if (!_webBackgrounded) _startLocationTracking();
-        if (kIsWeb && previousId == null && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+        if ((kIsWeb || ride.state == 'IN_PROGRESS') && previousId == null && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
           await _startInAppNavigation();
         } else {
           await _refreshActiveRoute();
@@ -2231,7 +2234,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       _routeForRide=ride.id;
       _routeWasDropoff=useDropoff;
       _offRouteSince=null;
-      if (shouldFitRoute && _mapReady) {
+      if (_mapReady && _navigationMode && _supply != null) {
+        unawaited(_mapController.followNavigation(LatLng(_supply!.latitude, _supply!.longitude), route: route.points));
+      }
+      if (shouldFitRoute && _mapReady && !_navigationMode) {
         try {
           await _mapController.fitCoordinates(
             route.points,
@@ -2290,15 +2296,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final supply = _supply;
     if (!_mapReady || supply == null) return;
     final point = LatLng(supply.latitude, supply.longitude);
+    _mapController.resumeNativeFollow();
     if (_navigationMode &&
         (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
-      _mapController.resumeNativeFollow();
       unawaited(_mapController.followNavigation(
         point, route: _activeRoute?.points ?? const [],
       ));
     } else {
       unawaited(_mapController.move(
-        point, DriverMapConfig.recenterZoom(_mapController.currentZoom),
+        point, DriverMapConfig.fallbackZoom,
       ));
     }
   }
@@ -2326,6 +2332,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           activeRide: _activeRide,
           route: _activeRoute,
           navigationMode: _navigationMode,
+          mapPadding: EdgeInsets.fromLTRB(14, _navigationMode ? 224 : 80, 14,
+              _mapPanelHeight + 84 + MediaQuery.paddingOf(context).bottom),
           nearbyDrivers: _activeRide == null ? _nearbyDrivers : const [],
           networkTilesEnabled:
               widget.api == null || DriverCoreConfig.previewMode,
@@ -2374,7 +2382,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                               _mapController.resumeNativeFollow();
                               _centerDriverOnMap();
                             }
-                          : _updateLocation,
+                          : () { _mapController.resumeNativeFollow(); unawaited(_updateLocation()); },
                     ),
                   ),
                 ],
@@ -2386,7 +2394,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             DriverWebHeadingConfig.hasVectorMap)
           Positioned(
             top: _message == null ? 221 : 268,
-            right: 14,
+            left: 14,
             child: SafeArea(
               child: DriverWebHeadingCompass(
                 heading: _mapController.webHeading,
@@ -2427,7 +2435,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             child: Align(
               alignment: Alignment.bottomCenter,
               // Mount only one presentation: no outgoing expanded/compact duplicate.
-              child: showOffer
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Align(alignment: Alignment.centerRight, child: Row(mainAxisSize:MainAxisSize.min, children:[
+                  _MapCircleButton(tooltip:'Diminuir zoom',icon:Icons.remove,onPressed:()=>unawaited(_mapController.zoomBy(-1))),
+                  const SizedBox(width:8),
+                  _MapCircleButton(tooltip:'Aumentar zoom',icon:Icons.add,onPressed:()=>unawaited(_mapController.zoomBy(1))),
+                ])),
+                const SizedBox(height:8),
+                Flexible(fit:FlexFit.loose, child: DriverMapPanelExtent(
+                onHeight: (height) { if (mounted && (height - _mapPanelHeight).abs() > .5) setState(() => _mapPanelHeight = height); },
+                child: showOffer
                   ? (collapsed
                         ? _ActiveRideCompactBar(
                             key: ValueKey('offer-mini-${_offer!.id}'),
@@ -2523,6 +2540,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                       onToggle: _setOnline,
                       onUpdateLocation: _updateLocation,
                     ),
+                )),
+              ]),
             ),
           ),
         ),

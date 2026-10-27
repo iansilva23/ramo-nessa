@@ -5,7 +5,7 @@ void main() {
   test('mapa inicial aproxima a frota sem exigir Google Maps', () {
     expect(DriverMapConfig.fallbackZoom, greaterThanOrEqualTo(16));
     expect(DriverMapConfig.recenterZoom(12), DriverMapConfig.fallbackZoom);
-    expect(DriverMapConfig.recenterZoom(17.5), 17.5);
+    expect(DriverMapConfig.recenterZoom(18), 18);
   });
 
   test('rota cabe em telas pequenas sem margem lateral excessiva', () {
@@ -34,7 +34,7 @@ void main() {
   test('valores de janela ou zoom inválidos têm fallback seguro', () {
     expect(DriverMapConfig.routeEdgePadding(double.nan), 48);
     expect(DriverMapConfig.routeEdgePadding(-1), 48);
-    expect(DriverMapConfig.recenterZoom(double.nan), 16);
-    expect(DriverMapConfig.recenterZoom(double.negativeInfinity), 16);
+    expect(DriverMapConfig.recenterZoom(double.nan), DriverMapConfig.fallbackZoom);
+    expect(DriverMapConfig.recenterZoom(double.negativeInfinity), DriverMapConfig.fallbackZoom);
   });
 }

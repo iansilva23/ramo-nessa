@@ -5,13 +5,41 @@ import 'package:latlong2/latlong.dart';
 abstract final class DriverMapConfig {
   static const fallbackCenter = LatLng(-2.7956, -40.5142);
   // Closer home framing; route fitting can still zoom out when required.
-  static const fallbackZoom = 16.0;
-  static const recenterMinimumZoom = 16.0;
+  static const fallbackZoom = 17.6;
+  static const recenterMinimumZoom = fallbackZoom;
 
   // Native Android/iOS camera-only navigation. This is NOT the Google
   // Navigation SDK and does not change routing, pricing or trip state.
-  static const navigationZoom = 17.2;
-  static const navigationTilt = 52.0;
+  static const navigationZoom = 18.0;
+  static const navigationTilt = 55.0;
+  static const homeTilt = navigationTilt;
+  static const gestureResumeDelay = Duration(seconds: 3);
+
+  /// Bounded, continuous framing from the route already in memory. Never
+  /// requests another route or changes the fixed perspective angle.
+  static double navigationZoomFor(double? remainingMeters) {
+    if (remainingMeters == null || !remainingMeters.isFinite) return navigationZoom;
+    return (18.35 - math.log(1 + math.max(0, remainingMeters) / 500) * .32)
+        .clamp(17.3, 18.35).toDouble();
+  }
+
+  static double? remainingRouteMeters(LatLng position, List<LatLng> points) {
+    if (points.length < 2) return null;
+    var best = double.infinity, remaining = 0.0, tail = 0.0;
+    final scale = math.cos(position.latitude * math.pi / 180);
+    for (var i = points.length - 2; i >= 0; i--) {
+      final a = points[i], b = points[i + 1];
+      final dx = (b.longitude - a.longitude) * scale, dy = b.latitude - a.latitude;
+      final sx = (a.longitude - position.longitude) * scale, sy = a.latitude - position.latitude;
+      final length2 = dx * dx + dy * dy;
+      final t = length2 <= 1e-15 ? 0.0 : ((-sx * dx - sy * dy) / length2).clamp(0.0, 1.0).toDouble();
+      final distance2 = math.pow(sx + t * dx, 2) + math.pow(sy + t * dy, 2);
+      final segment = distanceMeters(a, b);
+      if (distance2 < best) { best = distance2.toDouble(); remaining = tail + segment * (1 - t); }
+      tail += segment;
+    }
+    return remaining;
+  }
   static const headingMinTravelMeters = 10.0;
   static const headingMaxTravelMeters = 600.0;
 
@@ -65,7 +93,7 @@ abstract final class DriverMapConfig {
       final dy = b.latitude - a.latitude;
       final length2 = dx * dx + dy * dy;
       if (length2 < 1e-13) continue;
-      final t = ((-sx * dx - sy * dy) / length2).clamp(0.0, 1.0);
+      final t = ((-sx * dx - sy * dy) / length2).clamp(0.0, 1.0).toDouble();
       final distance2 = math.pow(sx + t * dx, 2) + math.pow(sy + t * dy, 2);
       if (distance2 < closest) {
         closest = distance2.toDouble();
