@@ -1,0 +1,48 @@
+name: Driver camera - publish verified native downloads
+on:
+  push:
+    branches: [ops/driver-camera-native-release-20261027]
+    paths: [.github/workflows/driver-camera-native-release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: driver-camera-native-release-20261027-r1
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERIFIED_RUN: '40437289641'
+      APP_SOURCE: 28ff82ae8b922108f9208889b2f5bf3cdc215a6a
+    steps:
+      - name: Wait for the exact application source to pass every review and build
+        run: |
+          for attempt in $(seq 1 90); do
+            gh api "repos/$GH_REPO/actions/runs/$VERIFIED_RUN" > "$RUNNER_TEMP/native-run.json"
+            node -e 'const r=require(process.env.RUNNER_TEMP+"/native-run.json"); if(r.head_sha!==process.env.APP_SOURCE || r.path!==".github/workflows/driver-camera-gestures-package.yml")throw Error("Unexpected application build"); if(r.status==="completed"&&r.conclusion!=="success")throw Error("Application build did not pass");'
+            status=$(node -p 'require(process.env.RUNNER_TEMP+"/native-run.json").status')
+            if [ "$status" = completed ]; then exit 0; fi
+            sleep 20
+          done
+          echo 'Verified native build is not complete; no release was published.'
+          exit 1
+      - name: Download verified Android, iPhone and simulator artifacts
+        run: |
+          gh run download "$VERIFIED_RUN" --repo "$GH_REPO" --name ramo-driver-android-camera-conectado-20261026 --dir native/android
+          gh run download "$VERIFIED_RUN" --repo "$GH_REPO" --name ramo-driver-iphone-camera-sem-assinatura-20261026 --dir native/iphone
+          gh run download "$VERIFIED_RUN" --repo "$GH_REPO" --name ramo-driver-ios-camera-simulador-20261026 --dir native/simulator
+          for folder in android iphone simulator; do
+            (cd "native/$folder" && sha256sum -c SHA256SUMS)
+          done
+      - name: Publish connected test APK and explicitly unsigned iPhone package
+        run: |
+          mkdir release
+          cp native/android/*.apk native/iphone/*.zip native/simulator/*.zip release/
+          printf '%s\n' "Motorista. Fonte $APP_SOURCE. Execucao verificada: https://github.com/$GH_REPO/actions/runs/$VERIFIED_RUN" 'Android: APK conectado ao Core https://app.ramonessa.com.br; assinatura de homologacao e pacote br.com.ramonessa.driver.preview. Nao e publicacao na Play Store. Use o APK somente para validacao autorizada: operacoes usam o servidor real.' 'iPhone: pacote SEM ASSINATURA APPLE, nao instalavel diretamente; exige assinatura e provisionamento pelo Xcode. O arquivo SIMULADOR serve somente para o simulador.' 'Camera inclinada desde a abertura, zoom adaptavel mantendo a inclinacao, gestos com retomada apos 3 segundos sem interacao, controles acima dos cartoes. Testes automatizados aprovados; aceite visual e GPS em segundo plano precisam ser conferidos no aparelho. Esta entrega nao instala nada na VPS nem publica nas lojas.' > release/LEIA-ME.txt
+          (cd release && sha256sum *.apk *.zip > SHA256SUMS)
+          gh release create driver-camera-native-20261027-r1 release/* --repo "$GH_REPO" --target "$APP_SOURCE" --prerelease --latest=false --title 'Motorista Android e iPhone — câmera e gestos' --notes 'Android conectado ao servidor real com assinatura de homologação. iPhone SEM ASSINATURA APPLE e simulador identificados separadamente. Fonte 28ff82ae; 155 testes do Motorista, 18 testes Chrome e todos os builds devem passar antes da publicação. GPS real e aspecto visual ainda exigem aceite no aparelho. Nenhuma publicação nas lojas ou instalação na VPS.'
