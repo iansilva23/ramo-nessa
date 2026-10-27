@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_driver/src/core/config/driver_map_config.dart';
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_map_panel_extent.dart';
+import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_camera_padding.dart';
 
 class CameraRecorder extends Fake implements gm.GoogleMapController {
   final commands = <dynamic>[];
@@ -16,6 +17,21 @@ class CameraRecorder extends Fake implements gm.GoogleMapController {
   }
 }
 void main() {
+  test('card padding preserves a viewport and follows east/west camera headings', () {
+    final padding = driverCameraPadding(const Size(320, 400), const EdgeInsets.fromLTRB(14, 224, 14, 330));
+    expect(400 - padding.vertical, greaterThanOrEqualTo(95.99));
+    const target = gm.LatLng(-2.82, -40.41);
+    gm.CameraPosition camera(double bearing) => gm.CameraPosition(target: target, zoom: 17.6, tilt: 55, bearing: bearing);
+    final north = driverWebPaddedCamera(camera(0), padding);
+    final east = driverWebPaddedCamera(camera(90), padding);
+    final west = driverWebPaddedCamera(camera(270), padding);
+    expect(north.target.latitude, lessThan(target.latitude));
+    expect(east.target.longitude, lessThan(target.longitude));
+    expect(west.target.longitude, greaterThan(target.longitude));
+    expect(east.target.latitude, closeTo(target.latitude, .000001));
+    expect(east.zoom, 17.6); expect(east.tilt, 55); expect(east.bearing, 90);
+    expect(driverWebPaddedCamera(camera(0), EdgeInsets.zero), camera(0));
+  });
   test('route distance changes only a bounded zoom, never the reference tilt', () {
     final close = DriverMapConfig.navigationZoomFor(100), far = DriverMapConfig.navigationZoomFor(50000);
     expect(close, greaterThan(far)); expect(far, greaterThanOrEqualTo(17.3)); expect(close, lessThanOrEqualTo(18.35));
