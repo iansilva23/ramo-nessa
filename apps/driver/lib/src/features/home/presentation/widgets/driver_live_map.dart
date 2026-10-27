@@ -250,9 +250,11 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) _disposeMapGestures = subscribeDriverMapGestures(
+    if (kIsWeb) {
+      _disposeMapGestures = subscribeDriverMapGestures(
       down: () => widget.controller.onMapPointerDown(), move: () => widget.controller.onMapPointerMove(),
       up: () => widget.controller.onMapPointerUp(), wheel: () => widget.controller.onMapWheel());
+    }
     final supply = widget.supply;
     if (supply != null) {
       _displayDriverPoint = domain.LatLng(supply.latitude, supply.longitude);
