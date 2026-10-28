@@ -18,7 +18,7 @@ function docker(args){const r=spawnSync('docker',args,{encoding:'utf8',timeout:6
 const inspect=role=>JSON.parse(docker(['inspect',names[role]]))[0],image=tag=>JSON.parse(docker(['image','inspect',tag]))[0].Id;
 const compose=args=>docker(['compose','-p','ramo-nessa-staging','--env-file','/dev/null','-f',config,...args]);
 const query=sql=>docker(['exec',names.postgres,'psql','-X','-U','ci','-d','ci','-Atq','-v','ON_ERROR_STOP=1','-c',sql]);
-const health=async role=>{for(let i=0;i<90;i++){if(inspect(role).State.Health?.Status==='healthy')return;await new Promise(r=>setTimeout(r,1000));}throw Error('CI health '+role);};
+const health=async role=>{for(let i=0;i<90;i++){if(inspect(role).State.Health?.Status==='healthy'&&(role!=='postgres'||spawnSync('docker',['exec',names.postgres,'pg_isready','-h','127.0.0.1','-U','ci','-d','ci'],{encoding:'utf8'}).status===0))return;await new Promise(r=>setTimeout(r,1000));}throw Error('CI health '+role);};
 const volumes=['recovery-web-ci-docs','recovery-web-ci-pg','recovery-web-ci-caddydata','recovery-web-ci-caddyconfig'];let started=false;
 try{
  mkdirSync(lab,{recursive:true});mkdirSync(dirnameSafe(liveWeb),{recursive:true});mkdirSync(liveWeb);
