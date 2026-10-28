@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'driver_location_service.dart';
 
-class DeviceDriverLocationService implements DriverLocationService {
+class DeviceDriverLocationService with WidgetsBindingObserver implements DriverLocationService {
+  void Function()? _restartSampling;
   Future<void> _ensureReady() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
@@ -41,15 +44,21 @@ class DeviceDriverLocationService implements DriverLocationService {
     return DriverPosition(
       latitude: position.latitude,
       longitude: position.longitude,
+      observedAt: position.timestamp, accuracyMeters: position.accuracy,
+      speedMetersPerSecond: position.speed >= 0 ? position.speed : null,
+      speedAccuracyMetersPerSecond: position.speedAccuracy > 0 ? position.speedAccuracy : null,
+      courseDegrees: position.heading >= 0 ? position.heading % 360 : null,
+      courseAccuracyDegrees: position.headingAccuracy > 0 ? position.headingAccuracy : null,
     );
   }
 
-  LocationSettings _streamSettings() {
+  @visibleForTesting
+  LocationSettings streamSettings({required bool foreground}) {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 20,
-        intervalDuration: const Duration(seconds: 10),
+        distanceFilter: foreground ? 3 : 20,
+        intervalDuration: Duration(seconds: foreground ? 1 : 10),
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationTitle: 'Ramo Nessa Motorista online',
           notificationText:
@@ -69,30 +78,66 @@ class DeviceDriverLocationService implements DriverLocationService {
       return AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
         activityType: ActivityType.automotiveNavigation,
-        distanceFilter: 20,
+        distanceFilter: foreground ? 3 : 20,
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: true,
         allowBackgroundLocationUpdates: true,
       );
     }
 
-    return const LocationSettings(
+    return LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 20,
+      distanceFilter: foreground ? 3 : 20,
     );
   }
 
   @override
-  Stream<DriverPosition> positionStream() async* {
-    await _ensureReady();
+  void didChangeAppLifecycleState(AppLifecycleState state) { _restartSampling?.call(); }
 
-    yield* Geolocator.getPositionStream(
-      locationSettings: _streamSettings(),
-    ).map(
-      (position) => DriverPosition(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      ),
-    );
+  @override
+  Stream<DriverPosition> positionStream() {
+    late final StreamController<DriverPosition> output;
+    StreamSubscription<Position>? subscription;
+    var closed = false, generation = 0;
+    Future<void> pending = Future.value();
+    void restart() {
+      final request = ++generation;
+      pending = pending.then((_) async {
+        if (closed || request != generation) return;
+        await subscription?.cancel(); subscription = null;
+        if (closed || request != generation) return;
+        final lifecycle = WidgetsBinding.instance.lifecycleState;
+        final foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+        subscription = Geolocator.getPositionStream(locationSettings: streamSettings(foreground: foreground)).listen(
+          (position) {
+            if (closed || request != generation) return;
+            output.add(DriverPosition(latitude: position.latitude, longitude: position.longitude,
+              observedAt: position.timestamp, accuracyMeters: position.accuracy,
+              speedMetersPerSecond: position.speed >= 0 ? position.speed : null,
+              speedAccuracyMetersPerSecond: position.speedAccuracy > 0 ? position.speedAccuracy : null,
+              courseDegrees: position.heading >= 0 ? position.heading % 360 : null,
+              courseAccuracyDegrees: position.headingAccuracy > 0 ? position.headingAccuracy : null));
+          },
+          onError: (Object error, StackTrace stack) { if (!closed) output.addError(error, stack); },
+          onDone: () { if (!closed && request == generation) unawaited(output.close()); },
+        );
+      }).catchError((Object error, StackTrace stack) { if (!closed) output.addError(error, stack); });
+    }
+    output = StreamController<DriverPosition>(onListen: () async {
+      try {
+        await _ensureReady();
+        if (closed) return;
+        _restartSampling = restart;
+        WidgetsBinding.instance.addObserver(this);
+        restart();
+      } catch (error, stack) { if (!closed) output.addError(error, stack); }
+    }, onCancel: () async {
+      closed = true; generation++;
+      _restartSampling = null;
+      WidgetsBinding.instance.removeObserver(this);
+      await pending;
+      await subscription?.cancel();
+    });
+    return output.stream;
   }
 }

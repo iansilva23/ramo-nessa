@@ -18,6 +18,7 @@ import '../../../core/config/driver_map_config.dart';
 import '../../../core/config/driver_web_heading_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
+import '../../../core/location/driver_travel_heading.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
 import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
@@ -213,6 +214,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   StreamSubscription<DriverPosition>? _locationSubscription;
   StreamSubscription<DriverRealtimeUpdate>? _realtimeSubscription;
   bool _locationSyncInFlight = false;
+  final DriverLocationUploadGate _locationUploadGate = DriverLocationUploadGate();
+  DriverPosition? _cameraDevicePosition;
+  bool _cameraForeground = true;
   bool _releaseDialogShown = false;
   bool _registryAccessBlocked = false;
   bool _webBackgrounded = false;
@@ -369,6 +373,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    _cameraForeground = state == AppLifecycleState.resumed;
+    _mapController.setVisible(_cameraForeground);
     if (state == AppLifecycleState.resumed) {
       _navigationControlRideId=null;
       unawaited(_restoreCurrentRide());
@@ -615,56 +621,38 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _syncTrackedPosition(DriverPosition position) async {
-    final api = _api;
-    final supply = _supply;
-    if (api == null ||
-        supply == null ||
-        (!supply.online && _activeRide == null) ||
-        _locationSyncInFlight) {
-      return;
+    final api = _api, supply = _supply;
+    if (!mounted || api == null || supply == null || (!supply.online && _activeRide == null)) return;
+    if (!position.latitude.isFinite || !position.longitude.isFinite || position.latitude.abs() > 90 || position.longitude.abs() > 180) return;
+    final observedAt = position.observedAt;
+    if (observedAt != null && (DateTime.now().difference(observedAt) > const Duration(seconds: 15) ||
+        observedAt.difference(DateTime.now()) > const Duration(seconds: 1))) return;
+    _mapController.observePosition(position);
+    _cameraDevicePosition = position;
+    // Camera and marker use the device fix immediately, including while a
+    // previous HTTP upload is in flight. Routing still runs on server cadence.
+    if (_cameraForeground) {
+      setState(() {});
+      if (_mapReady && (_mapController.hasChosenFrame || DriverMapConfig.shouldAutoFollow(
+          hasActiveRide: _activeRide != null, navigationMode: _navigationMode))) {
+        final point = LatLng(position.latitude, position.longitude);
+        if (_navigationMode) {
+          unawaited(_mapController.followNavigation(point, route: _activeRoute?.points ?? const []));
+        } else { unawaited(_mapController.move(point)); }
+      }
     }
-
+    if (_locationSyncInFlight || !_locationUploadGate.claim(DateTime.now())) return;
     _locationSyncInFlight = true;
     try {
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
       setState(() => _supply = updated);
-      if (_mapReady &&
-          DriverMapConfig.shouldAutoFollow(
-            hasActiveRide: _activeRide != null,
-            navigationMode: _navigationMode,
-          )) {
-        final point = LatLng(updated.latitude, updated.longitude);
-        if (_navigationMode &&
-            (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
-          unawaited(_mapController.followNavigation(
-            point, route: _activeRoute?.points ?? const [],
-          ));
-        } else {
-          unawaited(_mapController.move(
-            point,
-            _navigationMode
-                ? DriverMapConfig.navigationZoom
-                : DriverMapConfig.fallbackZoom,
-          ));
-        }
-      }
-      if (_activeRide != null) {
-        unawaited(_refreshActiveRoute());
-      }
+      if (_activeRide != null) unawaited(_refreshActiveRoute());
     } on DriverApiException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _message = 'Localização automática: ${error.message}';
-      });
+      if (mounted) setState(() => _message = 'Localização automática: ${error.message}');
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _message = 'Localização automática: não conseguimos sincronizar agora.';
-      });
-    } finally {
-      _locationSyncInFlight = false;
-    }
+      if (mounted) setState(() => _message = 'Localização automática: não conseguimos sincronizar agora.');
+    } finally { _locationSyncInFlight = false; }
   }
 
   void _announceOffer(DriverOffer? offer) {
@@ -955,6 +943,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       );
 
       if (!mounted) return;
+      if (position != null) {
+        _cameraDevicePosition = position; _mapController.observePosition(position);
+        _locationUploadGate.recordManualUpdate(DateTime.now());
+      }
       setState(() {
         _supply = updated;
         _changingStatus = false;
@@ -1012,6 +1004,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (!mounted) return;
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
+      _cameraDevicePosition = position; _mapController.observePosition(position);
+      _locationUploadGate.recordManualUpdate(DateTime.now());
       setState(() {
         _supply = updated;
         _changingStatus = false;
@@ -2329,6 +2323,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         DriverLiveMap(
           controller: _mapController,
           supply: supply,
+          devicePosition: _cameraDevicePosition == null ? null : LatLng(_cameraDevicePosition!.latitude, _cameraDevicePosition!.longitude),
+          headingDegrees: _mapController.vehicleBearing,
           activeRide: _activeRide,
           route: _activeRoute,
           navigationMode: _navigationMode,
@@ -2379,10 +2375,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                       onPressed: _navigationMode &&
                               (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
                           ? () {
-                              _mapController.resumeNativeFollow();
+                              _mapController.recenterDriver();
                               _centerDriverOnMap();
                             }
-                          : () { _mapController.resumeNativeFollow(); unawaited(_updateLocation()); },
+                          : () { _mapController.recenterDriver(); unawaited(_updateLocation()); },
                     ),
                   ),
                 ],

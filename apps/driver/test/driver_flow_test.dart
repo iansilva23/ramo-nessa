@@ -695,6 +695,29 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('local marker follows fresh fixes while HTTP is delayed without uploading every camera sample', (tester) async {
+    final api = _DelayedLocationApi().._offerAvailable = false;
+    final location = _StreamingFakeLocationService();
+    await tester.pumpWidget(RamoNessaDriverApp(api: api, locationService: location));
+    await tester.pump(); await tester.pump(const Duration(milliseconds: 20));
+    location.add(const DriverPosition(latitude: -2.82, longitude: -40.41));
+    await tester.pump(); await tester.pump(const Duration(milliseconds: 10));
+    expect(api.uploads, 1);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).devicePosition!.latitude, -2.82);
+    location.add(const DriverPosition(latitude: -2.82001, longitude: -40.40997));
+    await tester.pump(); await tester.pump(const Duration(milliseconds: 10));
+    expect(api.uploads, 1);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).devicePosition!.latitude, -2.82001);
+    api.waiting.complete(); await tester.pump(); await tester.pump(const Duration(milliseconds: 10));
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).devicePosition!.latitude, -2.82001,
+      reason: 'an older server response must not move the local marker backwards');
+    location.add(const DriverPosition(latitude: -2.82002, longitude: -40.40994));
+    await tester.pump(); expect(api.uploads, 1);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).devicePosition!.latitude, -2.82002);
+    await tester.pumpWidget(const SizedBox()); await tester.pump();
+    unawaited(location._controller.close());
+  });
+
   testWidgets(
     'motorista online sincroniza atualizações contínuas de localização',
     (tester) async {
@@ -1533,4 +1556,15 @@ class _BudgetRouteService extends _CountingRouteService implements ControlledDri
   if(latestControl!.recalculations>=4){calls++;throw DriverRouteControlException('NAVIGATION_LIMIT',latestControl);}
   return route(origin:origin,destination:destination);
  }
+}
+
+class _DelayedLocationApi extends _FakeDriverApi {
+  _DelayedLocationApi() : super(initialOnline: true);
+  final waiting = Completer<void>();
+  int uploads = 0;
+  @override
+  Future<DriverSupplySnapshot> updateSupply({bool? online, DriverPosition? position}) async {
+    if (position != null && online == null) { uploads++; await waiting.future; }
+    return super.updateSupply(online: online, position: position);
+  }
 }
