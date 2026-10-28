@@ -66,9 +66,9 @@ void main() {
     final apple = service.streamSettings(foreground: false) as AppleSettings;
     expect(apple.allowBackgroundLocationUpdates, true); expect(apple.pauseLocationUpdatesAutomatically, false);
     expect(apple.showBackgroundLocationIndicator, true); expect(apple.distanceFilter, 20);
-    await subscription.cancel(); expect(platform.active, 0);
+    await tester.runAsync(() => subscription.cancel()); expect(platform.active, 0);
     final finalCalls = platform.cameraSettings.length;
     await tester.pump(const Duration(seconds: 3)); expect(platform.cameraSettings, hasLength(finalCalls));
-    await platform.positions.close();
-  });
+    await tester.runAsync(() => platform.positions.close());
+  }, timeout: const Timeout(Duration(seconds: 30)));
 }
