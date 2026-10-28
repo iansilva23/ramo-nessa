@@ -25,6 +25,8 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(app(false, reduce: true));
+    final reducedFrames = await tester.pumpAndSettle();
+    expect(reducedFrames, lessThan(6), reason: 'reduced motion must not run the two-second campaign effect');
     expect(tester.binding.hasScheduledFrame, isFalse);
     expect(find.text('Obrigado por participar!'), findsOneWidget);
   });
