@@ -37,13 +37,25 @@ void main() {
     feed(tracker, fix(2, course: 190)); expect(tracker.bearing, held);
     feed(tracker, fix(3, course: 190)); expect(DriverTravelHeading.delta(tracker.bearing!, 190).abs(), lessThan(30));
   });
-  test('browser without reliable speed/course uses only significant timed displacement', () {
+  test('browser corroborates reported speed with precise motion and never rotates on a genuine zero speed', () {
     final tracker = DriverTravelHeading();
     feed(tracker, fix(0, speedError: null, courseError: null)); expect(tracker.bearing, isNull);
-    feed(tracker, fix(1, speedError: null, courseError: null)); expect(tracker.bearing, isNull);
+    feed(tracker, fix(1, speedError: null, courseError: null)); expect(tracker.bearing, closeTo(90, .1));
     feed(tracker, fix(2, speedError: null, courseError: null)); expect(tracker.bearing, closeTo(90, .1));
+    feed(tracker, fix(3, speed: 0, speedError: null, course: 270, courseError: null));
+    expect(tracker.bearing, closeTo(90, .1)); expect(tracker.rotating, false);
     tracker.update(const DriverPosition(latitude: -2.82, longitude: -40.41), now: start);
     expect(tracker.bearing, closeTo(90, .1)); expect(tracker.rotating, false);
+  });
+  test('absent speed and course need a significant timed position change', () {
+    final tracker = DriverTravelHeading();
+    for (var second = 0; second <= 2; second++) {
+      final value = DriverPosition(latitude: -2.82, longitude: -40.41 + second * .00003,
+        observedAt: start.add(Duration(seconds: second)), accuracyMeters: 2);
+      feed(tracker, value);
+      if (second < 2) expect(tracker.bearing, isNull);
+    }
+    expect(tracker.bearing, closeTo(90, .1));
   });
   test('high frequency camera samples keep the existing ten-second upload cadence', () {
     final gate = DriverLocationUploadGate(); expect(gate.claim(start), true);

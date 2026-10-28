@@ -24,8 +24,11 @@ class DriverTravelHeading {
     final previous = _last;
     if (previous != null && !time.isAfter(previous.observedAt!)) return;
     _last = fix;
+    double? stepSeconds, stepDistance, stepBearing;
     if (previous != null) {
       final seconds = time.difference(previous.observedAt!).inMilliseconds / 1000;
+      stepSeconds = seconds; stepDistance = DriverMapConfig.distanceMeters(point(previous), point(fix));
+      if (stepDistance > 0) stepBearing = DriverMapConfig.bearingDegrees(point(previous), point(fix));
       final speed = math.max(fix.speedMetersPerSecond ?? 0, previous.speedMetersPerSecond ?? 0);
       final limit = math.max(20.0, (speed.clamp(0, 70) + 8) * seconds + accuracy + previous.accuracyMeters!);
       if (seconds > 15 || DriverMapConfig.distanceMeters(point(previous), point(fix)) > limit) {
@@ -39,9 +42,20 @@ class DriverTravelHeading {
     final displacementKnown = elapsed >= .5 && elapsed <= 15 &&
         distance >= math.max(6.0, accuracy + anchor.accuracyMeters!);
     final raw = fix.speedMetersPerSecond, error = fix.speedAccuracyMetersPerSecond;
-    final speedKnown = raw != null && raw.isFinite && raw >= 0 && raw <= 70 &&
-        error != null && error.isFinite && error >= 0 && error <= 2;
-    final speed = speedKnown ? raw : (displacementKnown ? distance / elapsed : null);
+    final rawValue = raw ?? 0;
+    final rawSpeedAvailable = raw != null && rawValue.isFinite && rawValue >= 0 && rawValue <= 70;
+    if (rawSpeedAvailable && rawValue * 3.6 <= 5) {
+      rotating = false; _anchor = fix; _reverseCandidate = null; return;
+    }
+    final speedKnown = rawSpeedAvailable && error != null && error.isFinite && error >= 0 && error <= 2;
+    // Browsers do not provide per-field speed/course errors. A positive
+    // reported speed needs corroborating, precise, timed displacement.
+    final corroborated = rawSpeedAvailable && error == null && previous != null &&
+        stepSeconds != null && stepSeconds >= .5 && stepSeconds <= 5 &&
+        stepDistance != null && accuracy <= 5 && previous.accuracyMeters! <= 5 &&
+        stepDistance >= math.max(3.0, accuracy) &&
+        (stepDistance / stepSeconds - rawValue).abs() <= math.max(3.0, accuracy / stepSeconds);
+    final speed = speedKnown || corroborated ? rawValue : (displacementKnown ? distance / elapsed : null);
     if (speed != null) {
       if (speed * 3.6 <= 5) rotating = false;
       if (speed * 3.6 >= 10) rotating = true;
@@ -51,8 +65,10 @@ class DriverTravelHeading {
     final course = fix.courseDegrees, courseError = fix.courseAccuracyDegrees;
     final nativeCourseKnown = speedKnown && course != null && course.isFinite && course >= 0 && course < 360 &&
         courseError != null && courseError.isFinite && courseError > 0 && courseError <= 25;
-    final candidate = nativeCourseKnown ? course : (displacementKnown
-        ? DriverMapConfig.bearingDegrees(point(anchor), point(fix)) : null);
+    final browserCourseKnown = corroborated && course != null && course.isFinite && course >= 0 && course < 360 &&
+        courseError == null && stepBearing != null && delta(stepBearing, course).abs() <= 25;
+    final candidate = nativeCourseKnown || browserCourseKnown ? course : (corroborated ? stepBearing :
+        (displacementKnown ? DriverMapConfig.bearingDegrees(point(anchor), point(fix)) : null));
     if (displacementKnown) _anchor = fix;
     if (candidate == null) return;
     final old = bearing;

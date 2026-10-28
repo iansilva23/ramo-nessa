@@ -33,12 +33,18 @@ void main() {
     expect(foreground.intervalDuration, const Duration(seconds: 1)); expect(foreground.distanceFilter, 3);
     expect(foreground.foregroundNotificationConfig!.enableWakeLock, true);
     final position = Position(latitude: -2.82, longitude: -40.41, timestamp: DateTime.now(), accuracy: 3,
-      altitude: 0, altitudeAccuracy: 0, heading: 90, headingAccuracy: 5, speed: 4, speedAccuracy: .4);
+      altitude: 0, altitudeAccuracy: 0, heading: 90, headingAccuracy: 5, speed: 4, speedAccuracy: .4,
+      hasAccuracy: true, hasSpeed: true, hasHeading: true, hasSpeedAccuracy: true, hasHeadingAccuracy: true);
     platform.streams.last.add(position); await tester.pump();
     expect(values.single.courseDegrees, 90); expect(values.single.speedMetersPerSecond, 4);
     expect(values.single.accuracyMeters, 3); expect(values.single.observedAt, position.timestamp);
+    platform.streams.last.add(Position(latitude: -2.82, longitude: -40.41, timestamp: DateTime.now(), accuracy: 3,
+      altitude: 0, altitudeAccuracy: 0, heading: 0, headingAccuracy: 0, speed: 0, speedAccuracy: 0));
+    await tester.pump();
+    expect(values.last.speedMetersPerSecond, isNull); expect(values.last.courseDegrees, isNull);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump(); await tester.pump();
+    expect(platform.settings.length, 2, reason: 'the platform subscription must be replaced on background transition');
     final background = platform.settings.last as AndroidSettings;
     expect(background.intervalDuration, const Duration(seconds: 10)); expect(background.distanceFilter, 20);
     expect(background.foregroundNotificationConfig!.enableWakeLock, true); expect(platform.active, 1);
