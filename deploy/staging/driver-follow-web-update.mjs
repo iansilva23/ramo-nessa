@@ -10,7 +10,7 @@ import {gatewayWebPlan,assertGatewayWebDelta,publicPushConfig,browserMapsKey} fr
 import {assertWebGatewayRuntime,switchDriverWeb} from './asaas-driver-web-switch-contract.mjs';
 import {runtimeIdentity} from './backup-regions-pricing.mjs';
 import {hashFile,hashTree,privateDir} from './google-search-update-io.mjs';
-export const rideWebSource='f2808347cc38303c87d0df2634ab3712f4096b94';
+export const rideWebSource='7f8fb3735e2096b1516435f36b1d44cde255a1ce';
 export const rideWebNames={core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',site:'ramo-nessa-site-institutional-site-1'};
 export function installArguments(args){
  if(args.length!==2||!args[0].startsWith('/')||!args[0].endsWith('.zip')||!(/^[a-f0-9]{64}$/).test(args[1]))throw Error('Informe ZIP absoluto e SHA-256 do pacote.');
