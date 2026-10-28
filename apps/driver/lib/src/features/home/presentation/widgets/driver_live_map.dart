@@ -8,13 +8,15 @@ import 'package:latlong2/latlong.dart' as domain;
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../../core/config/driver_map_config.dart';
-import '../../../../core/config/driver_web_cinematic_camera.dart';
+import '../../../../core/location/driver_location_service.dart';
+import '../../../../core/location/driver_travel_heading.dart';
 import '../../../../core/config/driver_web_heading_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../../../core/map/driver_map_gestures.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
 import 'driver_camera_padding.dart';
+import 'driver_follow_frame.dart';
 
 @visibleForTesting
 List<domain.LatLng> driverVisibleRoutePoints(
@@ -40,151 +42,181 @@ List<domain.LatLng> driverVisibleRoutePoints(
 }
 
 class DriverMapController {
+  DriverMapController({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  final DateTime Function() _now;
+  final DriverTravelHeading _travel = DriverTravelHeading();
   gm.GoogleMapController? _nativeController;
-  bool _disposed = false;
+  bool _disposed = false, _visible = true, _writing = false, _gesture = false;
   double _currentZoom = DriverMapConfig.fallbackZoom;
   Size _viewport = Size.zero;
   EdgeInsets _padding = EdgeInsets.zero;
-  final ValueNotifier<bool> followPaused = ValueNotifier<bool>(false);
-  final ValueNotifier<double> webHeading = ValueNotifier<double>(0);
-  Timer? _resumeTimer;
+  final ValueNotifier<bool> followPaused = ValueNotifier(false);
+  final ValueNotifier<double> webHeading = ValueNotifier(0);
+  Timer? _settleTimer;
   int _touches = 0, _generation = 0, _intent = 0;
-  bool _writing = false;
   DateTime _automaticUntil = DateTime.fromMillisecondsSinceEpoch(0);
   gm.CameraPosition? _queued, _lastCamera;
-  Future<void> Function()? _resumeAction;
-  domain.LatLng? _lastCoursePoint;
-  double? _lastCourseBearing, _navigationZoom;
-
-  void updateViewport(Size size, [EdgeInsets padding = EdgeInsets.zero]) { _viewport = size; _padding = padding; }
+  domain.LatLng? _latestPoint, _gpsPoint;
+  DriverFollowFrame? _frame;
+  DateTime? _latestGpsTime;
+  bool get hasChosenFrame => _frame != null;
+  double get vehicleBearing => _travel.bearing ?? 0;
   bool get ready => !_disposed && _nativeController != null;
   double get currentZoom => _currentZoom;
+  void updateViewport(Size size, [EdgeInsets padding = EdgeInsets.zero]) { _viewport = size; _padding = padding; }
   void attach(gm.GoogleMapController controller) { if (!_disposed) _nativeController = controller; }
+  bool observePosition(DriverPosition fix) {
+    if (_disposed) return false;
+    final time = fix.observedAt, previous = _latestGpsTime;
+    if (time != null && previous != null && !time.isAfter(previous)) return false;
+    _travel.update(fix, now: _now());
+    if (time != null && (_now().difference(time) > const Duration(seconds: 15) ||
+        time.difference(_now()) > const Duration(seconds: 1))) { return false; }
+    if (!fix.latitude.isFinite || !fix.longitude.isFinite || fix.latitude.abs() > 90 || fix.longitude.abs() > 180) return false;
+    _latestGpsTime = time ?? previous;
+    _gpsPoint = domain.LatLng(fix.latitude, fix.longitude); _latestPoint = _gpsPoint;
+    return true;
+  }
+  void setVisible(bool visible) {
+    if (_disposed) return;
+    if (!visible && _gesture) _finishGesture();
+    _visible = visible;
+    if (!visible) _queued = null;
+  }
   void detach() {
-    _generation++; _intent++; _resumeTimer?.cancel(); _resumeTimer = null;
-    _queued = null; _resumeAction = null; _touches = 0;
-    _nativeController = null;
+    if (!_disposed && _gesture) _finishGesture();
+    _generation++; _intent++; _settleTimer?.cancel(); _queued = null;
+    _touches = 0; _gesture = false; _nativeController = null;
   }
   void updateCamera(gm.CameraPosition position) {
     if (_disposed) return;
-    _lastCamera = position;
-    _currentZoom = position.zoom; webHeading.value = position.bearing;
-    if (followPaused.value && _touches == 0) _scheduleResume();
+    _lastCamera = position; _currentZoom = position.zoom; webHeading.value = position.bearing;
+    if (_gesture && _touches == 0) _scheduleSettle();
   }
   void _pause() {
     if (_disposed) return;
-    _resumeTimer?.cancel(); _queued = null;
-    followPaused.value = true;
+    _intent++; _settleTimer?.cancel(); _queued = null; _gesture = true; followPaused.value = true;
   }
   void onMapPointerDown() { _touches++; _pause(); }
   void onMapPointerMove() { if (_touches > 0) _pause(); }
-  void onMapPointerUp() { if (_touches > 0) _touches--; if (_touches == 0) _scheduleResume(); }
-  void onMapWheel() { _pause(); if (_touches == 0) _scheduleResume(); }
+  void onMapPointerUp() { if (_touches > 0) _touches--; if (_touches == 0) _scheduleSettle(); }
+  void onMapWheel() { _pause(); if (_touches == 0) _scheduleSettle(); }
   void onCameraMoveStarted() {
     if (_touches > 0) { _pause(); return; }
-    if (DateTime.now().isBefore(_automaticUntil)) return;
-    // Fallback for platform-view gestures not delivered as Flutter pointers.
-    _pause(); _scheduleResume();
+    if (_now().isBefore(_automaticUntil)) return;
+    _pause(); _scheduleSettle();
   }
-  void onCameraIdle() { if (followPaused.value && _touches == 0) _scheduleResume(); }
-  void _scheduleResume() {
-    _resumeTimer?.cancel();
-    if (_disposed || !followPaused.value || _touches > 0) return;
+  void onCameraIdle() { if (_gesture && _touches == 0) _finishGesture(); }
+  void _scheduleSettle() {
+    _settleTimer?.cancel();
+    if (_disposed || !_gesture || _touches > 0) return;
     final generation = _generation;
-    _resumeTimer = Timer(DriverMapConfig.gestureResumeDelay, () {
-      if (_disposed || generation != _generation || !ready || _touches > 0) return;
-      followPaused.value = false;
-      final resume = _resumeAction;
-      if (resume != null) unawaited(resume().catchError((Object e) { debugPrint('Retomada da câmera indisponível: $e'); }));
+    _settleTimer = Timer(DriverMapConfig.gestureSettleDelay, () {
+      if (_disposed || generation != _generation || _touches > 0) return;
+      _finishGesture();
     });
   }
-  void resumeNativeFollow() { _resumeTimer?.cancel(); if (!_disposed && _touches == 0) followPaused.value = false; }
-
-  /// Serializes SDK animations and coalesces GPS fixes. A gesture prevents any
-  /// subsequent write; its resume action always uses the newest driver fix.
+  void _finishGesture() {
+    if (_disposed) return;
+    _settleTimer?.cancel();
+    final camera = _lastCamera, point = _latestPoint;
+    if (camera != null && point != null) {
+      _frame = DriverFollowFrame.capture(camera: camera, vehicle: point,
+        course: _travel.bearing ?? 0, viewport: _viewport, padding: _padding, web: kIsWeb) ?? _frame;
+    }
+    _gesture = false; followPaused.value = false;
+    // Capture the view exactly where the user left it. The next GPS fix moves
+    // this frame with the vehicle; there is no return-to-default timer.
+  }
+  void resumeNativeFollow() {
+    if (!_disposed && !_gesture && _touches == 0) followPaused.value = false;
+  }
+  void recenterDriver() {
+    if (_disposed || _touches > 0) return;
+    if (_gesture) _finishGesture();
+    final frame = _frame;
+    if (frame != null && !_viewport.isEmpty) {
+      final center = DriverFollowFrame.center(_viewport, _padding, false);
+      _frame = DriverFollowFrame(zoom: frame.zoom, tilt: frame.tilt, bearingOffset: frame.bearingOffset,
+        anchor: Offset(center.dx / _viewport.width, center.dy / _viewport.height));
+    }
+    followPaused.value = false;
+  }
+  gm.CameraPosition cameraFor(domain.LatLng point) {
+    final frame = _frame;
+    if (frame != null) {
+      return frame.cameraFor(vehicle: point, course: _travel.bearing ?? 0,
+        viewport: _viewport, padding: _padding, web: kIsWeb);
+    }
+    final camera = gm.CameraPosition(target: gm.LatLng(point.latitude, point.longitude),
+      zoom: _currentZoom, tilt: _lastCamera?.tilt ?? DriverMapConfig.homeTilt,
+      bearing: _travel.bearing ?? _lastCamera?.bearing ?? 0);
+    return kIsWeb ? driverWebPaddedCamera(camera, _padding) : camera;
+  }
   Future<void> _animate(gm.CameraPosition position) async {
     _intent++;
-    _resumeAction = () => _animate(position);
-    if (!ready || followPaused.value) return;
+    if (!ready || !_visible || followPaused.value) return;
     _queued = position;
     if (_writing) return;
     _writing = true;
     final generation = _generation, controller = _nativeController!;
     try {
-      while (_queued != null && !followPaused.value && ready && generation == _generation) {
-        var next = _queued!; _queued = null;
-        if (kIsWeb) {
-          next = driverWebPaddedCamera(next, _padding);
-        }
-        _lastCamera = next;
-        _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
+      while (_queued != null && !followPaused.value && ready && _visible && generation == _generation) {
+        final next = _queued!; _queued = null;
+        _lastCamera = next; _automaticUntil = _now().add(const Duration(seconds: 2));
         _currentZoom = next.zoom; webHeading.value = next.bearing;
         await controller.animateCamera(gm.CameraUpdate.newCameraPosition(next));
       }
-    } catch (e) { debugPrint('Câmera do motorista indisponível: $e'); }
+    } catch (error) { debugPrint('Câmera do motorista indisponível: $error'); }
     finally {
       _writing = false;
       final pending = _queued;
-      if (pending != null && ready && !followPaused.value) unawaited(_animate(pending));
+      if (pending != null && ready && _visible && !followPaused.value) unawaited(_animate(pending));
     }
   }
-
   Future<void> zoomBy(double delta) async {
     final controller = _nativeController, last = _lastCamera;
-    if (!ready || controller == null || last == null) return;
+    if (!ready || controller == null || last == null || !_visible) return;
     onMapWheel();
-    _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
-    try {
-      _currentZoom = (_currentZoom + delta).clamp(4.0,19.0).toDouble();
-      await controller.animateCamera(gm.CameraUpdate.newCameraPosition(gm.CameraPosition(
-        target:last.target, zoom:_currentZoom, tilt:last.tilt, bearing:last.bearing)));
-    } catch (e) { debugPrint('Zoom manual indisponível: $e'); }
+    final camera = gm.CameraPosition(target: last.target, zoom: (_currentZoom + delta).clamp(4.0, 19.0).toDouble(),
+      tilt: last.tilt, bearing: last.bearing);
+    _lastCamera = camera; _currentZoom = camera.zoom;
+    _automaticUntil = _now().add(const Duration(seconds: 2));
+    try { await controller.animateCamera(gm.CameraUpdate.newCameraPosition(camera)); }
+    catch (error) { debugPrint('Zoom manual indisponível: $error'); }
   }
-
-  Future<void> followNavigation(domain.LatLng point, {List<domain.LatLng> route = const []}) async {
-    final from = _lastCoursePoint;
-    final course = from == null ? null : DriverMapConfig.courseFromMovement(from, point);
-    if (from == null || DriverMapConfig.distanceMeters(from, point) >= DriverMapConfig.headingMinTravelMeters) _lastCoursePoint = point;
-    if (course != null) {
-      _lastCourseBearing = _lastCourseBearing == null ? course : DriverMapConfig.smoothBearing(_lastCourseBearing!, course);
-    } else { _lastCourseBearing ??= DriverMapConfig.routeBearing(point, route); }
-    final desired = DriverMapConfig.navigationZoomFor(DriverMapConfig.remainingRouteMeters(point, route));
-    _navigationZoom = _navigationZoom == null ? desired : _navigationZoom! + (desired - _navigationZoom!).clamp(-.15, .15);
-    final heading = _lastCourseBearing ?? 0;
-    final target = DriverWebCinematicCamera.lookAhead(point, heading, DriverWebCinematicCamera.lookAheadMeters);
-    await _animate(gm.CameraPosition(target: gm.LatLng(target.latitude, target.longitude),
-      zoom: _navigationZoom!, tilt: DriverMapConfig.navigationTilt, bearing: heading));
+  Future<void> followNavigation(domain.LatLng point, {List<domain.LatLng> route = const []}) {
+    _latestPoint = _gpsPoint ?? point;
+    return _animate(cameraFor(_latestPoint!));
   }
   Future<void> enterWebDrivingPerspective(domain.LatLng point, {List<domain.LatLng> route = const []}) => followNavigation(point, route: route);
-  Future<void> stopNativeNavigation(domain.LatLng point) { _lastCoursePoint = null; _lastCourseBearing = null; _navigationZoom = null; return move(point, DriverMapConfig.fallbackZoom); }
-  Future<void> stopWebNavigation(domain.LatLng point) => stopNativeNavigation(point);
+  Future<void> stopNativeNavigation(domain.LatLng point) => move(point);
+  Future<void> stopWebNavigation(domain.LatLng point) => move(point);
   void resetNavigationForNewMap() {
-    _resumeTimer?.cancel(); _touches = 0; _lastCoursePoint = null; _lastCourseBearing = null; _navigationZoom = null;
-    followPaused.value = false; webHeading.value = 0;
+    _settleTimer?.cancel(); _touches = 0; _gesture = false;
+    followPaused.value = false;
   }
-  Future<void> move(domain.LatLng point, [double? zoom]) => _animate(gm.CameraPosition(
-    target: gm.LatLng(point.latitude, point.longitude), zoom: zoom ?? DriverMapConfig.fallbackZoom, tilt: DriverMapConfig.homeTilt));
-
+  Future<void> move(domain.LatLng point, [double? zoom]) {
+    _latestPoint = _gpsPoint ?? point;
+    if (_frame == null && _lastCamera == null && zoom != null) _currentZoom = zoom;
+    return _animate(cameraFor(_latestPoint!));
+  }
   Future<void> fitCoordinates(List<domain.LatLng> coordinates, {double padding = 90, double maxZoom = 16.5, bool animate = true}) async {
     final controller = _nativeController;
-    if (!ready || controller == null || coordinates.isEmpty) return;
+    if (!ready || !_visible || controller == null || coordinates.isEmpty || _frame != null || _gesture) return;
     final intent = ++_intent;
-    final points = List<domain.LatLng>.of(coordinates);
-    _resumeAction = () => fitCoordinates(points, padding: padding, maxZoom: maxZoom, animate: animate);
-    if (followPaused.value) return;
-    _automaticUntil = DateTime.now().add(const Duration(seconds: 2));
+    _automaticUntil = _now().add(const Duration(seconds: 2));
     if (kIsWeb) {
-      final fit = RamoMapCameraFit.calculate(points: points.map((p) => RamoMapPoint(p.latitude, p.longitude)).toList(),
+      final fit = RamoMapCameraFit.calculate(points: coordinates.map((p) => RamoMapPoint(p.latitude, p.longitude)).toList(),
         viewport: _viewport, padding: _padding, edgePadding: padding, maxZoom: maxZoom);
       if (fit == null) return;
       _currentZoom = fit.zoom;
-      // Preview may show the whole route. Navigation never invokes fitBounds.
       await controller.moveCamera(gm.CameraUpdate.newLatLngZoom(gm.LatLng(fit.center.latitude, fit.center.longitude), fit.zoom));
       return;
     }
-    if (points.length == 1) { await move(points.first, maxZoom); return; }
-    var minLat = points.first.latitude, maxLat = minLat, minLng = points.first.longitude, maxLng = minLng;
-    for (final p in points.skip(1)) { minLat = math.min(minLat, p.latitude); maxLat = math.max(maxLat, p.latitude); minLng = math.min(minLng, p.longitude); maxLng = math.max(maxLng, p.longitude); }
+    if (coordinates.length == 1) { await move(coordinates.first, maxZoom); return; }
+    var minLat = coordinates.first.latitude, maxLat = minLat, minLng = coordinates.first.longitude, maxLng = minLng;
+    for (final p in coordinates.skip(1)) { minLat = math.min(minLat, p.latitude); maxLat = math.max(maxLat, p.latitude); minLng = math.min(minLng, p.longitude); maxLng = math.max(maxLng, p.longitude); }
     final update = gm.CameraUpdate.newLatLngBounds(gm.LatLngBounds(southwest: gm.LatLng(minLat,minLng), northeast: gm.LatLng(maxLat,maxLng)), padding);
     if (animate) { await controller.animateCamera(update); } else { await controller.moveCamera(update); }
     if (followPaused.value || !ready || intent != _intent) return;
@@ -193,7 +225,7 @@ class DriverMapController {
       if (animate) { await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom)); } else { await controller.moveCamera(gm.CameraUpdate.zoomTo(maxZoom)); }
     }
   }
-  void dispose() { _disposed = true; detach(); followPaused.dispose(); webHeading.dispose(); }
+  void dispose() { _disposed = true; _settleTimer?.cancel(); detach(); followPaused.dispose(); webHeading.dispose(); }
 }
 
 class DriverLiveMap extends StatefulWidget {
@@ -204,6 +236,8 @@ class DriverLiveMap extends StatefulWidget {
     required this.activeRide,
     required this.route,
     this.navigationMode = false,
+    this.devicePosition,
+    this.headingDegrees,
     this.mapPadding = EdgeInsets.zero,
     this.nearbyDrivers = const [],
     this.onMapReady,
@@ -215,6 +249,8 @@ class DriverLiveMap extends StatefulWidget {
   final AcceptedDriverRide? activeRide;
   final DriverRouteInfo? route;
   final bool navigationMode;
+  final domain.LatLng? devicePosition;
+  final double? headingDegrees;
   final EdgeInsets mapPadding;
   final List<NearbyDriverPosition> nearbyDrivers;
   final VoidCallback? onMapReady;
@@ -241,6 +277,8 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   domain.LatLng get _driverPoint {
     final animated = _displayDriverPoint;
     if (animated != null) return animated;
+    final live = widget.devicePosition;
+    if (live != null) return live;
     final supply = widget.supply;
     if (supply == null) return DriverMapConfig.fallbackCenter;
     return domain.LatLng(supply.latitude, supply.longitude);
@@ -249,6 +287,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   @override
   void initState() {
     super.initState();
+    _displayDriverBearing = widget.headingDegrees ?? 0;
     if (kIsWeb) {
       _disposeMapGestures = subscribeDriverMapGestures(
       down: () => widget.controller.onMapPointerDown(), move: () => widget.controller.onMapPointerMove(),
@@ -256,7 +295,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     }
     final supply = widget.supply;
     if (supply != null) {
-      _displayDriverPoint = domain.LatLng(supply.latitude, supply.longitude);
+      _displayDriverPoint = widget.devicePosition ?? domain.LatLng(supply.latitude, supply.longitude);
     }
     _driverMoveController = AnimationController(
       vsync: this,
@@ -300,7 +339,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
         sample.point.latitude,
         sample.point.longitude,
       );
-      _displayDriverBearing = sample.bearing;
+      _displayDriverBearing = widget.headingDegrees ?? sample.bearing;
     });
   }
 
@@ -327,7 +366,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       _driverMoveController.stop();
       setState(() {
         _displayDriverPoint = to;
-        _displayDriverBearing = _bearingBetween(current, to);
+        _displayDriverBearing = widget.headingDegrees ?? _bearingBetween(current, to);
       });
       return;
     }
@@ -420,6 +459,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   @override
   void didUpdateWidget(covariant DriverLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.headingDegrees != null) _displayDriverBearing = widget.headingDegrees!;
 
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.detach();
@@ -451,25 +491,14 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       }
     }
 
-    final previousSupply = oldWidget.supply;
-    final nextSupply = widget.supply;
-    if (nextSupply == null) {
-      _driverMoveController.stop();
-      _displayDriverPoint = null;
-    } else if (previousSupply == null) {
-      _driverMoveController.stop();
-      _displayDriverPoint = domain.LatLng(
-        nextSupply.latitude,
-        nextSupply.longitude,
-      );
-    } else if (previousSupply.latitude != nextSupply.latitude ||
-        previousSupply.longitude != nextSupply.longitude) {
-      final from = domain.LatLng(
-        previousSupply.latitude,
-        previousSupply.longitude,
-      );
-      final to = domain.LatLng(nextSupply.latitude, nextSupply.longitude);
-      _moveDriverSmoothly(from, to);
+    final previous = oldWidget.devicePosition ?? (oldWidget.supply == null ? null : domain.LatLng(oldWidget.supply!.latitude, oldWidget.supply!.longitude));
+    final next = widget.devicePosition ?? (widget.supply == null ? null : domain.LatLng(widget.supply!.latitude, widget.supply!.longitude));
+    if (next == null) {
+      _driverMoveController.stop(); _displayDriverPoint = null;
+    } else if (previous == null) {
+      _driverMoveController.stop(); _displayDriverPoint = next;
+    } else if (previous.latitude != next.latitude || previous.longitude != next.longitude) {
+      _moveDriverSmoothly(previous, next);
     }
   }
 
@@ -640,11 +669,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
           : (Theme.of(context).brightness == Brightness.dark
               ? ramoDarkMapStyle
               : ramoLightMapStyle),
-      initialCameraPosition: gm.CameraPosition(
-        target: gm.LatLng(driverPoint.latitude, driverPoint.longitude),
-        zoom: DriverMapConfig.fallbackZoom,
-        tilt: DriverMapConfig.homeTilt,
-      ),
+      initialCameraPosition: widget.controller.cameraFor(driverPoint),
       onMapCreated: _onMapCreated,
       onCameraMove: (position) { if (mounted) widget.controller.updateCamera(position); },
       onCameraMoveStarted: () { if (mounted) widget.controller.onCameraMoveStarted(); },

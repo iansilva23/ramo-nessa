@@ -13,7 +13,7 @@ abstract final class DriverMapConfig {
   static const navigationZoom = 18.0;
   static const navigationTilt = 55.0;
   static const homeTilt = navigationTilt;
-  static const gestureResumeDelay = Duration(seconds: 3);
+  static const gestureSettleDelay = Duration(milliseconds: 120);
 
   /// Bounded, continuous framing from the route already in memory. Never
   /// requests another route or changes the fixed perspective angle.
