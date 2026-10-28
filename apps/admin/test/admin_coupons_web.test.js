@@ -88,3 +88,23 @@ test('API consulta cria e ativa campanha com sessão somente no header', async (
     assert.equal(call.url.includes('session'), false);
   }
 });
+
+test('Empresa paga é adicional, mantém remuneração e recebe orçamento e teto sem misturar tarifa fixa', () => {
+  const campaign = promotionPayload({...defaults,kind:'company_paid',budget:'500,00',companyCap:'20,00',value:'9',percent:'10'});
+  assert.equal(campaign.budgetCents,50000); assert.equal(campaign.maxDiscountCents,2000);
+  assert.equal(campaign.valueCents,undefined); assert.equal(campaign.fixedDriverFareCents,undefined);
+  assert.equal(campaign.enabled,false);
+});
+test('apresentação é opcional, editável e enviada separada dos valores financeiros', async () => {
+  const {campaignPresentationPayload} = await import('../src/promotions-admin.js');
+  assert.equal(campaignPresentationPayload({tag:''}),null);
+  const presentation = campaignPresentationPayload({tag:'influencer',partnerName:'Parceiro',message:'Olá {nome}',animation:'confetti'});
+  assert.deepEqual(presentation,{tag:'influencer',partnerName:'Parceiro',message:'Olá {nome}',animation:'confetti'});
+  assert.throws(()=>campaignPresentationPayload({...presentation,message:'x'.repeat(321)}));
+  const calls=[];
+  const api=createAdminApi(async (url,options)=>{calls.push({url,options});return {ok:true,status:200,headers:{get:()=> 'application/json'},json:async()=>({})};});
+  await api.updatePromotionPresentation('session','id',presentation,'2026-10-28T00:00:00Z');
+  assert.equal(calls[0].url,'/v1/admin/promotions/id/presentation');
+  assert.equal(calls[0].options.method,'PATCH');
+  assert.deepEqual(Object.keys(JSON.parse(calls[0].options.body)).sort(),['driverPresentation','expectedUpdatedAt']);
+});

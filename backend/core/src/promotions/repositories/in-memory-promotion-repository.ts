@@ -87,6 +87,16 @@ export class InMemoryPromotionRepository
     return structuredClone(next);
   }
 
+  async updateCampaignPresentation(id: string, presentation: PromotionCampaignRecord['driverPresentation'], expectedUpdatedAt: string, updatedAt: string): Promise<PromotionCampaignRecord> {
+    const current = this.campaigns.get(id);
+    if (current == null) throw new PromotionRepositoryError('PROMOTION_NOT_FOUND', 'Campanha não encontrada.');
+    if (current.updatedAt !== expectedUpdatedAt) throw new PromotionRepositoryError('PROMOTION_REFERENCE_CONFLICT', 'A campanha mudou. Atualize a lista antes de salvar.');
+    const {driverPresentation: _old, ...rest} = current;
+    const next = {...rest, ...(presentation == null ? {} : {driverPresentation: structuredClone(presentation)}), updatedAt};
+    this.campaigns.set(id, next);
+    return structuredClone(next);
+  }
+
   async getPreference(
     passengerId: string,
   ): Promise<PassengerPromotionPreferenceRecord | null> {
@@ -175,6 +185,11 @@ export class InMemoryPromotionRepository
         item.campaignId === input.redemption.campaignId &&
         activeForLimit(item, input.now),
     );
+    const campaign = this.campaigns.get(input.redemption.campaignId);
+    if (campaign?.budgetCents != null && campaign.kind !== 'fixed_driver_fare' &&
+        active.reduce((total, item) => total + item.discountCents, 0) + input.redemption.discountCents > campaign.budgetCents) {
+      throw new PromotionRepositoryError('PROMOTION_BUDGET_REACHED', 'O orçamento deste cupom foi atingido.');
+    }
     if (active.length >= input.maxRedemptions) {
       throw new PromotionRepositoryError(
         'PROMOTION_LIMIT_REACHED',
@@ -257,7 +272,12 @@ export class InMemoryPromotionRepository
         'Uso promocional não encontrado.',
       );
     }
+    const campaign = this.campaigns.get(current.campaignId);
     const next = { ...current, status, updatedAt };
+    if (campaign?.budgetCents != null && campaign.kind !== 'fixed_driver_fare' && activeForLimit(next, updatedAt)) {
+      const committed = [...this.redemptions.values()].filter(item => item.id !== id && item.campaignId === current.campaignId && activeForLimit(item, updatedAt)).reduce((sum, item) => sum + item.discountCents, 0);
+      if (committed + current.discountCents > campaign.budgetCents) throw new PromotionRepositoryError('PROMOTION_BUDGET_REACHED', 'O orçamento deste cupom foi atingido.');
+    }
     this.redemptions.set(id, structuredClone(next));
     return structuredClone(next);
   }

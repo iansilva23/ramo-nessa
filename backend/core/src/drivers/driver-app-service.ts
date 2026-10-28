@@ -1,3 +1,4 @@
+import { driverPromotionPresentation } from '../promotions/promotion-presentation.js';
 import type { RoutingDistanceProvider } from '../routing/distance-provider.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
@@ -268,6 +269,7 @@ export function driverOfferView(offer: {
     destination: ride.destination,
     pickupLabel: ride.pickupLabel ?? null,
     dropoffLabel: ride.dropoffLabel ?? null,
+    ...(ride.promotion?.driverPresentation == null ? {} : {campaignPresentation: driverPromotionPresentation(ride.promotion.driverPresentation, false)}),
     driverEarningsCents: ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
     occurrenceBonusCents:ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0,
     pickupCompensationCents: ride.quote.pickupCompensationCents,
@@ -406,6 +408,7 @@ export async function acceptOfferFromDriverApp(input: {
     offerId: result.offer.id,
     ride: {
       id: result.ride.id,
+      ...(result.ride.promotion?.driverPresentation == null ? {} : {campaignPresentation: driverPromotionPresentation(result.ride.promotion.driverPresentation, true)}),
       occurrencesEnabled:result.ride.occurrenceTerms?.enabled??false,
       occurrenceBonusCents:result.ride.paymentMethod==='cash'?(result.ride.occurrenceBonus?.amountCents??0):0,
       state: result.ride.state,

@@ -1,3 +1,4 @@
+import { parsePromotionPresentation } from '../promotions/promotion-presentation.js';
 import { randomUUID } from 'node:crypto';
 import type { AdminActor, AdminRepository } from './admin-repository.js';
 import {
@@ -35,6 +36,8 @@ export function parseAdminPromotion(body: unknown) {
     'startsAt',
     'endsAt',
     'enabled',
+    'budgetCents',
+    'driverPresentation',
   ];
   if (Object.keys(value).some((key) => !fields.includes(key)))
     invalid('Campo de campanha desconhecido.');
@@ -44,6 +47,7 @@ export function parseAdminPromotion(body: unknown) {
     'valueCents',
     'percentBps',
     'maxDiscountCents',
+    'budgetCents',
     'fixedDriverFareCents',
     'maxRedemptions',
     'perPassengerLimit',
@@ -76,6 +80,7 @@ export function parseAdminPromotion(body: unknown) {
     fixed_discount: ['valueCents'],
     percent_discount: ['percentBps', 'maxDiscountCents'],
     free_ride: [],
+    company_paid: ['maxDiscountCents'],
     fixed_driver_fare: ['fixedDriverFareCents', 'fixedDriverFaresByCategory'],
   };
   if (!Object.hasOwn(relevant, String(value.kind)))
@@ -94,6 +99,8 @@ export function parseAdminPromotion(body: unknown) {
       invalid('Valor incompatível com o tipo de cupom.');
   }
   return createPromotionCampaignRecord({
+    ...(value.budgetCents == null ? {} : {budgetCents: value.budgetCents as number}),
+    ...(value.driverPresentation == null ? {} : {driverPresentation: value.driverPresentation as import('../promotions/promotion-presentation.js').PromotionPresentation}),
     code: value.code as string,
     name: value.name as string,
     kind: value.kind as PromotionKind,
@@ -192,5 +199,22 @@ export async function setAdminPromotionEnabled(
     metadata: { code: campaign.code, enabled: campaign.enabled },
     createdAt: campaign.updatedAt,
   });
+  return campaign;
+}
+
+export async function updateAdminPromotionPresentation(input: Dependencies & {id: string}) {
+  const value = object(input.body);
+  if (Object.keys(value).some(key => !['driverPresentation', 'expectedUpdatedAt'].includes(key)) ||
+      !Object.hasOwn(value, 'driverPresentation') || typeof value.expectedUpdatedAt !== 'string' ||
+      !Number.isFinite(Date.parse(value.expectedUpdatedAt)) ||
+      !/^[0-9a-f-]{36}$/i.test(input.id)) invalid('Dados da apresentação inválidos.');
+  let presentation;
+  try { presentation = parsePromotionPresentation(value.driverPresentation); }
+  catch (error) { invalid((error as Error).message); }
+  const campaign = await input.promotions.updateCampaignPresentation(input.id, presentation,
+    value.expectedUpdatedAt, new Date().toISOString());
+  await input.admin.appendAudit({id: randomUUID(), actor: input.actor,
+    action: 'promotions.presentation_updated', targetType: 'promotion_campaign', targetId: campaign.id,
+    metadata: {tag: presentation?.tag ?? null, animation: presentation?.animation ?? null}, createdAt: campaign.updatedAt});
   return campaign;
 }

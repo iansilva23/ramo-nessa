@@ -17,6 +17,8 @@ import type { RideRecord } from '../../rides/ride.js';
 import { PostgresRideRepository } from '../../rides/repositories/postgres-ride-repository.js';
 
 interface CampaignRow {
+  budget_cents: number | null;
+  driver_presentation: PromotionCampaignRecord['driverPresentation'] | null;
   target_passenger_id: string | null;
   allowed_zones: import('../../pricing/types.js').ZoneId[];
   id: string;
@@ -64,7 +66,7 @@ interface RedemptionRow {
 }
 
 const CAMPAIGN_COLUMNS = `
-  id, target_passenger_id, allowed_zones, code, name, kind, value_cents, percent_bps,
+  id, budget_cents, driver_presentation, target_passenger_id, allowed_zones, code, name, kind, value_cents, percent_bps,
   max_discount_cents, fixed_driver_fare_cents, fixed_driver_fares_by_category, categories,
   max_redemptions, per_passenger_limit, per_device_limit,
   starts_at, ends_at, enabled, created_at, updated_at
@@ -80,6 +82,8 @@ const REDEMPTION_COLUMNS = `
 function mapCampaign(row: CampaignRow): PromotionCampaignRecord {
   return {
     id: row.id,
+    ...(row.budget_cents == null ? {} : {budgetCents: row.budget_cents}),
+    ...(row.driver_presentation == null ? {} : {driverPresentation: row.driver_presentation}),
     ...(row.target_passenger_id ? {targetPassengerId:row.target_passenger_id} : {}),
     allowedZones:row.allowed_zones??[],
     code: row.code,
@@ -219,9 +223,9 @@ export class PostgresPromotionRepository implements PromotionRepository {
           id, code, name, kind, value_cents, percent_bps,
           max_discount_cents, fixed_driver_fare_cents, categories,
           max_redemptions, per_passenger_limit, per_device_limit,
-          starts_at, ends_at, enabled, created_at, updated_at, fixed_driver_fares_by_category, target_passenger_id, allowed_zones
+          starts_at, ends_at, enabled, created_at, updated_at, fixed_driver_fares_by_category, target_passenger_id, allowed_zones, budget_cents, driver_presentation
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
         )
         RETURNING ${CAMPAIGN_COLUMNS}
         `,
@@ -246,6 +250,8 @@ export class PostgresPromotionRepository implements PromotionRepository {
           record.fixedDriverFaresByCategory == null ? null : JSON.stringify(record.fixedDriverFaresByCategory),
           record.targetPassengerId ?? null,
           record.allowedZones ?? [],
+          record.budgetCents ?? null,
+          record.driverPresentation == null ? null : JSON.stringify(record.driverPresentation),
         ],
       );
       return mapCampaign(result.rows[0]!);
@@ -278,6 +284,14 @@ export class PostgresPromotionRepository implements PromotionRepository {
         'Campanha não encontrada.',
       );
     }
+    return mapCampaign(result.rows[0]);
+  }
+
+  async updateCampaignPresentation(id: string, presentation: PromotionCampaignRecord['driverPresentation'], expectedUpdatedAt: string, updatedAt: string): Promise<PromotionCampaignRecord> {
+    const result = await this.pool.query<CampaignRow>(`UPDATE promotion_campaigns
+      SET driver_presentation = $2, updated_at = $4 WHERE id = $1 AND updated_at = $3::timestamptz
+      RETURNING ${CAMPAIGN_COLUMNS}`, [id, presentation == null ? null : JSON.stringify(presentation), expectedUpdatedAt, updatedAt]);
+    if (!result.rows[0]) throw new PromotionRepositoryError('PROMOTION_REFERENCE_CONFLICT', 'A campanha mudou ou não existe. Atualize a lista antes de salvar.');
     return mapCampaign(result.rows[0]);
   }
 
@@ -401,8 +415,8 @@ export class PostgresPromotionRepository implements PromotionRepository {
           ...(replacement == null ? [] : [replacement.campaignId]),
         ]),
       ].sort();
-      const campaigns = await client.query<{ id: string }>(
-        `SELECT id
+      const campaigns = await client.query<{ id: string; budget_cents: number | null; kind: string }>(
+        `SELECT id, budget_cents, kind
          FROM promotion_campaigns
          WHERE id = ANY($1::uuid[])
          ORDER BY id
@@ -449,6 +463,16 @@ export class PostgresPromotionRepository implements PromotionRepository {
            WHERE id = $1`,
           [replacement.id, input.now],
         );
+      }
+
+      const campaign = campaigns.rows.find(item => item.id === input.redemption.campaignId)!;
+      if (campaign.budget_cents != null && campaign.kind !== 'fixed_driver_fare') {
+        const spent = await client.query<{total: string}>(`SELECT coalesce(sum(discount_cents), 0)::text AS total
+          FROM promotion_redemptions WHERE campaign_id = $1 AND
+          (status = 'redeemed' OR (status = 'reserved' AND (expires_at IS NULL OR expires_at > $2::timestamptz)))`,
+          [input.redemption.campaignId, input.now]);
+        if (Number(spent.rows[0]!.total) + input.redemption.discountCents > campaign.budget_cents)
+          throw new PromotionRepositoryError('PROMOTION_BUDGET_REACHED', 'O orçamento deste cupom foi atingido.');
       }
 
       if (
@@ -603,20 +627,26 @@ export class PostgresPromotionRepository implements PromotionRepository {
     status: PromotionRedemptionStatus,
     updatedAt: string,
   ): Promise<PromotionRedemptionRecord> {
-    const result = await this.pool.query<RedemptionRow>(
-      `UPDATE promotion_redemptions
-       SET status = $2, updated_at = $3
-       WHERE id = $1
-       RETURNING ${REDEMPTION_COLUMNS}`,
-      [id, status, updatedAt],
-    );
-    if (result.rows[0] == null) {
-      throw new PromotionRepositoryError(
-        'PROMOTION_NOT_FOUND',
-        'Uso promocional não encontrado.',
-      );
-    }
-    return mapRedemption(result.rows[0]);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query<RedemptionRow>(`SELECT ${REDEMPTION_COLUMNS} FROM promotion_redemptions WHERE id = $1 FOR UPDATE`, [id]);
+      const row = current.rows[0];
+      if (!row) throw new PromotionRepositoryError('PROMOTION_NOT_FOUND', 'Uso promocional não encontrado.');
+      const campaign = (await client.query<{budget_cents:number|null;kind:string}>(
+        'SELECT budget_cents,kind FROM promotion_campaigns WHERE id=$1 FOR UPDATE', [row.campaign_id])).rows[0]!;
+      if (campaign.budget_cents != null && campaign.kind !== 'fixed_driver_fare' &&
+          (status === 'redeemed' || (status === 'reserved' && (row.expires_at == null || row.expires_at.toISOString() > updatedAt)))) {
+        const spent = (await client.query<{total:string}>(`SELECT coalesce(sum(discount_cents),0)::text total
+          FROM promotion_redemptions WHERE campaign_id=$1 AND id<>$2 AND
+          (status='redeemed' OR (status='reserved' AND (expires_at IS NULL OR expires_at>$3::timestamptz)))`, [row.campaign_id,id,updatedAt])).rows[0]!;
+        if (Number(spent.total)+row.discount_cents>campaign.budget_cents)
+          throw new PromotionRepositoryError('PROMOTION_BUDGET_REACHED','O orçamento deste cupom foi atingido.');
+      }
+      const result = await client.query<RedemptionRow>(`UPDATE promotion_redemptions SET status=$2,updated_at=$3 WHERE id=$1 RETURNING ${REDEMPTION_COLUMNS}`, [id,status,updatedAt]);
+      await client.query('COMMIT'); return mapRedemption(result.rows[0]!);
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
   }
 
   async extendReservedExpiry(id: string, expiresAt: string, at: string): Promise<void> {

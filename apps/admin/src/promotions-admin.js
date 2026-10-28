@@ -30,6 +30,7 @@ export const promotionKinds = {
   fixed_discount: 'Desconto em reais',
   percent_discount: 'Desconto percentual',
   free_ride: 'Corrida grátis',
+  company_paid: 'Empresa paga',
   fixed_driver_fare: 'Tarifa promocional fixa',
 };
 export const promotionCategories = {
@@ -97,6 +98,10 @@ export function promotionPayload(values) {
   }
   if (payload.startsAt && payload.endsAt && payload.endsAt <= payload.startsAt)
     throw new Error('O fim deve ser posterior ao início.');
+  if (String(values.budget ?? '').trim()) payload.budgetCents = moneyCents(values.budget, 'Orçamento');
+  if (payload.kind === 'company_paid' && String(values.companyCap ?? '').trim())
+    payload.maxDiscountCents = moneyCents(values.companyCap, 'Teto por corrida');
+  if (values.driverPresentation) payload.driverPresentation = values.driverPresentation;
   return payload;
 }
 
@@ -113,6 +118,7 @@ export function createPromotionsAdmin({
   const el = (id) => root.querySelector(`#${id}`);
   const form = el('coupon-form');
   const message = el('coupons-message');
+  const presentationEditor = createPresentationEditor(el('coupon-presentation'));
   function listen(target, type, handler) {
     target.addEventListener(type, handler);
     listeners.push(() => target.removeEventListener(type, handler));
@@ -131,6 +137,8 @@ export function createPromotionsAdmin({
     ].includes(kind);
     el('coupon-percent-fields').hidden = kind !== 'percent_discount';
     el('coupon-fares').hidden = kind !== 'fixed_driver_fare';
+    el('coupon-company-cap-field').hidden = kind !== 'company_paid';
+    el('coupon-company-help').hidden = kind !== 'company_paid';
     for (const category of Object.keys(promotionCategories)) {
       el(fareControls[category]).disabled =
         busy ||
@@ -140,10 +148,10 @@ export function createPromotionsAdmin({
   }
   function lock(value) {
     busy = value;
-    for (const input of form.querySelectorAll('input,select,button'))
+    for (const input of form.querySelectorAll('input,select,textarea,button'))
       input.disabled = value || !hasScope('finance:write');
     el('coupons-refresh').disabled = value;
-    for (const button of el('coupon-list').querySelectorAll('button'))
+    for (const button of el('coupon-list').querySelectorAll('input,select,textarea,button'))
       button.disabled = value || !hasScope('finance:write');
     sync();
   }
@@ -211,7 +219,24 @@ export function createPromotionsAdmin({
             show('Status da campanha atualizado.', 'success');
           }),
       );
-      card.append(title, detail, limits, button);
+      if (campaign.budgetCents) limits.textContent += ` Orçamento da empresa: ${money(campaign.budgetCents)}.`;
+      if (campaign.kind === 'company_paid') detail.textContent += campaign.maxDiscountCents ? ` · Até ${money(campaign.maxDiscountCents)} por corrida` : ' · Corrida inteira';
+      const editor = document.createElement('details');
+      const summary = document.createElement('summary'); summary.textContent = 'Editar identificação e mensagem';
+      const editorForm = document.createElement('form'), fields = document.createElement('fieldset');
+      const presentation = createPresentationEditor(fields, campaign.driverPresentation);
+      const save = document.createElement('button'); save.type = 'submit'; save.className = 'button button--ghost-dark'; save.textContent = 'Salvar apresentação';
+      for (const input of fields.querySelectorAll('input,select,textarea,button')) input.disabled = busy || !hasScope('finance:write');
+      save.disabled = busy || !hasScope('finance:write');
+      editorForm.append(fields, save); editor.append(summary, editorForm);
+      editorForm.addEventListener('submit', event => {
+        event.preventDefault(); if (!hasScope('finance:write')) return;
+        void perform(async () => {
+          await api.updatePromotionPresentation(getToken(), campaign.id, presentation.read(), campaign.updatedAt);
+          await reload(); show('Apresentação atualizada para as próximas corridas. Valores e corridas existentes preservados.', 'success');
+        });
+      });
+      card.append(title, detail, limits, button, editor);
       list.append(card);
     }
   }
@@ -267,9 +292,13 @@ export function createPromotionsAdmin({
           el(fareControls[key]).value,
         ]),
       );
+      values.budget = el('coupon-budget').value;
+      values.companyCap = el('coupon-company-cap').value;
+      values.driverPresentation = presentationEditor.read();
       await api.createPromotion(getToken(), promotionPayload(values));
       if (destroyed) return;
       form.reset();
+      presentationEditor.refresh();
       sync();
       show(
         'Campanha criada desativada. Revise os valores na lista e clique em Ativar.',
@@ -290,4 +319,49 @@ export function createPromotionsAdmin({
       listeners.forEach((remove) => remove());
     },
   };
+}
+
+export const campaignTags = {
+  special_guest: 'Convidado especial', influencer: 'Influenciador parceiro', promotional: 'Corrida promocional',
+  sponsored: 'Corrida patrocinada', event: 'Evento parceiro',
+};
+export const defaultCampaignMessage = '📸 Corrida especial com {nome}! Você foi convidado para fazer parte desta experiência.';
+export function campaignPresentationPayload({tag, partnerName, message, animation}) {
+  if (!tag) return null;
+  if (!Object.hasOwn(campaignTags, tag) || !['none', 'flash', 'confetti'].includes(animation)) throw new Error('Apresentação inválida.');
+  const name = partnerName.trim().replace(/\s+/g, ' '), text = message.trim();
+  if (name.length > 80 || text.length > 320) throw new Error('Nome: até 80 caracteres. Mensagem: até 320.');
+  return {tag, ...(name ? {partnerName: name} : {}), message: text, animation};
+}
+function createPresentationEditor(root, initial) {
+  const legend = document.createElement('legend'); legend.textContent = 'Identificação para o motorista (opcional)'; root.append(legend);
+  function field(title, tag, value) {
+    const label = document.createElement('label'); label.className = 'field';
+    const span = document.createElement('span'); span.textContent = title;
+    const input = document.createElement(tag); input.value = value; if (tag !== 'select') input.defaultValue = value; label.append(span, input); root.append(label); return input;
+  }
+  function options(select, items, selected) {
+    for (const [value, label] of Object.entries(items)) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.defaultSelected = value === selected; select.append(option); }
+    select.value = selected;
+  }
+  const tag = field('Tag da corrida', 'select', ''); options(tag, {'': 'Sem identificação', ...campaignTags}, initial?.tag ?? '');
+  const partnerName = field('Nome autorizado do parceiro (após aceite)', 'input', initial?.partnerName ?? ''); partnerName.maxLength = 80;
+  const message = field('Mensagem após o aceite', 'textarea', initial?.message ?? defaultCampaignMessage); message.maxLength = 320; message.rows = 3;
+  const animation = field('Efeito após o aceite', 'select', ''); options(animation, {none:'Sem animação', flash:'Flashes de câmera', confetti:'Confetes'}, initial?.animation ?? 'flash');
+  const help = document.createElement('p'); help.className = 'muted-copy'; help.textContent = 'Use {nome} para inserir o parceiro. A oferta mostra a tag e o ganho; nome e mensagem aparecem após aceitar. A apresentação acompanha cupons aplicados à corrida; crédito na carteira continua sendo saldo, sem identificar corridas futuras.';
+  const preview = document.createElement('div'); preview.className = 'panel-card'; preview.setAttribute('aria-live','polite');
+  const before = document.createElement('p'), after = document.createElement('p'); preview.append(before, after);
+  const play = document.createElement('button'); play.type = 'button'; play.textContent = 'Prévia do efeito'; play.className = 'button button--ghost-dark';
+  root.append(help, preview, play);
+  const read = () => campaignPresentationPayload({tag:tag.value,partnerName:partnerName.value,message:message.value,animation:animation.value});
+  const refresh = () => {
+    before.textContent = tag.value ? `Antes do aceite: ${campaignTags[tag.value]} · ganho da oferta` : 'Oferta normal, sem identificação adicional.';
+    after.textContent = tag.value ? `Após o aceite: ${partnerName.value.trim() || 'Parceiro'} — ${message.value.replaceAll('{nome}', partnerName.value.trim() || 'nosso parceiro')}` : '';
+  };
+  for (const input of [tag, partnerName, message, animation]) input.addEventListener('input', refresh);
+  play.addEventListener('click', () => {
+    if (!tag.value || animation.value === 'none' || globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    preview.animate(animation.value === 'flash' ? [{opacity:1},{opacity:.7},{opacity:1},{opacity:.85},{opacity:1}] : [{transform:'translateY(0)'},{transform:'translateY(-4px)',boxShadow:'0 0 0 4px #f7c940'},{transform:'translateY(0)'}], {duration:900, iterations:1});
+  });
+  refresh(); return {read, refresh};
 }

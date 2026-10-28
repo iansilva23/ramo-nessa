@@ -69,6 +69,8 @@ class PassengerPromotionCampaign {
             ? ''
             : ' · até ${formatCents(maxDiscountCents!)}';
         return '$percent% de desconto$limit';
+      case 'company_paid':
+        return maxDiscountCents == null ? 'Corrida paga pela empresa' : 'Empresa paga até ${formatCents(maxDiscountCents!)}';
       case 'free_ride':
         return 'Corrida grátis';
       case 'fixed_driver_fare':

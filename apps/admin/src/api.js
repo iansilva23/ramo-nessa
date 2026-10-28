@@ -518,6 +518,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
 
     listPromotions(token) { return request('/v1/admin/promotions', { token }); },
     createPromotion(token, campaign) { return request('/v1/admin/promotions', { token, method: 'POST', body: campaign }); },
+    updatePromotionPresentation(token, id, driverPresentation, expectedUpdatedAt) { return request(`/v1/admin/promotions/${encodeURIComponent(id)}/presentation`, {token, method:'PATCH', body:{driverPresentation, expectedUpdatedAt}}); },
     setPromotionEnabled(token, id, enabled) {
       return request(`/v1/admin/promotions/${encodeURIComponent(id)}/enabled`, { token, method: 'PATCH', body: { enabled } });
     },
