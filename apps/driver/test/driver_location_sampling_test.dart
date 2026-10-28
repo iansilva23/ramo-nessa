@@ -70,5 +70,6 @@ void main() {
     final finalCalls = platform.cameraSettings.length;
     await tester.pump(const Duration(seconds: 3)); expect(platform.cameraSettings, hasLength(finalCalls));
     await tester.runAsync(() => platform.positions.close());
+    debugDefaultTargetPlatformOverride = null;
   }, timeout: const Timeout(Duration(seconds: 30)));
 }
