@@ -94,9 +94,12 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: coupons-browser-evidence, path: |
+        with:
+          name: coupons-browser-evidence
+          path: |
             artifacts/coupons-admin/
-            artifacts/direct-entry-auth/, if-no-files-found: ignore}
+            artifacts/direct-entry-auth/
+          if-no-files-found: ignore
   publish-package:
     needs: package
     runs-on: ubuntu-24.04
