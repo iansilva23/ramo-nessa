@@ -18,6 +18,13 @@ class LocationPlatform extends GeolocatorPlatform {
     streams.add(controller); return controller.stream;
   }
 }
+class RecordingLocationService extends DeviceDriverLocationService {
+  final states = <AppLifecycleState>[];
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    states.add(state); super.didChangeAppLifecycleState(state);
+  }
+}
 void main() {
   testWidgets('foreground fixes are quick, background service stays enabled and uploads retain telemetry', (tester) async {
     if (kIsWeb) return;
@@ -26,9 +33,9 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() { GeolocatorPlatform.instance = original; debugDefaultTargetPlatformOverride = null; });
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    final service = DeviceDriverLocationService(), values = <DriverPosition>[];
+    final service = RecordingLocationService(), values = <DriverPosition>[];
     final subscription = service.positionStream().listen(values.add);
-    await tester.pump(); await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10)); await tester.pump(const Duration(milliseconds: 10));
     final foreground = platform.settings.last as AndroidSettings;
     expect(foreground.intervalDuration, const Duration(seconds: 1)); expect(foreground.distanceFilter, 3);
     expect(foreground.foregroundNotificationConfig!.enableWakeLock, true);
@@ -43,13 +50,13 @@ void main() {
     await tester.pump();
     expect(values.last.speedMetersPerSecond, isNull); expect(values.last.courseDegrees, isNull);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump(); await tester.pump();
-    expect(platform.settings.length, 2, reason: 'the platform subscription must be replaced on background transition');
+    await tester.pump(const Duration(milliseconds: 10)); await tester.pump(const Duration(milliseconds: 10));
+    expect(platform.settings.length, 2, reason: 'background replacement: lifecycle=${service.states}; active=${platform.active}');
     final background = platform.settings.last as AndroidSettings;
     expect(background.intervalDuration, const Duration(seconds: 10)); expect(background.distanceFilter, 20);
     expect(background.foregroundNotificationConfig!.enableWakeLock, true); expect(platform.active, 1);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump(); await tester.pump(); expect((platform.settings.last as AndroidSettings).distanceFilter, 3);
+    await tester.pump(const Duration(milliseconds: 10)); await tester.pump(const Duration(milliseconds: 10)); expect((platform.settings.last as AndroidSettings).distanceFilter, 3);
     expect(platform.active, 1);
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     final apple = service.streamSettings(foreground: false) as AppleSettings;
