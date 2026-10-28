@@ -1,3 +1,4 @@
+import { driverPromotionPresentation } from '../promotions/promotion-presentation.js';
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import { settleCompletedRide } from '../payments/settlement.js';
@@ -29,6 +30,7 @@ export function driverRideView(ride: RideRecord) {
     pickupLongitude: ride.pickupLongitude,
     dropoffLatitude: ride.dropoffLatitude,
     dropoffLongitude: ride.dropoffLongitude,
+    ...(ride.promotion?.driverPresentation == null ? {} : {campaignPresentation: driverPromotionPresentation(ride.promotion.driverPresentation, true)}),
     driverEarningsCents: ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
     pickupCompensationCents: ride.quote.pickupCompensationCents,
     paymentMethod: ride.paymentMethod ?? null,

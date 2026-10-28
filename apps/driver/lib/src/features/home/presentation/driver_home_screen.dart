@@ -47,6 +47,7 @@ import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
+import 'widgets/driver_campaign_notice.dart';
 import 'widgets/driver_map_panel_extent.dart';
 import 'widgets/driver_web_heading_compass.dart';
 
@@ -141,6 +142,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverOffer? _offer;
   String? _lastAlertedOfferId;
   AcceptedDriverRide? _activeRide;
+  String? _celebratingCampaignRideId;
+  DateTime? _campaignCelebrationUntil;
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
   DriverActivitySnapshot? _activity;
@@ -1051,6 +1054,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       _stopNearbyPolling();
       setState(() {
         _activeRide = ride;
+        _celebratingCampaignRideId = ride.id;
+        _campaignCelebrationUntil = DateTime.now().add(const Duration(seconds: 2));
         _completedPresentation = null;
         _supply = supply;
         _offer = null;
@@ -2501,6 +2506,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                   )
                                 : null,
                             ride: presentedRide,
+                            celebrateUntil: _celebratingCampaignRideId == presentedRide.id ? _campaignCelebrationUntil : null,
                             busy: _rideAction,
                             navigationActive: _navigationMode,
                             onNavigate: () => _startInAppNavigation(explicit:true),
@@ -4839,6 +4845,9 @@ class _ActiveRideCompactBar extends StatelessWidget {
                               fontSize: 11,
                             ),
                           ),
+                          if ((offer?.campaignPresentation ?? ride?.campaignPresentation) != null)
+                            Text((offer?.campaignPresentation ?? ride?.campaignPresentation)!.label,
+                              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 10)),
                           if (identity != null) identity!,
                           Text(
                             route != null && ride?.state != 'COMPLETED'
@@ -4899,6 +4908,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
 class _ActiveRideCard extends StatelessWidget {
   const _ActiveRideCard({
     this.identity,
+    this.celebrateUntil,
     super.key,
     required this.ride,
     required this.busy,
@@ -4919,6 +4929,7 @@ class _ActiveRideCard extends StatelessWidget {
   });
 
   final AcceptedDriverRide ride;
+  final DateTime? celebrateUntil;
   final Widget? identity;
   final bool busy;
   final bool navigationActive;
@@ -5100,6 +5111,10 @@ class _ActiveRideCard extends StatelessWidget {
                     ? 'Reserva com prazo limitado. Aguarde a confirmação do pagamento.'
                     : 'Reserva: ${ride.driverHoldExpiresAt!.difference(DateTime.now()).inSeconds.clamp(0, 999)} segundos restantes. Aguarde a confirmação do pagamento.',
               ),
+              const SizedBox(height: 12),
+            ],
+            if (ride.campaignPresentation != null) ...[
+              DriverCampaignNotice(presentation: ride.campaignPresentation!, celebrateUntil: celebrateUntil),
               const SizedBox(height: 12),
             ],
             if (identity != null) identity!,

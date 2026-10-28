@@ -306,7 +306,7 @@ import {
   savePassengerPromotionPreference,
   PromotionError,
 } from './promotions/promotion-service.js';
-import { createAdminPromotion, setAdminPromotionEnabled } from './admin/admin-promotions-service.js';
+import { createAdminPromotion, setAdminPromotionEnabled, updateAdminPromotionPresentation } from './admin/admin-promotions-service.js';
 import {
   clearDriverBenefitBase,
   createDriverBenefitCampaign,
@@ -3837,6 +3837,15 @@ const server = createServer(async (request, response) => {
           admin: adminRepository, actor, body: await readJson(request)});
         json(response, 201, { campaign });
       }
+      return;
+    }
+    const presentationMatch = requestUrl.pathname.match(/^\/v1\/admin\/promotions\/([^/]+)\/presentation$/);
+    if (request.method === 'PATCH' && presentationMatch != null) {
+      const actor = await authenticateAdminPrincipal({apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: 'finance:write'});
+      const campaign = await updateAdminPromotionPresentation({promotions: promotionRepository, admin: adminRepository,
+        actor, id: presentationMatch[1]!, body: await readJson(request)});
+      json(response, 200, {campaign});
       return;
     }
     const adminPromotionMatch = requestUrl.pathname.match(/^\/v1\/admin\/promotions\/([^/]+)\/enabled$/);

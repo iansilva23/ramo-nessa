@@ -510,6 +510,7 @@ class _DriverOfferDesign extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (offer.campaignPresentation != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: DriverCampaignNotice(presentation: offer.campaignPresentation!, compact: true)),
           const SizedBox(height: 12),
           Row(
             children: [

@@ -31,6 +31,7 @@ const cases = [
   { kind: 'fixed_discount', payable: 15000, subsidy: 5000, driver: 18000, commission: 2000 },
   { kind: 'percent_discount', payable: 17000, subsidy: 3000, driver: 18000, commission: 2000 },
   { kind: 'free_ride', payable: 0, subsidy: 20000, driver: 18000, commission: 2000 },
+  { kind: 'company_paid', payable: 0, subsidy: 20000, driver: 18000, commission: 2000 },
   { kind: 'fixed_driver_fare', payable: 5000, subsidy: 0, driver: 5000, commission: 0 },
 ] as const;
 
@@ -233,7 +234,7 @@ for (const invalid of ['expired', 'released', 'wrong-passenger', 'missing'] as c
   });
 }
 
-for (const scenario of cases.filter(item => item.kind !== 'free_ride')) {
+for (const scenario of cases.filter(item => item.payable > 0)) {
   for (const method of ['pix', 'card'] as const) {
     test(`${scenario.kind}: ${method} cobra somente restante e estorna sem escrow residual`, async () => {
       const context = await setup(scenario.kind);

@@ -1,3 +1,4 @@
+import { parsePromotionPresentation, type PromotionPresentation } from './promotion-presentation.js';
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
@@ -23,6 +24,7 @@ import {
 } from './promotion-repository.js';
 
 export interface RidePromotionSnapshot {
+  driverPresentation?: PromotionPresentation;
   campaignId: string;
   applicationId: string;
   code: string;
@@ -118,6 +120,8 @@ export function createPromotionCampaignRecord(input: {
   code: string;
   name: string;
   kind: PromotionKind;
+  budgetCents?: number;
+  driverPresentation?: PromotionPresentation;
   valueCents?: number;
   percentBps?: number;
   maxDiscountCents?: number;
@@ -132,6 +136,10 @@ export function createPromotionCampaignRecord(input: {
   enabled?: boolean;
   now?: Date;
 }): PromotionCampaignRecord {
+  let driverPresentation: PromotionPresentation | undefined;
+  try { driverPresentation = parsePromotionPresentation(input.driverPresentation); }
+  catch (error) { throw new PromotionError('INVALID_PROMOTION_CAMPAIGN', (error as Error).message); }
+  const budgetCents = positiveInt(input.budgetCents, 'Orçamento');
   const code = normalizePromotionCode(input.code);
   const name = input.name.trim().replace(/\s+/g, ' ');
   if (name.length < 3 || name.length > 80) {
@@ -245,6 +253,8 @@ export function createPromotionCampaignRecord(input: {
     code,
     name,
     kind: input.kind,
+    ...(budgetCents == null ? {} : { budgetCents }),
+    ...(driverPresentation == null ? {} : { driverPresentation }),
     ...(valueCents == null ? {} : { valueCents }),
     ...(percentBps == null ? {} : { percentBps }),
     ...(maxDiscountCents == null ? {} : { maxDiscountCents }),
@@ -432,10 +442,11 @@ function promotionValues(
     };
   }
 
-  if (campaign.kind === 'free_ride') {
+  if (campaign.kind === 'free_ride' || campaign.kind === 'company_paid') {
+    const covered = campaign.kind === 'company_paid' ? Math.min(normalTotal, campaign.maxDiscountCents ?? normalTotal) : normalTotal;
     return {
-      discountCents: normalTotal,
-      passengerPayableCents: 0,
+      discountCents: covered,
+      passengerPayableCents: normalTotal - covered,
       driverEarningsCents: ride.quote.driverNetCents,
     };
   }
@@ -606,6 +617,7 @@ export async function applyPromotionToRide(input: {
     passengerPayableCents: values.passengerPayableCents,
     driverEarningsCents: values.driverEarningsCents,
     originalQuote,
+    ...(campaign.driverPresentation == null ? {} : {driverPresentation: structuredClone(campaign.driverPresentation)}),
   };
 
   const promotedQuote =

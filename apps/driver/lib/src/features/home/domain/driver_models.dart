@@ -77,9 +77,19 @@ class DriverLocationRef {
   }
 }
 
+class DriverCampaignPresentation {
+  const DriverCampaignPresentation({required this.tag, required this.label, this.partnerName, this.message, this.animation = 'none'});
+  factory DriverCampaignPresentation.fromJson(Map<String, dynamic> json) => DriverCampaignPresentation(
+    tag: json['tag'] as String? ?? '', label: json['label'] as String? ?? 'Corrida especial',
+    partnerName: json['partnerName'] as String?, message: json['message'] as String?, animation: json['animation'] as String? ?? 'none');
+  final String tag, label, animation;
+  final String? partnerName, message;
+}
+
 class DriverOffer {
   const DriverOffer({
     required this.id,
+    this.campaignPresentation,
     required this.rideId,
     required this.expiresAt,
     required this.approximatePickupDistanceKm,
@@ -107,6 +117,7 @@ class DriverOffer {
   factory DriverOffer.fromJson(Map<String, dynamic> json) {
     return DriverOffer(
       occurrenceBonusCents:(json['occurrenceBonusCents'] as num?)?.toInt()??0,
+      campaignPresentation: json['campaignPresentation'] is Map<String, dynamic> ? DriverCampaignPresentation.fromJson(json['campaignPresentation'] as Map<String, dynamic>) : null,
       id: json['id'] as String,
       rideId: json['rideId'] as String,
       expiresAt: DateTime.parse(json['expiresAt'] as String),
@@ -138,6 +149,7 @@ class DriverOffer {
     );
   }
 
+  final DriverCampaignPresentation? campaignPresentation;
   final String id;
   final String rideId;
   final DateTime expiresAt;
@@ -178,6 +190,7 @@ class DriverOffer {
 class AcceptedDriverRide {
   const AcceptedDriverRide({
     required this.id,
+    this.campaignPresentation,
     this.occurrencesEnabled = false,
     this.occurrenceBonusCents = 0,
     required this.state,
@@ -205,6 +218,7 @@ class AcceptedDriverRide {
 
   factory AcceptedDriverRide.fromJson(Map<String, dynamic> json) {
     return AcceptedDriverRide(
+      campaignPresentation: json['campaignPresentation'] is Map<String, dynamic> ? DriverCampaignPresentation.fromJson(json['campaignPresentation'] as Map<String, dynamic>) : null,
       id: json['id'] as String,
       occurrencesEnabled: json['occurrencesEnabled'] == true,
       occurrenceBonusCents: (json['occurrenceBonusCents'] as num?)?.toInt() ?? 0,
@@ -239,6 +253,7 @@ class AcceptedDriverRide {
     );
   }
 
+  final DriverCampaignPresentation? campaignPresentation;
   final String id;
   final bool occurrencesEnabled;
   final int occurrenceBonusCents;

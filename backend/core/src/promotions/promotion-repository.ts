@@ -1,3 +1,4 @@
+import type { PromotionPresentation } from './promotion-presentation.js';
 import type { RideRecord } from '../rides/ride.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 
@@ -6,6 +7,7 @@ export const PROMOTION_KINDS = [
   'fixed_discount',
   'percent_discount',
   'free_ride',
+  'company_paid',
   'fixed_driver_fare',
 ] as const;
 
@@ -24,6 +26,8 @@ export type PromotionCategory =
 
 export interface PromotionCampaignRecord {
   id: string;
+  budgetCents?: number;
+  driverPresentation?: PromotionPresentation;
   targetPassengerId?: string;
   allowedZones?: import('../pricing/types.js').ZoneId[];
   code: string;
@@ -79,6 +83,7 @@ export class PromotionRepositoryError extends Error {
     public readonly code:
       | 'PROMOTION_NOT_FOUND'
       | 'PROMOTION_LIMIT_REACHED'
+      | 'PROMOTION_BUDGET_REACHED'
       | 'PROMOTION_PASSENGER_LIMIT_REACHED'
       | 'PROMOTION_DEVICE_LIMIT_REACHED'
       | 'PROMOTION_REFERENCE_CONFLICT',
@@ -166,6 +171,7 @@ export function prepareRidePromotionRemoval(
 }
 
 export interface PromotionRepository {
+  updateCampaignPresentation(id: string, presentation: PromotionPresentation | undefined, expectedUpdatedAt: string, updatedAt: string): Promise<PromotionCampaignRecord>;
   listCampaigns(): Promise<PromotionCampaignRecord[]>;
   findCampaignById(id: string): Promise<PromotionCampaignRecord | null>;
   findCampaignByCode(code: string): Promise<PromotionCampaignRecord | null>;

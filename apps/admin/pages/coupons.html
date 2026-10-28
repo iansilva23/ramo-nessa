@@ -93,6 +93,7 @@
             <option value="fixed_discount">Desconto em reais</option>
             <option value="percent_discount">Desconto percentual</option>
             <option value="free_ride">Corrida grátis</option>
+            <option value="company_paid">Empresa paga</option>
             <option value="fixed_driver_fare">Tarifa promocional fixa</option>
           </select></label
         >
@@ -118,6 +119,12 @@
           /></label>
         </div>
       </div>
+      <div class="form-grid">
+        <label class="field"><span>Orçamento da empresa (R$, opcional)</span><input id="coupon-budget" type="text" inputmode="decimal" placeholder="Sem teto de orçamento" /></label>
+        <label id="coupon-company-cap-field" class="field" hidden><span>Empresa paga até (R$, opcional)</span><input id="coupon-company-cap" type="text" inputmode="decimal" placeholder="Corrida inteira" /></label>
+      </div>
+      <p id="coupon-company-help" hidden>A empresa financia o benefício e o motorista mantém a remuneração normal. Com teto por corrida, o passageiro paga o restante. O subsídio é registrado no financeiro.</p>
+      <fieldset id="coupon-presentation"></fieldset>
       <fieldset>
         <legend>
           Categorias permitidas (nenhuma seleção = todas, exceto tarifa fixa)

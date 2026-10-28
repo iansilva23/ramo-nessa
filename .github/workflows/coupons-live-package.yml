@@ -1,0 +1,117 @@
+name: Coupons and driver camera - verified combined Web installer
+on:
+  push:
+    branches: [feature/sponsored-coupons-20261028]
+    paths: ['deploy/staging/*coupons*', 'scripts/web/*coupons*', '.github/workflows/coupons-live-package.yml', 'apps/**', 'backend/**']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: coupons-live-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve pinned app source and map compatibility
+        run: git diff --exit-code 2fc82e5dfd0a2ccd958be088ed11970b262c6f15 HEAD -- backend apps packages config/web
+      - name: Validate installer and preserved runtime contracts
+        run: |
+          node --check deploy/staging/coupons-web-update.mjs
+          node --check deploy/staging/coupons-migrations.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_coupons.py
+          node --test scripts/web/push_worker_test.mjs deploy/staging/google-search-update.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+      - name: Compile the installed Core baseline and the exact reviewed update
+        run: |
+          mkdir baseline
+          git archive f8417a6e6e59a11fee4b498c08ce42eaa167f716 backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run typecheck --prefix backend/core
+          npm run build --prefix backend/core
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Test driver camera and campaign cards without changing native configuration
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+      - name: Compile configured Passenger and Driver Web with preserved public provider settings
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          for role in passenger driver; do
+            if [ "$role" = passenger ]; then prefix=passageiro; else prefix=motorista; fi
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            (cd "apps/$role" && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href="/$prefix/" --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true)
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Assemble hash-pinned files and strict manifest
+        run: |
+          node scripts/web/package_coupons_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib,zipfile
+          with zipfile.ZipFile('RamoNessa-Cupons-Mapa-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum RamoNessa-Cupons-Mapa-Web.zip > RamoNessa-Cupons-Mapa-Web.zip.sha256
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Exercise both configured applications in both browser engines
+        run: |
+          node scripts/web/coupons_admin_browser_test.mjs
+          for role in passenger driver; do
+            for engine in chromium webkit; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+            done
+          done
+      - name: Rehearse real backup restore, additive migration, existing coupons, update failures and safe rollback
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-coupons-web-update.mjs "$PWD/RamoNessa-Cupons-Mapa-Web.zip" "$PWD/baseline"
+      - name: Package installer after successful rehearsal
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Cupons-Mapa-Web.tar.gz
+          sha256sum Instalador-Cupons-Mapa-Web.tar.gz > Instalador-Cupons-Mapa-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coupons-live-tested
+          path: |
+            RamoNessa-Cupons-Mapa-Web.zip
+            RamoNessa-Cupons-Mapa-Web.zip.sha256
+            Instalador-Cupons-Mapa-Web.tar.gz
+            Instalador-Cupons-Mapa-Web.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coupons-browser-evidence
+          path: |
+            artifacts/coupons-admin/
+            artifacts/direct-entry-auth/
+          if-no-files-found: ignore
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: coupons-live-tested, path: package}
+      - name: Publish verified package without accessing the VPS
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          cd package
+          sha256sum -c RamoNessa-Cupons-Mapa-Web.zip.sha256
+          sha256sum -c Instalador-Cupons-Mapa-Web.tar.gz.sha256
+          gh release create coupons-web-20261028-r1 RamoNessa-Cupons-Mapa-Web.zip RamoNessa-Cupons-Mapa-Web.zip.sha256 Instalador-Cupons-Mapa-Web.tar.gz Instalador-Cupons-Mapa-Web.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Cupons e mapa do Motorista — atualização conjunta' --notes 'Modalidade Empresa paga, tags opcionais, nome e mensagem editáveis no ADM, efeitos contidos no cartão do Motorista. Modalidades e cupons antigos preservados; migração aditiva 100. Inclui câmera escolhida e GPS de deslocamento do Motorista. Passageiro mantém o Guia em modos claro/escuro. Políticas existentes, provedores, documentos e financeiro preservados. Backup restaurado em isolamento e retorno ensaiado sem restaurar saldos. Instalação manual na VPS; nativos em release separado.'
