@@ -22,7 +22,7 @@ class DriverTravelHeading {
       rotating = false; _last = null; _anchor = null; _reverseCandidate = null; return;
     }
     final previous = _last;
-    if (previous?.observedAt != null && !time.isAfter(previous.observedAt!)) return;
+    if (previous != null && !time.isAfter(previous.observedAt!)) return;
     _last = fix;
     if (previous != null) {
       final seconds = time.difference(previous.observedAt!).inMilliseconds / 1000;

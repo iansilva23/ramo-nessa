@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_driver/src/core/config/driver_map_config.dart';
+import 'package:ramo_nessa_driver/src/core/location/driver_location_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_map_panel_extent.dart';
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_camera_padding.dart';
@@ -117,6 +118,19 @@ void main() {
         expect(moved.zoom, 16.4); expect(moved.tilt, 45);
       }
     }
+  });
+  test('an older GPS result cannot move the camera backwards after a fresh fix', () async {
+    final now = DateTime.utc(2026, 10, 27, 12);
+    final sdk = CameraRecorder(), c = DriverMapController(now: () => now);
+    c.updateViewport(const Size(390, 760)); c.attach(sdk);
+    expect(c.observePosition(DriverPosition(latitude: -2.82, longitude: -40.41, observedAt: now)), true);
+    expect(c.observePosition(DriverPosition(latitude: -2.83, longitude: -40.42,
+      observedAt: now.subtract(const Duration(seconds: 1)))), false);
+    await c.followNavigation(const LatLng(-2.83, -40.42));
+    final camera = recordedCamera(sdk);
+    expect(camera.target.latitude, closeTo(-2.82, .000001));
+    expect(camera.target.longitude, closeTo(-40.41, .000001));
+    c.dispose();
   });
   testWidgets('measured card height follows text/layout changes and minimization', (tester) async {
     final heights=<double>[];

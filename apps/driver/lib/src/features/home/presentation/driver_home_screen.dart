@@ -626,8 +626,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     if (!position.latitude.isFinite || !position.longitude.isFinite || position.latitude.abs() > 90 || position.longitude.abs() > 180) return;
     final observedAt = position.observedAt;
     if (observedAt != null && (DateTime.now().difference(observedAt) > const Duration(seconds: 15) ||
-        observedAt.difference(DateTime.now()) > const Duration(seconds: 1))) return;
-    _mapController.observePosition(position);
+        observedAt.difference(DateTime.now()) > const Duration(seconds: 1))) { return; }
+    if (!_mapController.observePosition(position)) return;
     _cameraDevicePosition = position;
     // Camera and marker use the device fix immediately, including while a
     // previous HTTP upload is in flight. Routing still runs on server cadence.
@@ -944,7 +944,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
       if (!mounted) return;
       if (position != null) {
-        _cameraDevicePosition = position; _mapController.observePosition(position);
+        if (_mapController.observePosition(position)) _cameraDevicePosition = position;
         _locationUploadGate.recordManualUpdate(DateTime.now());
       }
       setState(() {
@@ -1004,7 +1004,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (!mounted) return;
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
-      _cameraDevicePosition = position; _mapController.observePosition(position);
+      if (_mapController.observePosition(position)) _cameraDevicePosition = position;
       _locationUploadGate.recordManualUpdate(DateTime.now());
       setState(() {
         _supply = updated;

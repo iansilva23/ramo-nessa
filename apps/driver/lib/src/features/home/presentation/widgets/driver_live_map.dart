@@ -58,18 +58,24 @@ class DriverMapController {
   gm.CameraPosition? _queued, _lastCamera;
   domain.LatLng? _latestPoint, _gpsPoint;
   DriverFollowFrame? _frame;
+  DateTime? _latestGpsTime;
   bool get hasChosenFrame => _frame != null;
   double get vehicleBearing => _travel.bearing ?? 0;
   bool get ready => !_disposed && _nativeController != null;
   double get currentZoom => _currentZoom;
   void updateViewport(Size size, [EdgeInsets padding = EdgeInsets.zero]) { _viewport = size; _padding = padding; }
   void attach(gm.GoogleMapController controller) { if (!_disposed) _nativeController = controller; }
-  void observePosition(DriverPosition fix) {
-    if (_disposed) return;
+  bool observePosition(DriverPosition fix) {
+    if (_disposed) return false;
+    final time = fix.observedAt, previous = _latestGpsTime;
+    if (time != null && previous != null && !time.isAfter(previous)) return false;
     _travel.update(fix, now: _now());
-    if (fix.latitude.isFinite && fix.longitude.isFinite && fix.latitude.abs() <= 90 && fix.longitude.abs() <= 180) {
-      _gpsPoint = domain.LatLng(fix.latitude, fix.longitude); _latestPoint = _gpsPoint;
-    }
+    if (time != null && (_now().difference(time) > const Duration(seconds: 15) ||
+        time.difference(_now()) > const Duration(seconds: 1))) { return false; }
+    if (!fix.latitude.isFinite || !fix.longitude.isFinite || fix.latitude.abs() > 90 || fix.longitude.abs() > 180) return false;
+    _latestGpsTime = time ?? previous;
+    _gpsPoint = domain.LatLng(fix.latitude, fix.longitude); _latestPoint = _gpsPoint;
+    return true;
   }
   void setVisible(bool visible) {
     if (_disposed) return;
@@ -138,8 +144,10 @@ class DriverMapController {
   }
   gm.CameraPosition cameraFor(domain.LatLng point) {
     final frame = _frame;
-    if (frame != null) return frame.cameraFor(vehicle: point, course: _travel.bearing ?? 0,
-      viewport: _viewport, padding: _padding, web: kIsWeb);
+    if (frame != null) {
+      return frame.cameraFor(vehicle: point, course: _travel.bearing ?? 0,
+        viewport: _viewport, padding: _padding, web: kIsWeb);
+    }
     final camera = gm.CameraPosition(target: gm.LatLng(point.latitude, point.longitude),
       zoom: _currentZoom, tilt: _lastCamera?.tilt ?? DriverMapConfig.homeTilt,
       bearing: _travel.bearing ?? _lastCamera?.bearing ?? 0);
