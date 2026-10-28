@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath
 
 MAX_ARCHIVE=128*1024*1024
 MAX_EXPANDED=512*1024*1024
-SOURCE="7f8fb3735e2096b1516435f36b1d44cde255a1ce"
+SOURCE="62cf69941aeadecc4f82ee4e31a984f6535b3ff2"
 
 def fail(message):
     raise ValueError(message)
