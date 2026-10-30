@@ -58,6 +58,10 @@ void main() {
     expect(find.text('Buscar um motorista mais distante?'), findsOneWidget);
     await tester.tap(find.text('Ampliar busca'));
     await tester.pumpAndSettle();
+    expect(preparation.expandedRadii, [15]);
+    await tester.scrollUntilVisible(find.text('Synthetic expanded request interrupted'), 120,
+      scrollable: find.byType(Scrollable).last);
+    await tester.pumpAndSettle();
     expect(find.text('Synthetic expanded request interrupted'), findsOneWidget);
     await tester.ensureVisible(button);
     await tester.tap(button);
