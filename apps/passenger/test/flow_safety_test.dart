@@ -55,7 +55,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(deferred.calls, 1);
     await tester.tap(find.byType(BackButton));
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Escolha o veículo'), findsNothing);
     deferred.result.complete(await _FakeRidePreparationService().prepare(
       service: ServiceType.buggy,

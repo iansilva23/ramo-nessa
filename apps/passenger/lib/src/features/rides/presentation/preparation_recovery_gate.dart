@@ -5,9 +5,10 @@ import '../data/preparation_recovery_coordinator.dart';
 /// Account verification and local persistence are initialized once per signed-in
 /// session. The app's existing auth gate owns logout and token invalidation.
 class PreparationSessionGate extends StatefulWidget {
-  const PreparationSessionGate({super.key, required this.loadJournal, required this.builder});
+  const PreparationSessionGate({super.key, required this.loadJournal, required this.builder, this.onLogout});
   final Future<PreparationOperationJournal> Function() loadJournal;
   final Widget Function(PreparationOperationJournal journal) builder;
+  final Future<bool> Function()? onLogout;
   @override
   State<PreparationSessionGate> createState() => _PreparationSessionGateState();
 }
@@ -25,6 +26,9 @@ class _PreparationSessionGateState extends State<PreparationSessionGate> {
             const SizedBox(height: 12),
             FilledButton(onPressed: () => setState(() { _loading = widget.loadJournal(); }),
               child: const Text('Tentar novamente')),
+            if (widget.onLogout != null) TextButton(
+              onPressed: () async { await widget.onLogout!(); },
+              child: const Text('Entrar novamente')),
           ])
         : const CircularProgressIndicator())));
     },

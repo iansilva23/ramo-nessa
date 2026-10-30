@@ -263,4 +263,18 @@ void main() {
     expect(find.text('old-account'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('session verification failure permits explicit login again without automatic logout', (tester) async {
+    var logouts = 0;
+    await tester.pumpWidget(MaterialApp(home: PreparationSessionGate(
+      loadJournal: () async => throw StateError('Synthetic unverified session'),
+      onLogout: () async { logouts++; return true; },
+      builder: (_) => const Text('booking'),
+    )));
+    await tester.pumpAndSettle();
+    expect(logouts, 0);
+    expect(find.text('booking'), findsNothing);
+    await tester.tap(find.text('Entrar novamente'));
+    await tester.pumpAndSettle();
+    expect(logouts, 1);
+  });
 }

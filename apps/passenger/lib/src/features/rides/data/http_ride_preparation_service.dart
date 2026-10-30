@@ -66,6 +66,9 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
   /// Exact-byte retries after process restart. Never generates a new key.
   Future<PreparedRide> replayOperation(PreparationOperation operation) {
     if (operationJournal == null) throw StateError('Replay is not configured.');
+    if (operation.abandoned) {
+      throw const RidePreparationException('A busca foi interrompida.');
+    }
     return _sendPreparation(operation.bodyJson, operation: operation);
   }
 

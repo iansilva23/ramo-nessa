@@ -110,6 +110,9 @@ void main() {
     expect((await journal.pending()).single.abandoned, true);
     expect(requests, hasLength(1));
     expect(requests.single.url.path, '/v1/rides/prepare');
+    await expectLater(client.replayOperation((await journal.pending()).single),
+      throwsA(isA<RidePreparationException>()));
+    expect(requests, hasLength(1));
     await expectLater(prepare(client), throwsA(isA<RidePreparationException>().having((e) => e.message, 'message', contains('interrompida'))));
     expect(requests, hasLength(1));
   });

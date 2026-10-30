@@ -237,6 +237,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
       }
       return PreparationSessionGate(
         key: ValueKey('preparation-session-$token'),
+        onLogout: logout,
         loadJournal: () => verifiedPreparationJournal(
           verifyAccount: () => authService.currentSession(token),
           coreUri: coreUri,
