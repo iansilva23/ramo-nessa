@@ -6,6 +6,10 @@ import 'package:ramo_nessa_passenger/src/features/home/presentation/vehicle_sele
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 
 void main() {
+  Future<void> phoneViewport(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  }
   Widget selector(VoidCallback changed, Future<String?> Function(VehicleSelectionResult) submit) =>
     MaterialApp(home: VehicleSelectionScreen(originLabel: 'Preá', destinationLabel: 'Jijoca',
       routeSummary: '12 km', availableServices: const [ServiceType.car, ServiceType.moto],
@@ -14,6 +18,7 @@ void main() {
       onQuote: (_) async => PricingQuote.fromJson({'kind': 'exact', 'ruleId': 'synthetic', 'totalAmountCents': 12000}),
     ));
   testWidgets('a retry of unchanged selection does not start another intent', (tester) async {
+    await phoneViewport(tester);
     var changes = 0;
     var submissions = 0;
     await tester.pumpWidget(selector(() => changes++, (_) async { submissions++; return 'Synthetic interrupted response'; }));
@@ -28,6 +33,7 @@ void main() {
     expect(changes, 0);
   });
   testWidgets('category A to B to A starts two new intents rather than reviving A', (tester) async {
+    await phoneViewport(tester);
     var changes = 0;
     await tester.pumpWidget(selector(() => changes++, (_) async => null));
     await tester.pumpAndSettle();
@@ -38,6 +44,7 @@ void main() {
     expect(changes, 2);
   });
   testWidgets('changing passenger count is a new explicit intent', (tester) async {
+    await phoneViewport(tester);
     var changes = 0;
     await tester.pumpWidget(selector(() => changes++, (_) async => null));
     await tester.pumpAndSettle();
@@ -48,6 +55,7 @@ void main() {
     expect(changes, 1);
   });
   testWidgets('selection cannot change while the existing HTTP attempt is pending', (tester) async {
+    await phoneViewport(tester);
     var changes = 0;
     final pending = Completer<String?>();
     await tester.pumpWidget(selector(() => changes++, (_) => pending.future));
@@ -56,7 +64,10 @@ void main() {
     await tester.ensureVisible(button);
     await tester.tap(button);
     await tester.pump();
-    await tester.tap(find.text('Mototáxi'), warnIfMissed: false);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 500));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.ensureVisible(find.text('Mototáxi'));
+    await tester.tap(find.text('Mototáxi'));
     await tester.pump();
     expect(changes, 0);
     pending.complete('Synthetic failure');

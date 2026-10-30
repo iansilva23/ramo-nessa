@@ -42,6 +42,7 @@ void main() {
     await tester.tap(find.text('Pra onde vamos?'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.pump();
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
     await tester.tap(find.descendant(of: find.byType(ListView), matching: find.text('Jericoacoara')));
