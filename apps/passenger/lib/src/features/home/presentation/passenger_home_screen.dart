@@ -26,6 +26,7 @@ import '../../map/domain/route_info.dart';
 import '../../pricing/data/pricing_policy_service.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
+import '../../rides/data/passenger_ride_resume_service.dart';
 import '../../rides/data/expandable_ride_preparation_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/data/http_passenger_ride_tracking_service.dart';
@@ -1078,9 +1079,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
       return;
     }
 
+    final basePreparation = _ridePreparationService;
+    RidePreparationService? selectionPreparation = basePreparation is HttpRidePreparationService
+        ? basePreparation.forNewIntent() : basePreparation;
+    double? selectionRadius;
+    void newSelectionIntent() {
+      selectionRadius = null;
+      if (basePreparation is HttpRidePreparationService) {
+        selectionPreparation = basePreparation.forNewIntent();
+      }
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => VehicleSelectionScreen(
+          onSelectionChanged: newSelectionIntent,
           sharedTransfer: _sharedOption(coverage),
           requiresFourByFour: coverage.originZone?.id == 'jericoacoara' || coverage.destinationZone?.id == 'jericoacoara',
           originLabel: origin.displayName,
@@ -1106,6 +1118,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
             );
           },
           onContinue: (selection) => _prepareSelectedRide(
+            preparationOverride: selectionPreparation,
+            searchRadius: selectionRadius,
+            onRadiusSelected: (radius) => selectionRadius = radius,
             selection: selection,
             coverage: coverage,
             origin: origin,
@@ -1118,13 +1133,16 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
   }
 
   Future<String?> _prepareSelectedRide({
+    RidePreparationService? preparationOverride,
+    double? searchRadius,
+    ValueChanged<double>? onRadiusSelected,
     required VehicleSelectionResult selection,
     required ServiceAreaCheck coverage,
     required RamoPlace origin,
     required RamoPlace destination,
     required RouteInfo route,
   }) async {
-    final preparation = _ridePreparationService;
+    final preparation = preparationOverride ?? _ridePreparationService;
     if (preparation == null) {
       return 'Não conseguimos iniciar esta corrida agora. Atualize o app ou tente novamente mais tarde.';
     }
@@ -1140,6 +1158,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
     try {
       PreparedRide prepared;
       try {
+      if (searchRadius != null && preparation is ExpandableRidePreparationService) {
+        prepared = await (preparation as ExpandableRidePreparationService).prepareWithRadius(
+          RideSearchRequest(service: selection.service, origin: origin,
+            destination: destination, originZoneId: coverage.originZone!.id,
+            destinationZoneId: coverage.destinationZone!.id, route: route,
+            passengers: selection.passengerCount), searchRadius);
+      } else {
       prepared = await preparation.prepare(
         service: selection.service,
         origin: origin,
@@ -1149,9 +1174,10 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
         route: route,
         passengers: selection.passengerCount,
       );
+      }
 
       } on RidePreparationException catch (error) {
-        if (error.code != 'NO_ELIGIBLE_DRIVER' || preparation is! ExpandableRidePreparationService) rethrow;
+        if (searchRadius != null || error.code != 'NO_ELIGIBLE_DRIVER' || preparation is! ExpandableRidePreparationService) rethrow;
         final expandable = preparation as ExpandableRidePreparationService;
         final options = await expandable.searchOptions(selection.service);
         if (!mounted) return 'A busca foi interrompida.';
@@ -1167,6 +1193,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
             FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Ampliar busca'))],
         ));
         if (expand != true) return 'Busca próxima mantida. Nenhum pagamento foi solicitado.';
+        onRadiusSelected?.call(options.expandedKm);
         prepared = await expandable.prepareWithRadius(RideSearchRequest(service: selection.service,
           origin: origin, destination: destination, originZoneId: coverage.originZone!.id,
           destinationZoneId: coverage.destinationZone!.id, route: route, passengers: selection.passengerCount), options.expandedKm);
@@ -1175,6 +1202,12 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
         return 'Não conseguimos abrir o pagamento agora.';
       }
 
+      // Store the known ride before handing it to checkout. If the process dies
+      // here, recovery reads server state instead of creating a second payment.
+      if (preparation is HttpRidePreparationService && preparation.operationJournal != null) {
+        await RideRecoveryMemory.remember(prepared.id);
+        if (!mounted) return 'Não conseguimos abrir o pagamento agora.';
+      }
       unawaited(
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -1192,6 +1225,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
           ),
         ),
       );
+      if (preparation is HttpRidePreparationService && preparation.operationJournal != null) {
+        // Checkout is now scheduled. A deletion failure retains the replay entry
+        // and must not hide a valid prepared ride from its passenger.
+        unawaited(preparation.acknowledgePrepared(prepared.id).catchError((_) {}));
+      }
       return null;
     } on RidePreparationException catch (error) {
       return error.message;
@@ -1437,4 +1475,5 @@ class _UnavailablePlaceSearchService implements PlaceSearchService {
     );
   }
 }
+
 

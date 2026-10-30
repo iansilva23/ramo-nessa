@@ -25,3 +25,6 @@ jobs:
         working-directory: apps/passenger
       - run: flutter test
         working-directory: apps/passenger
+      - name: Compile enabled candidate without deploying it
+        run: flutter build web --release --base-href=/passageiro/ --dart-define=RAMO_PREPARATION_REPLAY=true --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://app.ramonessa.com.br
+        working-directory: apps/passenger

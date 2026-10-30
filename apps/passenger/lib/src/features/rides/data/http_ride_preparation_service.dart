@@ -34,7 +34,15 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
   final http.Client _client;
   // Opt-in injection only. Existing callers retain their current behavior.
   final PreparationOperationJournal? operationJournal;
-  late final PreparationSearchIntent? _intent = operationJournal?.newIntent();
+  PreparationSearchIntent? _intent;
+  final Map<String, PreparationOperation> _preparedOperations = {};
+
+  Future<void> acknowledgePrepared(String rideId) async {
+    final operation = _preparedOperations[rideId];
+    if (operation == null) return;
+    await operationJournal!.acknowledge(operation);
+    _preparedOperations.remove(rideId);
+  }
 
   /// A new selection screen is a new user intent, including identical routes.
   HttpRidePreparationService forNewIntent() => HttpRidePreparationService(
@@ -139,7 +147,7 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
             if (destination.placeProof?.trim().isNotEmpty == true)
               'dropoffPlaceProof': destination.placeProof!.trim(),
           };
-    final intent = _intent;
+    final intent = _intent ??= operationJournal?.newIntent();
     if (intent == null) return _sendPreparation(jsonEncode(body));
     // The screen captures the chosen pickup/destination. Period is calculated
     // from the clock and must not split a retry that crosses 22:00.
@@ -169,7 +177,9 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
 
     if (response.statusCode == 201 && decoded != null) {
       try {
-        return PreparedRide.fromJson(decoded);
+        final prepared = PreparedRide.fromJson(decoded);
+        if (operation != null) _preparedOperations[prepared.id] = operation;
+        return prepared;
       } catch (_) {
         throw const RidePreparationException(
           'O servidor retornou uma corrida preparada inválida.',
@@ -177,13 +187,29 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
       }
     }
 
-    throw RidePreparationException(
+    final code = decoded?['error'] as String?;
+    if (operation != null && code == 'NO_ELIGIBLE_DRIVER') {
+      await operationJournal!.acknowledge(operation);
+      _intent = null;
+    }
+    if (const {'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED'}.contains(code)) {
+      // The next explicit button press is a new search. Keep the old journal
+      // entry until authenticated recovery has checked its current state.
+      _intent = null;
+    }
+    throw PreparationReplayException(
       apiErrorMessage(
         decoded,
         'Não conseguimos preparar essa corrida agora.',
       ),
-      code: decoded?['error'] as String?,
+      code: code,
+      rideId: decoded?['rideId'] as String?,
     );
   }
 }
 
+
+class PreparationReplayException extends RidePreparationException {
+  const PreparationReplayException(super.message, {super.code, this.rideId});
+  final String? rideId;
+}

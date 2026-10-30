@@ -24,6 +24,11 @@ import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_policy_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
+import 'features/rides/data/http_ride_preparation_service.dart';
+import 'features/rides/data/preparation_operation_journal.dart';
+import 'features/rides/data/secure_preparation_operation_storage.dart';
+import 'features/rides/data/preparation_recovery_coordinator.dart';
+import 'features/rides/presentation/preparation_recovery_gate.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/http_passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_resume_service.dart';
@@ -49,6 +54,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.rideTrackingService,
     this.rideRealtimeService,
     this.networkTilesEnabled = true,
+    this.preparationReplayEnabled = const bool.fromEnvironment('RAMO_PREPARATION_REPLAY', defaultValue: false),
   });
 
   final String? accessToken;
@@ -63,6 +69,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
   final PassengerRideTrackingService? rideTrackingService;
   final PassengerRideRealtimeService? rideRealtimeService;
   final bool networkTilesEnabled;
+  final bool preparationReplayEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +99,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
             clientInstanceId: clientInstanceId,
           );
 
-    Widget shell(String? token, [Future<bool> Function()? logout]) {
+    Widget buildShell(String? token, Future<bool> Function()? logout, PreparationOperationJournal? journal) {
       final normalizedToken = token?.trim();
       final services = PassengerSessionServices(
         coreUri: coreUri,
@@ -100,6 +107,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         clientInstanceId: clientInstanceId,
         preview: preview,
         paymentService: paymentService,
+        preparationJournal: journal,
       );
 
       final resolvedPlaceSearchService =
@@ -199,7 +207,40 @@ class RamoNessaPassengerApp extends StatelessWidget {
               networkTilesEnabled: networkTilesEnabled,
             ),
       );
-      return shell;
+      final preparation = services.preparation;
+      if (journal == null || preparation is! HttpRidePreparationService ||
+          resolvedTracking is! PassengerSelectedRideResumeService ||
+          resolvedTracking is! PassengerRideResumeService) return shell;
+      return PreparationRecoveryGate(
+        coordinator: PreparationRecoveryCoordinator(
+          preparation: preparation,
+          selected: resolvedTracking as PassengerSelectedRideResumeService,
+          current: resolvedTracking as PassengerRideResumeService,
+        ),
+        buildRecovered: (data, close) => ResumedRideScreen(
+          data: data, onClose: close, tracking: resolvedTracking,
+          payments: services.payments, realtime: rideRealtimeService,
+          routes: resolvedRouteService, networkTilesEnabled: networkTilesEnabled,
+          support: services.support is RamoRideSupportApi ? services.support as RamoRideSupportApi : null,
+        ),
+        child: shell,
+      );
+    }
+
+    Widget shell(String? token, [Future<bool> Function()? logout]) {
+      if (!preparationReplayEnabled || RamoCoreConfig.previewMode ||
+          coreUri == null || authService == null || token == null ||
+          token.trim().length < 20 || ridePreparationService != null) {
+        return buildShell(token, logout, null);
+      }
+      return PreparationSessionGate(
+        key: ValueKey('preparation-session-$token'),
+        loadJournal: () => verifiedPreparationJournal(
+          verifyAccount: () => authService.currentSession(token),
+          coreUri: coreUri,
+        ),
+        builder: (journal) => buildShell(token, logout, journal),
+      );
     }
 
     Widget permissions(String? token, Widget content) {
@@ -343,3 +384,4 @@ class _CoreConfigurationError extends StatelessWidget {
     );
   }
 }
+

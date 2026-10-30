@@ -95,4 +95,26 @@ void main() {
     expect(requests[1].headers['idempotency-key'], requests[0].headers['idempotency-key']);
     expect(await journal.pending(), hasLength(1));
   });
+  test('successful handoff retires its journal only when explicitly acknowledged', () async {
+    final client = service(store: journal);
+    await prepare(client);
+    expect(await journal.pending(), hasLength(1));
+    await client.acknowledgePrepared('same-ride');
+    expect(await journal.pending(), isEmpty);
+  });
+  test('expiry and cancellation responses keep receipt for recovery but allow a genuinely new attempt', () async {
+    for (final code in ['PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED']) {
+      final captured = <http.Request>[];
+      var first = true;
+      final client = HttpRidePreparationService(baseUrl: core, accessToken: token,
+        operationJournal: journal, client: MockClient((request) async {
+          captured.add(request);
+          if (first) { first = false; return http.Response(jsonEncode({'error': code, 'rideId': 'same-ride'}), 409); }
+          return success();
+        }));
+      await expectLater(prepare(client), throwsA(isA<PreparationReplayException>().having((e) => e.rideId, 'rideId', 'same-ride')));
+      await prepare(client);
+      expect(captured[1].headers['idempotency-key'], isNot(captured[0].headers['idempotency-key']));
+    }
+  });
 }
