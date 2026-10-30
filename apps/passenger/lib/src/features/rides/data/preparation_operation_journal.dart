@@ -10,12 +10,13 @@ abstract interface class PreparationOperationStorage {
 
 /// Contains request data only. Authentication headers never enter the journal.
 class PreparationOperation {
-  PreparationOperation._(this.key, this.bodyJson, this.createdAt, this._scope);
+  PreparationOperation._(this.key, this.bodyJson, this.createdAt, this._scope, {this.abandoned = false});
 
   final String key;
   final String bodyJson;
   final DateTime createdAt;
   final String _scope;
+  final bool abandoned;
 
   Map<String, dynamic> get body =>
       jsonDecode(bodyJson) as Map<String, dynamic>;
@@ -81,12 +82,14 @@ class PreparationOperationJournal {
           decoded['key'] is! String || !_validKey(decoded['key'] as String) ||
           entry.key != '$_prefix${decoded['key']}' ||
           decoded['bodyJson'] is! String || decoded['createdAt'] is! String ||
+          (decoded.containsKey('abandoned') && decoded['abandoned'] is! bool) ||
           jsonDecode(decoded['bodyJson'] as String) is! Map<String, dynamic>) {
         throw const FormatException('Invalid persisted preparation operation.');
       }
       result.add(PreparationOperation._(
         decoded['key'] as String, decoded['bodyJson'] as String,
         DateTime.parse(decoded['createdAt'] as String).toUtc(), _prefix,
+        abandoned: decoded['abandoned'] == true,
       ));
     }
     result.sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -101,6 +104,17 @@ class PreparationOperationJournal {
   }
 
   bool owns(PreparationOperation operation) => operation._scope == _prefix;
+
+  /// Explicitly leaving a search must never cause that old request to be
+  /// submitted automatically on restart. Retain its receipt for investigation;
+  /// existing committed rides are still recovered with an authenticated GET.
+  Future<void> abandon(PreparationOperation operation) async {
+    if (!owns(operation)) throw StateError('Operation belongs to another account.');
+    await storage.write('$_prefix${operation.key}', jsonEncode({
+      'format': 1, 'key': operation.key, 'bodyJson': operation.bodyJson,
+      'createdAt': operation.createdAt.toIso8601String(), 'abandoned': true,
+    }));
+  }
 
   /// A user opening a new search explicitly obtains a fresh intent.
   PreparationSearchIntent newIntent() => PreparationSearchIntent._(this);

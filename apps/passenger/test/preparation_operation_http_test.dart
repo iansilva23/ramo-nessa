@@ -8,6 +8,7 @@ import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/http_ride_preparation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/preparation_operation_journal.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
 import 'preparation_operation_journal_test.dart' show MemoryOperations;
 
 const origin = RamoPlace(name: 'Preá', address: 'Preá', position: LatLng(-2.82017, -40.41467));
@@ -101,6 +102,16 @@ void main() {
     expect(await journal.pending(), hasLength(1));
     await client.acknowledgePrepared('same-ride');
     expect(await journal.pending(), isEmpty);
+  });
+  test('leaving a search marks uncertain receipt as abandoned without cancellation or payment calls', () async {
+    final client = service(store: journal);
+    await prepare(client);
+    await client.abandonIntent();
+    expect((await journal.pending()).single.abandoned, true);
+    expect(requests, hasLength(1));
+    expect(requests.single.url.path, '/v1/rides/prepare');
+    await expectLater(prepare(client), throwsA(isA<RidePreparationException>().having((e) => e.message, 'message', contains('interrompida'))));
+    expect(requests, hasLength(1));
   });
   test('expiry and cancellation responses keep receipt for recovery but allow a genuinely new attempt', () async {
     for (final code in ['PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED']) {

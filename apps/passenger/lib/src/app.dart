@@ -210,7 +210,9 @@ class RamoNessaPassengerApp extends StatelessWidget {
       final preparation = services.preparation;
       if (journal == null || preparation is! HttpRidePreparationService ||
           resolvedTracking is! PassengerSelectedRideResumeService ||
-          resolvedTracking is! PassengerRideResumeService) return shell;
+          resolvedTracking is! PassengerRideResumeService) {
+        return shell;
+      }
       return PreparationRecoveryGate(
         coordinator: PreparationRecoveryCoordinator(
           preparation: preparation,
@@ -218,7 +220,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
           current: resolvedTracking as PassengerRideResumeService,
         ),
         buildRecovered: (data, close) => ResumedRideScreen(
-          data: data, onClose: close, tracking: resolvedTracking,
+          data: data, onClose: close, tracking: resolvedTracking!,
           payments: services.payments, realtime: rideRealtimeService,
           routes: resolvedRouteService, networkTilesEnabled: networkTilesEnabled,
           support: services.support is RamoRideSupportApi ? services.support as RamoRideSupportApi : null,

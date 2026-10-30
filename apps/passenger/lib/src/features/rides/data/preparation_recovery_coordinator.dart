@@ -60,6 +60,7 @@ class PreparationRecoveryCoordinator {
     try {
       final pending = (await journal.pending()).reversed;
       for (final operation in pending) {
+        if (operation.abandoned) continue;
         try {
           String rideId;
           try {
@@ -70,7 +71,9 @@ class PreparationRecoveryCoordinator {
               continue;
             }
             if (!const {'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED'}.contains(error.code) ||
-                error.rideId == null) rethrow;
+                error.rideId == null) {
+              rethrow;
+            }
             rideId = error.rideId!;
           }
           final data = await selected.resumeSelectedRide(rideId);

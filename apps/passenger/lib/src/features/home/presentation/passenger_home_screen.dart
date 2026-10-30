@@ -1083,8 +1083,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
     RidePreparationService? selectionPreparation = basePreparation is HttpRidePreparationService
         ? basePreparation.forNewIntent() : basePreparation;
     double? selectionRadius;
+    var selectionOpen = true;
     void newSelectionIntent() {
       selectionRadius = null;
+      final previous = selectionPreparation;
+      if (previous is HttpRidePreparationService) {
+        unawaited(previous.abandonIntent().catchError((_) {}));
+      }
       if (basePreparation is HttpRidePreparationService) {
         selectionPreparation = basePreparation.forNewIntent();
       }
@@ -1119,6 +1124,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
           },
           onContinue: (selection) => _prepareSelectedRide(
             preparationOverride: selectionPreparation,
+            isCurrentIntent: () => selectionOpen,
+            onCheckoutClosed: newSelectionIntent,
             searchRadius: selectionRadius,
             onRadiusSelected: (radius) => selectionRadius = radius,
             selection: selection,
@@ -1130,10 +1137,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
         ),
       ),
     );
+    selectionOpen = false;
+    final previous = selectionPreparation;
+    if (previous is HttpRidePreparationService) {
+      unawaited(previous.abandonIntent().catchError((_) {}));
+    }
   }
 
   Future<String?> _prepareSelectedRide({
     RidePreparationService? preparationOverride,
+    bool Function()? isCurrentIntent,
+    VoidCallback? onCheckoutClosed,
     double? searchRadius,
     ValueChanged<double>? onRadiusSelected,
     required VehicleSelectionResult selection,
@@ -1180,7 +1194,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
         if (searchRadius != null || error.code != 'NO_ELIGIBLE_DRIVER' || preparation is! ExpandableRidePreparationService) rethrow;
         final expandable = preparation as ExpandableRidePreparationService;
         final options = await expandable.searchOptions(selection.service);
-        if (!mounted) return 'A busca foi interrompida.';
+        if (!mounted || isCurrentIntent?.call() == false) return 'A busca foi interrompida.';
         if (!options.allowExpansion) rethrow;
         final expand = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
           title: const Text('Buscar um motorista mais distante?'),
@@ -1198,7 +1212,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
           origin: origin, destination: destination, originZoneId: coverage.originZone!.id,
           destinationZoneId: coverage.destinationZone!.id, route: route, passengers: selection.passengerCount), options.expandedKm);
       }
-      if (!mounted) {
+      if (!mounted || isCurrentIntent?.call() == false) {
         return 'Não conseguimos abrir o pagamento agora.';
       }
 
@@ -1206,7 +1220,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
       // here, recovery reads server state instead of creating a second payment.
       if (preparation is HttpRidePreparationService && preparation.operationJournal != null) {
         await RideRecoveryMemory.remember(prepared.id);
-        if (!mounted) return 'Não conseguimos abrir o pagamento agora.';
+        if (!mounted || isCurrentIntent?.call() == false) return 'Não conseguimos abrir o pagamento agora.';
       }
       unawaited(
         Navigator.of(context).push(
@@ -1223,7 +1237,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
               networkTilesEnabled: widget.networkTilesEnabled,
             ),
           ),
-        ),
+        ).then((_) { onCheckoutClosed?.call(); }),
       );
       if (preparation is HttpRidePreparationService && preparation.operationJournal != null) {
         // Checkout is now scheduled. A deletion failure retains the replay entry

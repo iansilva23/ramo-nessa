@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -27,6 +28,47 @@ import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tr
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
+
+  testWidgets('leaving the search ignores a late preparation response instead of opening checkout', (tester) async {
+    final deferred = _DeferredPreparationService();
+    await tester.pumpWidget(RamoNessaPassengerApp(
+      locationService: _FakeLocationService(), routeService: _FakeRouteService(),
+      placeSearchService: _FakePlaceSearchService(), pricingQuoteService: _FakePricingQuoteService(),
+      ridePreparationService: deferred, paymentService: _FakePassengerPaymentService(),
+      networkTilesEnabled: false,
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Pra onde vamos?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: find.byType(ListView), matching: find.text('Jericoacoara')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-destination-button')));
+    await tester.pumpAndSettle();
+    final button = find.byKey(const Key('continue-vehicle-button'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(deferred.calls, 1);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Escolha o veículo'), findsNothing);
+    deferred.result.complete(await _FakeRidePreparationService().prepare(
+      service: ServiceType.buggy,
+      origin: const RamoPlace(name: 'Jeri', address: 'Jeri', position: LatLng(-2.7956, -40.5142)),
+      destination: const RamoPlace(name: 'Jeri', address: 'Jeri', position: LatLng(-2.7956, -40.5142)),
+      originZoneId: 'jericoacoara', destinationZoneId: 'jericoacoara',
+      route: const RouteInfo(points: [], distanceMeters: 2500, duration: Duration(minutes: 7)),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Preço e pagamento'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('server payment-first response opens payment without requesting driver acceptance', (tester) async {
     final service = _PaymentFirstService();
     final ride = PreparedRide.fromJson({
@@ -996,4 +1038,18 @@ class _PaymentFirstService extends _FakePassengerPaymentService implements Drive
       throw StateError('No prepayment confirmation is expected.');
   @override
   Future<void> releaseDriverReservation(String rideId) async {}
+}
+
+
+class _DeferredPreparationService implements RidePreparationService {
+  final result = Completer<PreparedRide>();
+  int calls = 0;
+  @override
+  Future<PreparedRide> prepare({required ServiceType service, required RamoPlace origin,
+    required RamoPlace destination, required String originZoneId,
+    required String destinationZoneId, required RouteInfo route,
+    int passengers = 1, DateTime? now}) {
+    calls++;
+    return result.future;
+  }
 }

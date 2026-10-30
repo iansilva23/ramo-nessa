@@ -36,12 +36,24 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
   final PreparationOperationJournal? operationJournal;
   PreparationSearchIntent? _intent;
   final Map<String, PreparationOperation> _preparedOperations = {};
+  final Map<String, PreparationOperation> _issuedOperations = {};
+  bool _abandoned = false;
+
+  Future<void> abandonIntent() async {
+    _abandoned = true;
+    final journal = operationJournal;
+    if (journal == null) return;
+    for (final operation in _issuedOperations.values.toList()) {
+      await journal.abandon(operation);
+    }
+  }
 
   Future<void> acknowledgePrepared(String rideId) async {
     final operation = _preparedOperations[rideId];
     if (operation == null) return;
     await operationJournal!.acknowledge(operation);
     _preparedOperations.remove(rideId);
+    _issuedOperations.remove(operation.key);
   }
 
   /// A new selection screen is a new user intent, including identical routes.
@@ -155,6 +167,11 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
       ..remove('period');
     final selection = jsonEncode({...body, 'quoteRequest': quote});
     final operation = await intent.operation(selection: selection, body: body);
+    _issuedOperations[operation.key] = operation;
+    if (_abandoned) {
+      await operationJournal!.abandon(operation);
+      throw const RidePreparationException('A busca foi interrompida.');
+    }
     return _sendPreparation(operation.bodyJson, operation: operation);
   }
 
@@ -190,6 +207,7 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
     final code = decoded?['error'] as String?;
     if (operation != null && code == 'NO_ELIGIBLE_DRIVER') {
       await operationJournal!.acknowledge(operation);
+      _issuedOperations.remove(operation.key);
       _intent = null;
     }
     if (const {'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED'}.contains(code)) {

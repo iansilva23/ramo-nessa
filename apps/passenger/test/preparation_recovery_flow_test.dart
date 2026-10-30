@@ -171,6 +171,16 @@ void main() {
     reads.currentData = rideData(id: 'current-paid-ride', state: 'IN_PROGRESS');
     expect((await coordinator().recover()).ride?['ride']['id'], 'current-paid-ride');
   });
+  test('explicitly abandoned search is never submitted again on startup', () async {
+    final operation = await journal.create({'synthetic': 'abandoned'});
+    await journal.abandon(operation);
+    reads.currentData = rideData(state: 'IN_PROGRESS');
+    final result = await coordinator().recover();
+    expect(requests, isEmpty);
+    expect(result.ride?['ride']['state'], 'IN_PROGRESS');
+    expect(result.pendingRetry, false);
+    expect((await journal.pending()).single.abandoned, true);
+  });
   test('verified account bootstrap rejects missing, expired or wrong-role sessions', () async {
     for (final session in <AuthSessionInfo?>[
       null,
