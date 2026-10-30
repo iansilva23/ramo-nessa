@@ -1,4 +1,4 @@
-name: Passenger preparation replay review
+name: Passenger reservation duplicate protection review
 on:
   push:
     branches: [feature/passenger-preparation-replay-20261030]

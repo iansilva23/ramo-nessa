@@ -7,16 +7,15 @@ import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart'
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/http_ride_preparation_service.dart';
-import 'package:ramo_nessa_passenger/src/features/rides/data/preparation_operation_journal.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
-import 'preparation_operation_journal_test.dart' show MemoryOperations;
+import 'package:ramo_nessa_passenger/src/features/rides/data/expandable_ride_preparation_service.dart';
 
 const origin = RamoPlace(name: 'Preá', address: 'Preá', position: LatLng(-2.82017, -40.41467));
 const destination = RamoPlace(name: 'Jijoca', address: 'Jijoca', position: LatLng(-2.89860, -40.45060));
 const route = RouteInfo(points: [LatLng(-2.82017, -40.41467), LatLng(-2.89860, -40.45060)],
   distanceMeters: 12000, duration: Duration(minutes: 20));
-const token = 'synthetic-only-auth-token-abcdefghijklmnopqrstuvwxyz';
-final core = Uri.parse('https://core.test');
+const input = RideSearchRequest(service: ServiceType.car, origin: origin,
+  destination: destination, originZoneId: 'prea', destinationZoneId: 'jijoca', route: route);
 Future<void> prepare(HttpRidePreparationService service, {DateTime? now}) async {
   await service.prepare(service: ServiceType.car, origin: origin, destination: destination,
     originZoneId: 'prea', destinationZoneId: 'jijoca', route: route, now: now);
@@ -24,111 +23,77 @@ Future<void> prepare(HttpRidePreparationService service, {DateTime? now}) async 
 http.Response success() => http.Response(jsonEncode({
   'ride': {'id': 'same-ride', 'state': 'AWAITING_PAYMENT',
     'quote': {'baseAmountCents': 12000, 'pickupCompensationCents': 500, 'totalAmountCents': 12500},
-    'paymentExpiresAt': '2026-10-30T22:10:00Z'},
+    'paymentExpiresAt': '2030-01-01T22:10:00Z'},
 }), 201);
 
 void main() {
-  late MemoryOperations storage;
-  late PreparationOperationJournal journal;
   late List<http.Request> requests;
-  setUp(() {
-    storage = MemoryOperations();
-    journal = PreparationOperationJournal(storage: storage,
-      passengerId: 'passenger-a', coreUri: core);
-    requests = [];
-  });
-  HttpRidePreparationService service({PreparationOperationJournal? store}) =>
-    HttpRidePreparationService(baseUrl: core, accessToken: token,
-      operationJournal: store,
-      client: MockClient((request) async { requests.add(request); return success(); }));
+  setUp(() => requests = []);
+  HttpRidePreparationService create({bool enabled = true, Future<http.Response> Function(http.Request)? reply}) =>
+    HttpRidePreparationService(baseUrl: Uri.parse('https://core.test'),
+      accessToken: 'synthetic-only-token-abcdefghijklmnopqrstuvwxyz', replayEnabled: enabled,
+      client: MockClient((request) async { requests.add(request); return reply == null ? success() : await reply(request); }));
 
-  test('same intent reuses key and exact body across 22:00', () async {
-    final client = service(store: journal);
-    await prepare(client, now: DateTime(2026, 10, 30, 21, 59));
-    await prepare(client, now: DateTime(2026, 10, 30, 22, 1));
+  test('unchanged retry keeps the same key and exact request across 22:00', () async {
+    final service = create();
+    await prepare(service, now: DateTime(2026, 10, 30, 21, 59));
+    await prepare(service, now: DateTime(2026, 10, 30, 22, 1));
     expect(requests[1].headers['idempotency-key'], requests[0].headers['idempotency-key']);
     expect(requests[1].body, requests[0].body);
-    expect(storage.values.values.join(), isNot(contains(token)));
   });
-  test('explicit new intent keeps the same route but changes operation key', () async {
-    final client = service(store: journal);
-    await prepare(client);
-    await prepare(client.forNewIntent());
+  test('a new explicit search uses another key for the same route', () async {
+    final service = create();
+    await prepare(service);
+    await prepare(service.forNewIntent());
     expect(requests[1].headers['idempotency-key'], isNot(requests[0].headers['idempotency-key']));
   });
-  test('restart replays saved JSON instead of recalculating request or price', () async {
-    await prepare(service(store: journal));
-    final restored = PreparationOperationJournal(storage: storage,
-      passengerId: 'passenger-a', coreUri: core);
-    final recovered = await service(store: restored).replayOperation((await restored.pending()).single);
-    expect(requests[1].body, requests[0].body);
+  test('lost HTTP response retains the key rather than silently creating a new attempt', () async {
+    var first = true;
+    final service = create(reply: (_) async {
+      if (first) { first = false; throw http.ClientException('Synthetic lost response'); }
+      return success();
+    });
+    await expectLater(prepare(service), throwsA(isA<http.ClientException>()));
+    await prepare(service);
     expect(requests[1].headers['idempotency-key'], requests[0].headers['idempotency-key']);
-    expect(recovered.totalAmountCents, 12500);
-  });
-  test('storage failure prevents sending an untracked request', () async {
-    storage.failWrites = true;
-    await expectLater(prepare(service(store: journal)), throwsStateError);
-    expect(requests, isEmpty);
-  });
-  test('another passenger cannot replay the operation through HTTP', () async {
-    await prepare(service(store: journal));
-    final foreign = PreparationOperationJournal(storage: storage,
-      passengerId: 'passenger-b', coreUri: core);
-    await expectLater(service(store: foreign).replayOperation((await journal.pending()).single), throwsStateError);
-    expect(requests, hasLength(1));
-  });
-  test('legacy constructor keeps existing behavior without adding a header', () async {
-    await prepare(service());
-    expect(requests.single.headers.containsKey('idempotency-key'), false);
-    expect(storage.values, isEmpty);
-  });
-  test('lost response retains the original operation for a network retry', () async {
-    var calls = 0;
-    final client = HttpRidePreparationService(baseUrl: core, accessToken: token,
-      operationJournal: journal, client: MockClient((request) async {
-        requests.add(request);
-        if (++calls == 1) throw http.ClientException('Synthetic lost response');
-        return success();
-      }));
-    await expectLater(prepare(client), throwsA(isA<http.ClientException>()));
-    await prepare(client);
     expect(requests[1].body, requests[0].body);
+  });
+  test('an inconclusive server error keeps the existing attempt', () async {
+    final service = create(reply: (_) async => http.Response('{"error":"ROUTING_UNAVAILABLE"}', 503));
+    await expectLater(prepare(service), throwsA(isA<RidePreparationException>()));
+    await expectLater(prepare(service), throwsA(isA<RidePreparationException>()));
     expect(requests[1].headers['idempotency-key'], requests[0].headers['idempotency-key']);
-    expect(await journal.pending(), hasLength(1));
   });
-  test('successful handoff retires its journal only when explicitly acknowledged', () async {
-    final client = service(store: journal);
-    await prepare(client);
-    expect(await journal.pending(), hasLength(1));
-    await client.acknowledgePrepared('same-ride');
-    expect(await journal.pending(), isEmpty);
-  });
-  test('leaving a search marks uncertain receipt as abandoned without cancellation or payment calls', () async {
-    final client = service(store: journal);
-    await prepare(client);
-    await client.abandonIntent();
-    expect((await journal.pending()).single.abandoned, true);
-    expect(requests, hasLength(1));
-    expect(requests.single.url.path, '/v1/rides/prepare');
-    await expectLater(client.replayOperation((await journal.pending()).single),
-      throwsA(isA<RidePreparationException>()));
-    expect(requests, hasLength(1));
-    await expectLater(prepare(client), throwsA(isA<RidePreparationException>().having((e) => e.message, 'message', contains('interrompida'))));
-    expect(requests, hasLength(1));
-  });
-  test('expiry and cancellation responses keep receipt for recovery but allow a genuinely new attempt', () async {
-    for (final code in ['PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED']) {
-      final captured = <http.Request>[];
+  test('definitive server results permit another explicit search without reviving the old identifier', () async {
+    for (final code in ['NO_ELIGIBLE_DRIVER', 'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED']) {
       var first = true;
-      final client = HttpRidePreparationService(baseUrl: core, accessToken: token,
-        operationJournal: journal, client: MockClient((request) async {
-          captured.add(request);
-          if (first) { first = false; return http.Response(jsonEncode({'error': code, 'rideId': 'same-ride'}), 409); }
-          return success();
-        }));
-      await expectLater(prepare(client), throwsA(isA<PreparationReplayException>().having((e) => e.rideId, 'rideId', 'same-ride')));
-      await prepare(client);
-      expect(captured[1].headers['idempotency-key'], isNot(captured[0].headers['idempotency-key']));
+      final service = create(reply: (_) async {
+        if (first) { first = false; return http.Response(jsonEncode({'error': code}), 409); }
+        return success();
+      });
+      await expectLater(prepare(service), throwsA(isA<RidePreparationException>()));
+      final previous = requests.last.headers['idempotency-key'];
+      await prepare(service);
+      expect(requests.last.headers['idempotency-key'], isNot(previous));
     }
+  });
+  test('explicit radius change is distinct but retry of that radius stays the same', () async {
+    final service = create();
+    await prepare(service);
+    await service.prepareWithRadius(input, 15);
+    await service.prepareWithRadius(input, 15);
+    expect(requests[1].headers['idempotency-key'], isNot(requests[0].headers['idempotency-key']));
+    expect(requests[2].headers['idempotency-key'], requests[1].headers['idempotency-key']);
+    expect(requests[2].body, requests[1].body);
+  });
+  test('disabled flag retains the original header behavior', () async {
+    await prepare(create(enabled: false));
+    expect(requests.single.headers.containsKey('idempotency-key'), false);
+  });
+  test('only reservation preparation is submitted by this protection', () async {
+    final service = create();
+    await prepare(service);
+    await prepare(service);
+    expect(requests.every((r) => r.method == 'POST' && r.url.path == '/v1/rides/prepare'), true);
   });
 }

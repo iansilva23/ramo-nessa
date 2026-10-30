@@ -11,7 +11,7 @@ import '../../pricing/data/pricing_location_resolver.dart';
 import '../domain/prepared_ride.dart';
 import 'ride_preparation_service.dart';
 import 'expandable_ride_preparation_service.dart';
-import 'preparation_operation_journal.dart';
+import 'preparation_request_identity.dart';
 
 class HttpRidePreparationService implements RidePreparationService, ExpandableRidePreparationService {
   HttpRidePreparationService({
@@ -20,7 +20,7 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
     String? passengerId,
     String? clientInstanceId,
     http.Client? client,
-    this.operationJournal,
+    this.replayEnabled = const bool.fromEnvironment('RAMO_PREPARATION_REPLAY', defaultValue: false),
   })  : _baseUrl = baseUrl,
         _accessToken = accessToken ?? '',
         _clientInstanceId = clientInstanceId ?? '',
@@ -32,46 +32,14 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
   final String _clientInstanceId;
   final String _passengerId;
   final http.Client _client;
-  // Opt-in injection only. Existing callers retain their current behavior.
-  final PreparationOperationJournal? operationJournal;
-  PreparationSearchIntent? _intent;
-  final Map<String, PreparationOperation> _preparedOperations = {};
-  final Map<String, PreparationOperation> _issuedOperations = {};
-  bool _abandoned = false;
+  // Disabled until paired with the separately tested API protection.
+  final bool replayEnabled;
+  final PreparationSearchIntent _intent = PreparationSearchIntent();
 
-  Future<void> abandonIntent() async {
-    _abandoned = true;
-    final journal = operationJournal;
-    if (journal == null) return;
-    for (final operation in _issuedOperations.values.toList()) {
-      await journal.abandon(operation);
-    }
-  }
-
-  Future<void> acknowledgePrepared(String rideId) async {
-    final operation = _preparedOperations[rideId];
-    if (operation == null) return;
-    await operationJournal!.acknowledge(operation);
-    _preparedOperations.remove(rideId);
-    _issuedOperations.remove(operation.key);
-  }
-
-  /// A new selection screen is a new user intent, including identical routes.
   HttpRidePreparationService forNewIntent() => HttpRidePreparationService(
     baseUrl: _baseUrl, accessToken: _accessToken, passengerId: _passengerId,
-    clientInstanceId: _clientInstanceId, client: _client,
-    operationJournal: operationJournal,
+    clientInstanceId: _clientInstanceId, client: _client, replayEnabled: replayEnabled,
   );
-
-  /// Exact-byte retries after process restart. Never generates a new key.
-  Future<PreparedRide> replayOperation(PreparationOperation operation) async {
-    if (operationJournal == null) throw StateError('Replay is not configured.');
-    if (operation.abandoned) {
-      throw const RidePreparationException('A busca foi interrompida.');
-    }
-    return _sendPreparation(operation.bodyJson, operation: operation);
-  }
-
 
   Map<String, String> get _identityHeaders => {
         'content-type': 'application/json',
@@ -162,28 +130,19 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
             if (destination.placeProof?.trim().isNotEmpty == true)
               'dropoffPlaceProof': destination.placeProof!.trim(),
           };
-    final intent = _intent ??= operationJournal?.newIntent();
-    if (intent == null) return _sendPreparation(jsonEncode(body));
+    if (!replayEnabled) return _sendPreparation(jsonEncode(body));
     // The screen captures the chosen pickup/destination. Period is calculated
     // from the clock and must not split a retry that crosses 22:00.
     final quote = Map<String, dynamic>.from(body['quoteRequest'] as Map)
       ..remove('period');
     final selection = jsonEncode({...body, 'quoteRequest': quote});
-    final operation = await intent.operation(selection: selection, body: body);
-    _issuedOperations[operation.key] = operation;
-    if (_abandoned) {
-      await operationJournal!.abandon(operation);
-      throw const RidePreparationException('A busca foi interrompida.');
-    }
+    final operation = _intent.operation(selection: selection, body: body);
     return _sendPreparation(operation.bodyJson, operation: operation);
   }
 
   Future<PreparedRide> _sendPreparation(String bodyJson, {
-    PreparationOperation? operation,
+    PreparationRequestIdentity? operation,
   }) async {
-    if (operation != null && operationJournal?.owns(operation) != true) {
-      throw StateError('Operation belongs to a different passenger or Core.');
-    }
     final response = await _client.post(
       _baseUrl.resolve('/v1/rides/prepare'),
       headers: {
@@ -197,9 +156,7 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
 
     if (response.statusCode == 201 && decoded != null) {
       try {
-        final prepared = PreparedRide.fromJson(decoded);
-        if (operation != null) _preparedOperations[prepared.id] = operation;
-        return prepared;
+        return PreparedRide.fromJson(decoded);
       } catch (_) {
         throw const RidePreparationException(
           'O servidor retornou uma corrida preparada inválida.',
@@ -208,29 +165,19 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
     }
 
     final code = decoded?['error'] as String?;
-    if (operation != null && code == 'NO_ELIGIBLE_DRIVER') {
-      await operationJournal!.acknowledge(operation);
-      _issuedOperations.remove(operation.key);
-      _intent = null;
+    if (operation != null && const {
+      'NO_ELIGIBLE_DRIVER', 'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED',
+    }.contains(code)) {
+      // A definitive server response ends this attempt. Another explicit search
+      // must not remain bound to an old reservation identifier.
+      _intent.reset();
     }
-    if (const {'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED'}.contains(code)) {
-      // The next explicit button press is a new search. Keep the old journal
-      // entry until authenticated recovery has checked its current state.
-      _intent = null;
-    }
-    throw PreparationReplayException(
+    throw RidePreparationException(
       apiErrorMessage(
         decoded,
         'Não conseguimos preparar essa corrida agora.',
       ),
       code: code,
-      rideId: decoded?['rideId'] as String?,
     );
   }
-}
-
-
-class PreparationReplayException extends RidePreparationException {
-  const PreparationReplayException(super.message, {super.code, this.rideId});
-  final String? rideId;
 }

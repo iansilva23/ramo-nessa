@@ -1,6 +1,5 @@
 import 'features/rides/data/http_ride_preparation_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
-import 'features/rides/data/preparation_operation_journal.dart';
 import 'features/payments/data/http_passenger_payment_service.dart';
 import 'features/payments/data/passenger_payment_service.dart';
 import 'features/profile/data/http_passenger_privacy_service.dart';
@@ -22,7 +21,6 @@ class PassengerSessionServices {
     String? clientInstanceId,
     PassengerPreviewDependencies? preview,
     PassengerPaymentService? paymentService,
-    PreparationOperationJournal? preparationJournal,
   }) {
     final token = accessToken?.trim();
     final authenticated = coreUri != null &&
@@ -43,7 +41,7 @@ class PassengerSessionServices {
             accessToken: token,
             clientInstanceId: clientInstanceId,
           );
-      preparation = HttpRidePreparationService(baseUrl: coreUri, accessToken: token, clientInstanceId: clientInstanceId, operationJournal: preparationJournal);
+      preparation = HttpRidePreparationService(baseUrl: coreUri, accessToken: token, clientInstanceId: clientInstanceId);
       activity =
           HttpPassengerActivityService(baseUrl: coreUri, accessToken: token);
       support =
@@ -69,4 +67,3 @@ class PassengerSessionServices {
   late final PassengerPrivacyService? privacy;
   late final PassengerSavedPlaceService? savedPlaces;
 }
-

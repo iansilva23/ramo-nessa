@@ -26,7 +26,6 @@ import '../../map/domain/route_info.dart';
 import '../../pricing/data/pricing_policy_service.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
-import '../../rides/data/passenger_ride_resume_service.dart';
 import '../../rides/data/expandable_ride_preparation_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/data/http_passenger_ride_tracking_service.dart';
@@ -1086,10 +1085,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
     var selectionOpen = true;
     void newSelectionIntent() {
       selectionRadius = null;
-      final previous = selectionPreparation;
-      if (previous is HttpRidePreparationService) {
-        unawaited(previous.abandonIntent().catchError((_) {}));
-      }
       if (basePreparation is HttpRidePreparationService) {
         selectionPreparation = basePreparation.forNewIntent();
       }
@@ -1138,10 +1133,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
       ),
     );
     selectionOpen = false;
-    final previous = selectionPreparation;
-    if (previous is HttpRidePreparationService) {
-      unawaited(previous.abandonIntent().catchError((_) {}));
-    }
   }
 
   Future<String?> _prepareSelectedRide({
@@ -1216,12 +1207,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
         return 'Não conseguimos abrir o pagamento agora.';
       }
 
-      // Store the known ride before handing it to checkout. If the process dies
-      // here, recovery reads server state instead of creating a second payment.
-      if (preparation is HttpRidePreparationService && preparation.operationJournal != null) {
-        await RideRecoveryMemory.remember(prepared.id);
-        if (!mounted || isCurrentIntent?.call() == false) return 'Não conseguimos abrir o pagamento agora.';
-      }
       unawaited(
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -1239,11 +1224,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
           ),
         ).then((_) { onCheckoutClosed?.call(); }),
       );
-      if (preparation is HttpRidePreparationService && preparation.operationJournal != null) {
-        // Checkout is now scheduled. A deletion failure retains the replay entry
-        // and must not hide a valid prepared ride from its passenger.
-        unawaited(preparation.acknowledgePrepared(prepared.id).catchError((_) {}));
-      }
       return null;
     } on RidePreparationException catch (error) {
       return error.message;
