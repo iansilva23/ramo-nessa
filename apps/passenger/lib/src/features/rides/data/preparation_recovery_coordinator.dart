@@ -49,7 +49,14 @@ class PreparationRecoveryCoordinator {
           ? ride['driverHoldExpiresAt']
           : ride['paymentExpiresAt'] ?? ride['driverHoldExpiresAt'];
       if (deadline is! String) throw const FormatException('Missing checkout deadline.');
-      if (!DateTime.parse(deadline).isAfter(_clock())) return false;
+      if (!DateTime.parse(deadline).isAfter(_clock())) {
+        final payment = data['payment'];
+        // An existing payment can still be settling after checkout expires.
+        // Restore its read-only status through the established recovery screen;
+        // never turn it into another payment or a fresh reservation.
+        return payment is Map<String, dynamic> &&
+            const {'created', 'pending', 'authorized', 'paid'}.contains(payment['status']);
+      }
     }
     return true;
   }

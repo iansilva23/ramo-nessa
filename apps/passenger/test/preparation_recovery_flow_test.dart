@@ -185,6 +185,16 @@ void main() {
     expect(result.pendingRetry, false);
     expect(requests, isEmpty);
   });
+  test('existing payment status is preserved after checkout deadline without another preparation', () async {
+    for (final status in ['created', 'pending', 'authorized', 'paid']) {
+      reads.currentData = {...rideData(expired: true),
+        'payment': {'id': 'existing-payment', 'status': status, 'amountCents': 12500}};
+      final result = await coordinator().recover();
+      expect(result.ride?['payment']['id'], 'existing-payment');
+      expect(result.ride?['payment']['status'], status);
+      expect(requests, isEmpty);
+    }
+  });
   test('server-selected current ride takes precedence over a stale uncertain checkout', () async {
     await journal.create({'synthetic': true});
     reads.currentData = rideData(id: 'current-paid-ride', state: 'IN_PROGRESS');
