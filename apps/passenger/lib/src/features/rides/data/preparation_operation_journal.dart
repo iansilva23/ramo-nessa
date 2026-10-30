@@ -100,6 +100,8 @@ class PreparationOperationJournal {
     return storage.delete('$_prefix${operation.key}');
   }
 
+  bool owns(PreparationOperation operation) => operation._scope == _prefix;
+
   /// A user opening a new search explicitly obtains a fresh intent.
   PreparationSearchIntent newIntent() => PreparationSearchIntent._(this);
 }
