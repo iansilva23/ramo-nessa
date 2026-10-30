@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -21,12 +22,99 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_pa
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/expandable_ride_preparation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/driver_confirmation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
+
+  testWidgets('retry preserves previously chosen expanded radius instead of silently searching nearby again', (tester) async {
+    final preparation = _ExpandedRetryPreparationService();
+    await tester.pumpWidget(RamoNessaPassengerApp(
+      locationService: _FakeLocationService(), routeService: _FakeRouteService(),
+      placeSearchService: _FakePlaceSearchService(), pricingQuoteService: _FakePricingQuoteService(),
+      ridePreparationService: preparation, paymentService: _FakePassengerPaymentService(),
+      networkTilesEnabled: false,
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Pra onde vamos?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: find.byType(ListView), matching: find.text('Jericoacoara')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-destination-button')));
+    await tester.pumpAndSettle();
+    final button = find.byKey(const Key('continue-vehicle-button'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Buscar um motorista mais distante?'), findsOneWidget);
+    await tester.tap(find.text('Ampliar busca'));
+    await tester.pumpAndSettle();
+    expect(preparation.expandedRadii, [15]);
+    await tester.scrollUntilVisible(find.text('Synthetic expanded request interrupted'), 120,
+      scrollable: find.byType(Scrollable).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Synthetic expanded request interrupted'), findsOneWidget);
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(preparation.nearbyCalls, 1);
+    expect(preparation.expandedRadii, [15, 15]);
+    expect(find.text('Preço e pagamento'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+
+  testWidgets('leaving the search ignores a late preparation response instead of opening checkout', (tester) async {
+    final deferred = _DeferredPreparationService();
+    await tester.pumpWidget(RamoNessaPassengerApp(
+      locationService: _FakeLocationService(), routeService: _FakeRouteService(),
+      placeSearchService: _FakePlaceSearchService(), pricingQuoteService: _FakePricingQuoteService(),
+      ridePreparationService: deferred, paymentService: _FakePassengerPaymentService(),
+      networkTilesEnabled: false,
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Pra onde vamos?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: find.byType(ListView), matching: find.text('Jericoacoara')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-destination-button')));
+    await tester.pumpAndSettle();
+    final button = find.byKey(const Key('continue-vehicle-button'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(deferred.calls, 1);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Escolha o veículo'), findsNothing);
+    deferred.result.complete(await _FakeRidePreparationService().prepare(
+      service: ServiceType.buggy,
+      origin: const RamoPlace(name: 'Jeri', address: 'Jeri', position: LatLng(-2.7956, -40.5142)),
+      destination: const RamoPlace(name: 'Jeri', address: 'Jeri', position: LatLng(-2.7956, -40.5142)),
+      originZoneId: 'jericoacoara', destinationZoneId: 'jericoacoara',
+      route: const RouteInfo(points: [], distanceMeters: 2500, duration: Duration(minutes: 7)),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Preço e pagamento'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('server payment-first response opens payment without requesting driver acceptance', (tester) async {
     final service = _PaymentFirstService();
     final ride = PreparedRide.fromJson({
@@ -996,4 +1084,45 @@ class _PaymentFirstService extends _FakePassengerPaymentService implements Drive
       throw StateError('No prepayment confirmation is expected.');
   @override
   Future<void> releaseDriverReservation(String rideId) async {}
+}
+
+
+class _DeferredPreparationService implements RidePreparationService {
+  final result = Completer<PreparedRide>();
+  int calls = 0;
+  @override
+  Future<PreparedRide> prepare({required ServiceType service, required RamoPlace origin,
+    required RamoPlace destination, required String originZoneId,
+    required String destinationZoneId, required RouteInfo route,
+    int passengers = 1, DateTime? now}) {
+    calls++;
+    return result.future;
+  }
+}
+
+class _ExpandedRetryPreparationService implements RidePreparationService, ExpandableRidePreparationService {
+  int nearbyCalls = 0;
+  final expandedRadii = <double>[];
+  @override
+  Future<PreparedRide> prepare({required ServiceType service, required RamoPlace origin,
+    required RamoPlace destination, required String originZoneId,
+    required String destinationZoneId, required RouteInfo route,
+    int passengers = 1, DateTime? now}) async {
+    nearbyCalls++;
+    throw const RidePreparationException('Synthetic no nearby driver', code: 'NO_ELIGIBLE_DRIVER');
+  }
+  @override
+  Future<DriverSearchOptions> searchOptions(ServiceType service) async => const DriverSearchOptions(
+    nearbyKm: 3, expandedKm: 15, allowExpansion: true, feeDescription: 'Synthetic fee shown before payment');
+  @override
+  Future<PreparedRide> prepareWithRadius(RideSearchRequest request, double radiusKm) async {
+    expandedRadii.add(radiusKm);
+    if (expandedRadii.length == 1) {
+      throw const RidePreparationException('Synthetic expanded request interrupted', code: 'ROUTING_UNAVAILABLE');
+    }
+    return _FakeRidePreparationService().prepare(service: request.service,
+      origin: request.origin, destination: request.destination,
+      originZoneId: request.originZoneId, destinationZoneId: request.destinationZoneId,
+      route: request.route, passengers: request.passengers);
+  }
 }

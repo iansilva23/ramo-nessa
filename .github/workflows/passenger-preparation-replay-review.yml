@@ -1,0 +1,54 @@
+name: Passenger reservation duplicate protection review
+on:
+  push:
+    branches: [feature/passenger-preparation-replay-20261030]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: passenger-preparation-replay-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve financial code and original recovery flow
+        run: |
+          git fetch --no-tags --depth=1 origin 2fc82e5dfd0a2ccd958be088ed11970b262c6f15
+          git diff --exit-code 2fc82e5dfd0a2ccd958be088ed11970b262c6f15 HEAD -- backend/core apps/passenger/lib/src/features/payments apps/passenger/lib/src/app.dart apps/passenger/lib/src/passenger_session_services.dart apps/passenger/lib/src/features/rides/data/passenger_ride_resume_service.dart apps/passenger/lib/src/features/rides/data/http_passenger_ride_tracking_service.dart apps/passenger/lib/src/features/rides/presentation/resumed_ride_screen.dart
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/passenger
+      - run: flutter analyze
+        working-directory: apps/passenger
+      - run: flutter test
+        working-directory: apps/passenger
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.23.4'}
+      - name: Prepare preserved public passenger configuration
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=passenger
+      - name: Compile configured candidate without deploying it
+        run: flutter build web --release --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_PREPARATION_REPLAY=true --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+        working-directory: apps/passenger
+      - name: Verify passenger bundle and package candidate only
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+          python3 scripts/web/package_preparation_dedup_web.py
+          (cd artifacts/preparation-dedup && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passenger-reservation-dedup-candidate-only
+          path: artifacts/preparation-dedup/
+          if-no-files-found: error
+          retention-days: 14

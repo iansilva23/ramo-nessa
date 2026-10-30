@@ -33,6 +33,7 @@ class VehicleSelectionScreen extends StatefulWidget {
     required this.buggyMaxPassengers,
     this.onQuote,
     required this.onContinue,
+    this.onSelectionChanged,
   });
 
   final SharedTransferOption? sharedTransfer;
@@ -46,6 +47,7 @@ class VehicleSelectionScreen extends StatefulWidget {
   final int buggyMaxPassengers;
   final Future<PricingQuote> Function(VehicleSelectionResult result)? onQuote;
   final Future<String?> Function(VehicleSelectionResult result) onContinue;
+  final VoidCallback? onSelectionChanged;
 
   @override
   State<VehicleSelectionScreen> createState() =>
@@ -150,6 +152,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
             final candidates = widget.availableServices
                 .where((service) => !_unavailableServices.contains(service));
             if (candidates.isNotEmpty) {
+              widget.onSelectionChanged?.call();
               _selected = candidates.first;
               _passengerCount = _selected == ServiceType.buggy
                   ? widget.buggyMinPassengers : 1;
@@ -166,6 +169,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
 
   void _select(ServiceType service) {
     if (_selected == service || _submitting || _unavailableServices.contains(service)) return;
+    widget.onSelectionChanged?.call();
     setState(() {
       _selected = service;
       _passengerCount =
@@ -185,6 +189,8 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     ) {
       return;
     }
+    if (value == _passengerCount) return;
+    widget.onSelectionChanged?.call();
     setState(() {
       _passengerCount = value;
       _refreshPrices(debounce: true);
@@ -501,4 +507,5 @@ class _PassengerCounter extends StatelessWidget {
     );
   }
 }
+
 

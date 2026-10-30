@@ -11,6 +11,7 @@ import '../../pricing/data/pricing_location_resolver.dart';
 import '../domain/prepared_ride.dart';
 import 'ride_preparation_service.dart';
 import 'expandable_ride_preparation_service.dart';
+import 'preparation_request_identity.dart';
 
 class HttpRidePreparationService implements RidePreparationService, ExpandableRidePreparationService {
   HttpRidePreparationService({
@@ -19,6 +20,7 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
     String? passengerId,
     String? clientInstanceId,
     http.Client? client,
+    this.replayEnabled = const bool.fromEnvironment('RAMO_PREPARATION_REPLAY', defaultValue: false),
   })  : _baseUrl = baseUrl,
         _accessToken = accessToken ?? '',
         _clientInstanceId = clientInstanceId ?? '',
@@ -30,6 +32,14 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
   final String _clientInstanceId;
   final String _passengerId;
   final http.Client _client;
+  // Disabled until paired with the separately tested API protection.
+  final bool replayEnabled;
+  final PreparationSearchIntent _intent = PreparationSearchIntent();
+
+  HttpRidePreparationService forNewIntent() => HttpRidePreparationService(
+    baseUrl: _baseUrl, accessToken: _accessToken, passengerId: _passengerId,
+    clientInstanceId: _clientInstanceId, client: _client, replayEnabled: replayEnabled,
+  );
 
   Map<String, String> get _identityHeaders => {
         'content-type': 'application/json',
@@ -91,11 +101,7 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
     final instant = (now ?? DateTime.now()).toLocal();
     final isNight = instant.hour >= 22 || instant.hour < 6;
 
-    final response = await _client
-        .post(
-          _baseUrl.resolve('/v1/rides/prepare'),
-          headers: _identityHeaders,
-          body: jsonEncode({
+    final body = <String, dynamic>{
             if (searchRadiusKm != null) 'searchRadiusKm': searchRadiusKm,
             'quoteRequest': {
               'origin': originRef.toJson(),
@@ -123,9 +129,28 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
               'pickupPlaceProof': origin.placeProof!.trim(),
             if (destination.placeProof?.trim().isNotEmpty == true)
               'dropoffPlaceProof': destination.placeProof!.trim(),
-          }),
-        )
-        .timeout(RamoCoreConfig.requestTimeout);
+          };
+    if (!replayEnabled) return _sendPreparation(jsonEncode(body));
+    // The screen captures the chosen pickup/destination. Period is calculated
+    // from the clock and must not split a retry that crosses 22:00.
+    final quote = Map<String, dynamic>.from(body['quoteRequest'] as Map)
+      ..remove('period');
+    final selection = jsonEncode({...body, 'quoteRequest': quote});
+    final operation = _intent.operation(selection: selection, body: body);
+    return _sendPreparation(operation.bodyJson, operation: operation);
+  }
+
+  Future<PreparedRide> _sendPreparation(String bodyJson, {
+    PreparationRequestIdentity? operation,
+  }) async {
+    final response = await _client.post(
+      _baseUrl.resolve('/v1/rides/prepare'),
+      headers: {
+        ..._identityHeaders,
+        if (operation != null) 'idempotency-key': operation.key,
+      },
+      body: bodyJson,
+    ).timeout(RamoCoreConfig.requestTimeout);
 
     final decoded = decodeJsonObject(response.body);
 
@@ -139,12 +164,20 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
       }
     }
 
+    final code = decoded?['error'] as String?;
+    if (operation != null && const {
+      'NO_ELIGIBLE_DRIVER', 'PREPARATION_EXPIRED', 'PREPARATION_ALREADY_ADVANCED',
+    }.contains(code)) {
+      // A definitive server response ends this attempt. Another explicit search
+      // must not remain bound to an old reservation identifier.
+      _intent.reset();
+    }
     throw RidePreparationException(
       apiErrorMessage(
         decoded,
         'Não conseguimos preparar essa corrida agora.',
       ),
-      code: decoded?['error'] as String?,
+      code: code,
     );
   }
 }
