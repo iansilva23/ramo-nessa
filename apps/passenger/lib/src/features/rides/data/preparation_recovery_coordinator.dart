@@ -45,7 +45,9 @@ class PreparationRecoveryCoordinator {
       return false;
     }
     if (const {'CREATED', 'AWAITING_PAYMENT', 'PAYMENT_FAILED'}.contains(state)) {
-      final deadline = ride['paymentExpiresAt'] ?? ride['driverHoldExpiresAt'];
+      final deadline = ride['driverConsentRequired'] == true
+          ? ride['driverHoldExpiresAt']
+          : ride['paymentExpiresAt'] ?? ride['driverHoldExpiresAt'];
       if (deadline is! String) throw const FormatException('Missing checkout deadline.');
       if (!DateTime.parse(deadline).isAfter(_clock())) return false;
     }

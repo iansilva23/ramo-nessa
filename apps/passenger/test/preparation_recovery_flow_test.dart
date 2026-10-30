@@ -166,6 +166,25 @@ void main() {
     expect(requests, isEmpty);
     expect(reads.currentCalls, 1);
   });
+  test('payment-first checkout survives its shorter driver hold without extending payment expiry', () async {
+    reads.currentData = rideData();
+    (reads.currentData['ride'] as Map)['driverHoldExpiresAt'] = instant.subtract(const Duration(seconds: 1)).toIso8601String();
+    final result = await coordinator().recover();
+    expect(result.ride?['ride']['id'], 'same-ride');
+    expect(result.ride?['ride']['paymentExpiresAt'], instant.add(const Duration(minutes: 10)).toIso8601String());
+    expect(requests, isEmpty);
+  });
+  test('legacy driver-consent checkout retains its shorter driver hold validity', () async {
+    reads.currentData = rideData();
+    (reads.currentData['ride'] as Map).addAll({
+      'driverConsentRequired': true,
+      'driverHoldExpiresAt': instant.subtract(const Duration(seconds: 1)).toIso8601String(),
+    });
+    final result = await coordinator().recover();
+    expect(result.ride, isNull);
+    expect(result.pendingRetry, false);
+    expect(requests, isEmpty);
+  });
   test('server-selected current ride takes precedence over a stale uncertain checkout', () async {
     await journal.create({'synthetic': true});
     reads.currentData = rideData(id: 'current-paid-ride', state: 'IN_PROGRESS');
