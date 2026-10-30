@@ -14,6 +14,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Preserve financial code and original recovery flow
+        run: |
+          git fetch --no-tags --depth=1 origin 2fc82e5dfd0a2ccd958be088ed11970b262c6f15
+          git diff --exit-code 2fc82e5dfd0a2ccd958be088ed11970b262c6f15 HEAD -- backend/core apps/passenger/lib/src/features/payments apps/passenger/lib/src/app.dart apps/passenger/lib/src/passenger_session_services.dart apps/passenger/lib/src/features/rides/data/passenger_ride_resume_service.dart apps/passenger/lib/src/features/rides/data/http_passenger_ride_tracking_service.dart apps/passenger/lib/src/features/rides/presentation/resumed_ride_screen.dart
       - uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: '3.47.5'
