@@ -74,11 +74,13 @@ test('isolated PostgreSQL serializes acceptance and rejection before payment', {
  try {
   for(let index=0;index<30;index++){
    const rideId=randomUUID(), driverId='prepay-driver-'+randomUUID();
+   const vehicleId='prepay-vehicle-'+randomUUID();
+   await drivers.upsert({driverId,vehicleId,categories:['car'],fourByFour:false,seatCapacity:4,online:true,busy:false,latitude:-2.821,longitude:-40.414,locationUpdatedAt:start.toISOString(),updatedAt:start.toISOString()});
    await rides.create({id:rideId,passengerId:'prepay-passenger-'+randomUUID(),state:'AWAITING_PAYMENT',paymentStatus:'created',
     driverConsentRequired:true,reservedDriverId:driverId,driverHoldExpiresAt:hold,origin:{zoneId:'prea'},destination:{zoneId:'jijoca'},
     category:'car',period:'day',passengers:1,quote:{ruleId:'test',baseAmountCents:1000,pickupCompensationCents:0,totalAmountCents:1000,platformCommissionCents:100,driverNetCents:900},
     createdAt:start.toISOString(),updatedAt:start.toISOString()});
-   await drivers.upsert({driverId,vehicleId:'prepay-vehicle-'+randomUUID(),categories:['car'],fourByFour:false,seatCapacity:4,online:true,busy:false,
+   await drivers.upsert({driverId,vehicleId,categories:['car'],fourByFour:false,seatCapacity:4,online:true,busy:false,
     reservedRideId:rideId,reservedUntil:hold,latitude:-2.821,longitude:-40.414,locationUpdatedAt:start.toISOString(),updatedAt:start.toISOString()});
    const created=await matching.createOffer({rideId,driverId,approximatePickupDistanceKm:1,createdAt:start.toISOString(),expiresAt:new Date(start.getTime()+35000).toISOString()});
    const accept=()=>matching.acceptOffer({offerId:created.offer.id,driverId,acceptedAt:event});
