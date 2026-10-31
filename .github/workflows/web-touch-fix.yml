@@ -1,0 +1,442 @@
+name: Web touch alignment fix review
+on:
+  push:
+    branches: [feature/web-touch-fix-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: web-touch-fix-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.release.outputs.ready }}
+      reuse: ${{ steps.release.outputs.reuse }}
+      bundleRun: ${{ steps.release.outputs.bundleRun }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: release
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync,appendFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const c=JSON.parse(readFileSync('scripts/web/touch_fix_release.json'));
+          const allowed=new Set(['.github/workflows/web-touch-fix.yml','scripts/web/native-ios/UITests/ColdAudit.swift','scripts/web/touch_fix_release.json']);
+          const changed=execFileSync('git',['diff','--name-only',c.reviewCommit,'HEAD'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+          if(changed.some(p=>!allowed.has(p)))throw Error('Reviewed bundle source differs; compile and test it again.');
+          appendFileSync(process.env.GITHUB_OUTPUT,'ready='+c.locksReady+'\nreuse=true\nbundleRun='+c.reviewRun+'\n');
+          console.log('Application, dependency and fixture sources match the reviewed compiled bundles.');
+          NODE
+  dependency-locks:
+    needs: prepare
+    if: needs.prepare.outputs.ready != 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        role: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: apps/${{ matrix.role }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: touch-resolved-lock-${{ matrix.role }}
+          path: apps/${{ matrix.role }}/pubspec.lock
+          retention-days: 7
+  flutter-web:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true' && needs.prepare.outputs.reuse != 'true'
+    name: Web build and regressions - ${{ matrix.app }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            path: passageiro
+          - app: driver
+            path: motorista
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Test shared browser realtime transport
+        working-directory: packages/ramo_realtime
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Analyze shared Web Push bridge
+        working-directory: packages/ramo_push
+        run: |
+          dart pub get
+          dart analyze lib
+      - name: Test shared permission onboarding widgets
+        working-directory: packages/design_system
+        run: |
+          flutter pub get
+          flutter test test/ramo_permission_onboarding_test.dart test/ramo_notification_settings_test.dart test/ramo_web_setup_test.dart test/ramo_web_map_overlay_test.dart
+      - name: Generate correctly-sized PWA icons
+        run: |
+          python3 -m pip install --quiet "Pillow==11.3.0"
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Prepare isolated Web Push (disabled in review without public config)
+        run: node scripts/web/prepare_web_push.mjs --role=${{ matrix.app }}
+      - name: Resolve Flutter dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get
+      - name: Store resolved dependency locks for reproducibility
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-dependency-locks-${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/pubspec.lock
+            packages/ramo_realtime/pubspec.lock
+          retention-days: 7
+      - name: Check formatting of Web card source
+        if: matrix.app == 'passenger'
+        run: |
+          dart format --output=none --set-exit-if-changed \
+            apps/passenger/lib/src/features/payments/data/platform_card_tokenization_service*.dart \
+            apps/passenger/lib/src/features/payments/presentation/web_card_entry_screen.dart
+      - name: Store formatted card source for reproducibility
+        if: matrix.app == 'passenger'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-card-source-formatted
+          path: |
+            apps/passenger/lib/src/features/payments/data/platform_card_tokenization_service*.dart
+            apps/passenger/lib/src/features/payments/presentation/web_card_entry_screen.dart
+          retention-days: 7
+      - name: Format new push source for reproducibility
+        run: |
+          dart format packages/ramo_push/lib \
+            apps/${{ matrix.app }}/lib/src/core/communications/firebase_push_registration_service.dart \
+            apps/${{ matrix.app }}/lib/src/features/profile/presentation/${{ matrix.app }}_notifications_screen.dart \
+            packages/design_system/lib/src/onboarding/ramo_notification_settings.dart
+      - name: Store formatted push source
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-push-source-${{ matrix.app }}
+          path: |
+            packages/ramo_push/lib/
+            apps/${{ matrix.app }}/lib/src/core/communications/firebase_push_registration_service.dart
+            apps/${{ matrix.app }}/lib/src/features/profile/presentation/${{ matrix.app }}_notifications_screen.dart
+            packages/design_system/lib/src/onboarding/ramo_notification_settings.dart
+          retention-days: 7
+      - name: Analyze app and run regression tests
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+      - name: Prepare browser Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        shell: bash
+        run: node scripts/web/prepare_web_maps.mjs --role=${{ matrix.app }} --ci-review
+      - name: Build browser/PWA application
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build web --release --no-web-resources-cdn
+          --base-href=/${{ matrix.path }}/
+          --dart-define=RAMO_CORE_BASE_URL=
+          --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Check web artifact and PWA manifest
+        shell: bash
+        run: |
+          test -s "apps/${{ matrix.app }}/build/web/index.html"
+          test -s "apps/${{ matrix.app }}/build/web/manifest.json"
+          test -s "apps/${{ matrix.app }}/build/web/icons/Icon-192.png"
+          test -s "apps/${{ matrix.app }}/build/web/flutter_bootstrap.js"
+      - name: Verify bundle structure and route isolation
+        run: >
+          node scripts/web/verify_web_bundle.mjs
+          --role=${{ matrix.app }}
+          --dist=apps/${{ matrix.app }}/build/web
+          --ci-review
+      - name: Verify isolated browser security headers
+        run: node scripts/web/verify_web_gateway.mjs
+      - name: Validate Caddy staging config (no server changes)
+        env:
+          APP_DOMAIN: example.com
+          ACME_EMAIL: ci@example.com
+        run: |
+          docker run --rm \
+            -e APP_DOMAIN -e ACME_EMAIL \
+            -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
+      - name: Verify compiled login, cookie recovery and logout in Chromium (mock providers)
+        run: |
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          RAMO_CHROMIUM_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium)" \
+            RAMO_WEB_TEST_ROLE=${{ matrix.app }} \
+            node --test scripts/web/bundle_csp_browser_test.mjs
+      - name: Install pinned Playwright WebKit with system dependencies
+        run: node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
+      - name: Verify compiled login, cookie recovery and logout in WebKit (mock providers)
+        env:
+          RAMO_BROWSER_ENGINE: webkit
+          RAMO_WEB_TEST_ROLE: ${{ matrix.app }}
+        run: node --test scripts/web/bundle_csp_browser_test.mjs
+      - name: Store browser CSP login evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-csp-login-${{ matrix.app }}
+          path: artifacts/web-csp/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Store review-only static bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-nessa-web-${{ matrix.app }}-review
+          path: apps/${{ matrix.app }}/build/web/
+          retention-days: 7
+
+
+  cold-pointer:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        map: [passive, capturing]
+        semantics: [cold, enabled]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-passenger-review
+          run-id: ${{ needs.prepare.outputs.bundleRun }}
+          github-token: ${{ github.token }}
+          path: apps/passenger/build/web
+      - name: Prepare offline browser fixture
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
+          python3 -m pip install --quiet Pillow==11.3.0
+          mkdir -p artifacts/native-ios
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout artifacts/native-ios/key.pem -out artifacts/native-ios/cert.pem -days 1 -subj /CN=localhost -addext subjectAltName=DNS:localhost
+      - name: Audit first tap without a semantic locator
+        env:
+          RAMO_BROWSER_ENGINE: webkit
+          RAMO_COLD_MODE: standalone
+          RAMO_AUDIT_CAPTURE_MAP: ${{ matrix.map == 'capturing' && '1' || '0' }}
+          RAMO_COLD_SEMANTICS: ${{ matrix.semantics }}
+        run: |
+          set -euo pipefail
+          node scripts/web/native-ios/fixture.mjs > artifacts/native-ios/fixture.log 2>&1 &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -ksSf https://localhost:9443/audit/health >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/web/cold_pointer_audit.mjs
+      - name: Remove disposable certificate key
+        if: always()
+        run: rm -f artifacts/native-ios/key.pem artifacts/native-ios/cert.pem
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cold-pointer-${{ matrix.map }}-${{ matrix.semantics }}
+          path: artifacts/native-ios/
+          retention-days: 7
+
+  native-cold-launch:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-passenger-review
+          run-id: ${{ needs.prepare.outputs.bundleRun }}
+          github-token: ${{ github.token }}
+          path: apps/passenger/build/web
+      - name: Inventory actual SDK and simulator runtimes
+        run: |
+          mkdir -p artifacts/native-ios
+          xcodebuild -version | tee artifacts/native-ios/xcode.txt
+          xcrun simctl list -j > artifacts/native-ios/simulators.json
+          xcrun simctl list devicetypes > artifacts/native-ios/device-types.txt
+          brew install xcodegen
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Create disposable iPhone 15 Pro Max with iOS 26.5
+        run: |
+          set -euo pipefail
+          runtime=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; print(next(x["identifier"] for x in json.load(sys.stdin)["runtimes"] if x.get("isAvailable") and x["name"]=="iOS 26.5"))')
+          device=$(xcrun simctl create Ramo-PWA-Audit com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max "$runtime")
+          echo "RAMO_AUDIT_DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl ui "$device" appearance light
+      - name: Start local HTTPS fixture with passive measurements
+        run: |
+          set -euo pipefail
+          cat > artifacts/native-ios/openssl.cnf <<'CONF'
+          [req]
+          distinguished_name=dn
+          x509_extensions=ext
+          prompt=no
+          [dn]
+          CN=localhost
+          [ext]
+          subjectAltName=DNS:localhost,IP:127.0.0.1
+          basicConstraints=critical,CA:TRUE
+          keyUsage=critical,keyCertSign,digitalSignature,keyEncipherment
+          CONF
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout artifacts/native-ios/key.pem -out artifacts/native-ios/cert.pem -config artifacts/native-ios/openssl.cnf
+          xcrun simctl keychain "$RAMO_AUDIT_DEVICE" add-root-cert artifacts/native-ios/cert.pem
+          node scripts/web/native-ios/fixture.mjs > artifacts/native-ios/fixture.log 2>&1 &
+          echo "RAMO_FIXTURE_PID=$!" >> "$GITHUB_ENV"
+          for attempt in $(seq 1 30); do
+            if curl -ksSf https://localhost:9443/audit/health > /dev/null; then break; fi
+            sleep 1
+          done
+          xcrun simctl openurl "$RAMO_AUDIT_DEVICE" https://localhost:9443/passageiro/
+      - name: Install by native Safari UI and probe first painted coordinates
+        run: |
+          set -euo pipefail
+          cd scripts/web/native-ios
+          xcodegen generate
+          xcodebuild test -project PwaColdAudit.xcodeproj -scheme Audit \
+            -destination "platform=iOS Simulator,id=$RAMO_AUDIT_DEVICE" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
+            -resultBundlePath "$GITHUB_WORKSPACE/artifacts/native-ios/NativeAudit.xcresult" \
+            CODE_SIGNING_ALLOWED=NO | tee "$GITHUB_WORKSPACE/artifacts/native-ios/xctest.log"
+      - name: Require aligned geometry on the actual installed first touch
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const events=readFileSync('artifacts/native-ios/geometry.jsonl','utf8').trim().split('\n').map(JSON.parse);
+          const e=events.find(e=>e.standalone && e.kind==='pointerdown');
+          if(!e || !e.displayStandalone || e.semanticsEnabled || e.viewport.scale!==1)throw Error('Missing native cold-touch evidence.');
+          if(Math.abs(e.viewport.scrollY)>1 || Math.abs(e.viewport.offsetTop)>1 || Math.abs(e.view.y)>1)throw Error('Installed page still has a coordinate offset.');
+          console.log(JSON.stringify({standalone:e.standalone,viewport:e.viewport,view:e.view,touch:e.touch}));
+          NODE
+      - name: Preserve only disposable audit evidence and clean up
+        if: always()
+        run: |
+          if [ -d artifacts/native-ios/NativeAudit.xcresult ]; then
+            xcrun xcresulttool export attachments --path artifacts/native-ios/NativeAudit.xcresult --output-path artifacts/native-ios/attachments || true
+          fi
+          if [ -n "${RAMO_AUDIT_DEVICE:-}" ]; then
+            xcrun simctl io "$RAMO_AUDIT_DEVICE" screenshot artifacts/native-ios/final-screen.png || true
+            xcrun simctl listapps "$RAMO_AUDIT_DEVICE" > artifacts/native-ios/apps-after.plist || true
+            xcrun simctl shutdown "$RAMO_AUDIT_DEVICE" || true
+            xcrun simctl delete "$RAMO_AUDIT_DEVICE" || true
+          fi
+          rm -f artifacts/native-ios/key.pem artifacts/native-ios/cert.pem
+          if [ -n "${RAMO_FIXTURE_PID:-}" ]; then kill "$RAMO_FIXTURE_PID" || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ios-pwa-audit
+          path: artifacts/native-ios/
+          include-hidden-files: true
+          retention-days: 7
+
+  configured-web-bundles:
+    name: Configured Web bundles (no deploy or provider calls)
+    if: always() && needs.cold-pointer.result == 'success' && needs.native-cold-launch.result == 'success'
+    needs: [cold-pointer, native-cold-launch]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check public configuration and require real browser Maps key
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { loadPublicWebConfiguration } from './scripts/web/public_web_configuration.mjs';
+          import { validateMapsWebKey } from './scripts/web/maps_web_config.mjs';
+          await loadPublicWebConfiguration();
+          validateMapsWebKey(process.env.RAMO_GOOGLE_MAPS_WEB_API_KEY);
+          console.log('Configuração completa presente; sem chamadas a provedores.');
+          NODE
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Generate correctly-sized PWA icons
+        run: |
+          python3 -m pip install --quiet "Pillow==11.3.0"
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Prepare and compile both roles from this exact commit
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            if [ "$role" = passenger ]; then app_path=passageiro; else app_path=motorista; fi
+            (
+              cd "apps/$role"
+              flutter pub get --enforce-lockfile
+              flutter build web --release --no-web-resources-cdn \
+                --base-href="/$app_path/" \
+                --dart-define=RAMO_CORE_BASE_URL= \
+                --dart-define=RAMO_PREVIEW_MODE=false
+            )
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+          git diff --exit-code -- '*.dart' '*/pubspec.yaml' '*/pubspec.lock'
+      - name: Strict pair verification and bundle hashes
+        run: |
+          mkdir -p artifacts/configured-web
+          node scripts/web/write_homologation_manifest.mjs \
+            --passenger=apps/passenger/build/web \
+            --driver=apps/driver/build/web \
+            --commit="${{ github.sha }}" \
+            --output=artifacts/configured-web/release.json
+          cp -a apps/passenger/build/web artifacts/configured-web/passenger
+          cp -a apps/driver/build/web artifacts/configured-web/driver
+      - name: Store configured pair for controlled homologation (not production acceptance)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-configured-${{ github.sha }}
+          path: artifacts/configured-web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

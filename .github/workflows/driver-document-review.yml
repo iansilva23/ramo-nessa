@@ -1,0 +1,13 @@
+name: Driver Document Manual Review
+
+on:
+  push:
+    branches: [fix/driver-document-review-20261003]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    uses: ./.github/workflows/preflight.yml

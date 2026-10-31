@@ -1,0 +1,31 @@
+name: Asaas production sender - controlled manual arming
+on:
+  push:
+    branches: [ops/asaas-production-sender-20261025]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  arming:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: {scenario: [success, rollback]}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve all current application code and data migrations
+        run: git diff --exit-code 643e6ce8df10bc1e6879e68989dfb1a59c003fd5 HEAD -- apps backend packages config
+      - name: Arming, owned webhook, environment and runtime contracts
+        run: |
+          node --check deploy/staging/activate-asaas-sender.mjs
+          node --test deploy/staging/asaas-sender-contract.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-receiver-switch-contract.test.mjs
+      - name: Actual isolated PostgreSQL and Core switch, without a real account
+        run: sudo env GITHUB_ACTIONS=true ADMIN_UPDATE_SCENARIO=${{ matrix.scenario }} "$(command -v node)" deploy/staging/asaas-sender-ci.mjs
+      - name: Private synthetic fixture diagnostics
+        if: failure()
+        run: |
+          sudo find /opt/ramo-nessa-asaas-production-sender -type f \( -name last-command.private.log -o -name error.private.log \) -exec tail -c 6000 {} \; || true
+          docker logs --tail 20 ramo-nessa-staging-core-1 || true

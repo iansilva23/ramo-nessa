@@ -7,6 +7,7 @@ environment:
   sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
+  pointer_interceptor: 0.10.1+3
   flutter:
     sdk: flutter
 
@@ -17,3 +18,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/map_markers/
+    - assets/auth/

@@ -1,0 +1,144 @@
+name: Configured Google primary search - Core and Web review packages - no deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: [integration/pricing-v5-finance-safe-20261019, feature/admin-regions-pricing-simple-20261020]
+    paths: [.github/workflows/v5-configured-web-homologation.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: v5-configured-web-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    if: github.ref == 'refs/heads/integration/pricing-v5-finance-safe-20261019' || github.ref == 'refs/heads/feature/admin-regions-pricing-simple-20261020'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Require reviewed managed region sources without changing native or financial code
+        run: |
+          git fetch --no-tags origin feature/admin-regions-pricing-simple-20261020
+          git diff --exit-code e193f5d1b0e51777aa0c29538249d046ad4f89d1 HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
+      - name: Prepare icons
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Compile both Web apps with existing public configuration
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            if [ "$role" = passenger ]; then route=passageiro; else route=motorista; fi
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            (
+              cd "apps/$role"
+              flutter pub get --enforce-lockfile
+              flutter build web --release --no-web-resources-cdn --no-pub \
+                --base-href="/$route/" \
+                --dart-define=RAMO_CORE_BASE_URL= \
+                --dart-define=RAMO_PREVIEW_MODE=false
+            )
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Verify release manifest and unchanged sources
+        run: |
+          set -euo pipefail
+          node scripts/web/write_homologation_manifest.mjs \
+            --passenger=apps/passenger/build/web \
+            --driver=apps/driver/build/web \
+            --commit="${{ github.sha }}" \
+            --output=web-release-manifest.json
+          git diff --exit-code -- 'apps/*/lib/**' 'apps/*/pubspec.yaml' 'packages/**'
+      - name: Prepare isolated compiled bundle browser checks
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Prove stalled tile initialization regression on the previous Web dependency
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/iansilva23/ramo-nessa/actions/artifacts/12362030461/zip \
+            --output "$RUNNER_TEMP/previous-map.zip"
+          python3 deploy/staging/stage-regions-web.py --archive "$RUNNER_TEMP/previous-map.zip" --output "$RUNNER_TEMP/previous-map" --source 0a6d4240e55e71dc8e841799bc0c3a01fcb4a375 --sha256 92a13615a015c5f08fe4480506666db3e09c5c61b67b0fcc493e496be7d7cae1
+          set +e
+          RAMO_WEB_TEST_DIST="$RUNNER_TEMP/previous-map/passenger" RAMO_WEB_TEST_ROLE=passenger RAMO_BROWSER_ENGINE=chromium node --test scripts/web/bundle_csp_browser_test.mjs > "$RUNNER_TEMP/map-stalled-regression.log" 2>&1
+          result=$?
+          set -e
+          if test "$result" = 0; then
+            echo 'Previous Web dependency unexpectedly initialized with all tiles stalled.'
+            exit 1
+          fi
+          if ! grep -q WEB_MAP_NOT_READY_WITH_STALLED_TILES "$RUNNER_TEMP/map-stalled-regression.log"; then
+            cat "$RUNNER_TEMP/map-stalled-regression.log"
+            exit 1
+          fi
+          echo 'Previous Web dependency reproduces the stalled tile initialization failure.'
+      # Marker InfoWindow content updates are exercised with synthetic GPS too.
+      - name: Verify both configured apps in Chromium and WebKit with settled reload assets
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            for engine in chromium webkit; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/bundle_csp_browser_test.mjs
+            done
+          done
+      - name: Verify minimal Core patch against compiled installed-source baseline
+        run: |
+          set -euo pipefail
+          baseline=$(mktemp -d)
+          git archive 0f5305ddef3398112ca1e7d10a00fd05fa8548e8 backend/core | tar -x -C "$baseline"
+          npm ci --prefix "$baseline/backend/core" --no-audit --no-fund
+          npm run build --prefix "$baseline/backend/core"
+          node scripts/web/package_google_primary_core_patch.mjs --source="${{ github.sha }}" --baseline="$baseline/backend/core" --output=artifacts/google-primary-core-patch
+      - name: Package immutable source-matched bundles, without deploy
+        run: |
+          mkdir -p artifacts/v5-web
+          cp -a apps/passenger/build/web artifacts/v5-web/passenger
+          cp -a apps/driver/build/web artifacts/v5-web/driver
+          cp web-release-manifest.json artifacts/v5-web/release.json
+          printf '%s\n' "${{ github.sha }}" > artifacts/v5-web/source-commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-v5-configured-web-homologation
+          path: artifacts/v5-web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve reviewed Core patch without activation
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-primary-core-patch-no-deployment
+          path: artifacts/google-primary-core-patch
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve failed compiled map fixture for local diagnosis only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-web-ci-debug-not-for-installation
+          path: |
+            apps/passenger/build/web/
+            apps/driver/build/web/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1

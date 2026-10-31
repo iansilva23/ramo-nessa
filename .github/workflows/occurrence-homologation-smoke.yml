@@ -1,0 +1,33 @@
+name: Isolated occurrence runtime smoke - no deploy
+on:
+  push:
+    branches: [integration/ride-consistency-occurrences-20261025]
+    paths: ['deploy/homologation/**', '.github/workflows/occurrence-homologation-smoke.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: ramo, POSTGRES_PASSWORD: ramo, POSTGRES_DB: ramo}
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramo:ramo@127.0.0.1:5432/ramo
+      DB_SSL: 'false'
+      NODE_ENV: development
+      RAMO_ISOLATED_OCCURRENCE_SMOKE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run build && npm run db:migrate:prod
+        working-directory: backend/core
+      - run: node --test deploy/homologation/prepare-occurrences.test.mjs
+      - run: node deploy/homologation/smoke-occurrences.mjs "$PWD/backend/core"
+      - name: Verify the stdin execution used by the VPS command
+        run: cat deploy/homologation/smoke-occurrences.mjs | node --input-type=module - "$PWD/backend/core"

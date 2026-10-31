@@ -1,25 +1,44 @@
+import 'dart:math' as math;
+import 'package:flutter/widgets.dart';
 import 'package:latlong2/latlong.dart';
 
 abstract final class RamoMapConfig {
   static const fallbackCenter = LatLng(-2.7956, -40.5142);
-  static const fallbackZoom = 14.5;
+  static const fallbackZoom = 16.5;
+  static const locationZoom = 17.0;
 
-  static const osmTileUrl =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  /// Do not move to the pickup point immediately if a route destination
+  /// is already selected: route fitting owns the camera in that state.
+  /// This avoids a zoom jump while the refreshed route is being calculated.
+  static bool shouldCenterOnGpsUpdate({required bool hasDestination}) =>
+      !hasDestination;
 
-  static const nominatimHost = 'nominatim.openstreetmap.org';
-  static const osrmBaseUrl = 'https://router.project-osrm.org';
+  /// A list can have several identical points (e.g. zero-distance routes).
+  /// Such a list has no useful bounds; the camera should center on one point.
+  static bool hasRouteBounds(List<LatLng> coordinates) {
+    if (coordinates.length < 2) return false;
+    final first = coordinates.first;
+    return coordinates.skip(1).any(
+      (point) => point.latitude != first.latitude ||
+          point.longitude != first.longitude,
+    );
+  }
+}
 
-  /// Recorte operacional de busca do MVP: Jeri, Jijoca, Preá e entorno.
-  ///
-  /// Nominatim usa a ordem left,top,right,bottom.
-  static const nominatimViewbox = '-40.61,-2.73,-40.34,-2.98';
-
-  static const requestTimeout = Duration(seconds: 10);
-
-  /// Fica desligado até existir um backend confiável fazendo matching.
-  static bool get matchingEnabled => false;
-
-  static const userAgent =
-      'RamoNessa/0.1 (br.com.ramonessa.passenger)';
+/// Reserves the actual bottom-sheet height without narrowing the sides.
+EdgeInsets ramoHomeMapPadding({
+  required Size viewport,
+  required double safeTop,
+  required double sheetExtent,
+  bool hasAgencyBanner = false,
+}) {
+  final top = math.min(
+    safeTop + 76 + (hasAgencyBanner ? 42 : 0),
+    viewport.height * .22,
+  );
+  final bottom = math.min(
+    viewport.height * sheetExtent.clamp(0.0, 1.0) + 12,
+    math.max(0.0, viewport.height - top - 120),
+  );
+  return EdgeInsets.fromLTRB(12, top, 12, bottom);
 }

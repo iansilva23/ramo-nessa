@@ -1,0 +1,107 @@
+name: ramo-nessa-test
+
+x-core-environment: &core-environment
+  NODE_ENV: development
+  PORT: "8080"
+  DATABASE_URL: ${DATABASE_URL}
+  DB_SSL: "false"
+  TRUST_PROXY: "true"
+  ALLOW_DEV_IDENTITY: "false"
+  ALLOW_DEV_OTP: "true"
+  OTP_PROVIDER: "dev"
+  OTP_HASH_SECRET: ${OTP_HASH_SECRET}
+  OTP_RATE_LIMIT_SECRET: ${OTP_RATE_LIMIT_SECRET}
+  ADMIN_MFA_ENCRYPTION_KEY: ${ADMIN_MFA_ENCRYPTION_KEY}
+  ADMIN_LOGIN_RATE_LIMIT_SECRET: ${ADMIN_LOGIN_RATE_LIMIT_SECRET}
+  DOCUMENT_STORAGE_BASE_URL: "http://document-storage:8090/"
+  DOCUMENT_STORAGE_AUTH_TOKEN: ${DOCUMENT_STORAGE_AUTH_TOKEN}
+  DOCUMENT_INSPECTION_ENCRYPTION_KEY: ${DOCUMENT_INSPECTION_ENCRYPTION_KEY}
+  DOCUMENT_INSPECTION_TTL_SECONDS: "60"
+  SHUTDOWN_TIMEOUT_MS: "10000"
+  ROUTING_PROVIDER: "google"
+  ROUTING_TIMEOUT_MS: "5000"
+  GOOGLE_MAPS_SERVER_API_KEY: "test-google-server-key"
+  GOOGLE_ROUTES_BASE_URL: "http://google-maps-mock:8091/"
+  GOOGLE_PLACES_BASE_URL: "http://google-maps-mock:8091/v1/"
+
+x-core-image: &core-image
+  image: ramo-nessa-core:test
+  build:
+    context: ../../backend/core
+    dockerfile: Dockerfile
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ramonessa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ramonessa
+    volumes:
+      - ramo_test_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ramonessa -d ramonessa"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *core-image
+    command: ["node", "dist/scripts/migrate.js"]
+    environment: *core-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  google-maps-mock:
+    <<: *core-image
+    command: ["node", "dist/scripts/test-google-maps.js"]
+    environment:
+      GOOGLE_MAPS_MOCK_PORT: "8091"
+      GOOGLE_MAPS_SERVER_API_KEY: "test-google-server-key"
+    expose:
+      - "8091"
+    restart: unless-stopped
+
+  document-storage:
+    <<: *core-image
+    command: ["node", "dist/scripts/test-document-storage.js"]
+    environment:
+      DOCUMENT_STORAGE_PORT: "8090"
+      DOCUMENT_STORAGE_AUTH_TOKEN: ${DOCUMENT_STORAGE_AUTH_TOKEN}
+    expose:
+      - "8090"
+    restart: unless-stopped
+
+  core:
+    <<: *core-image
+    environment: *core-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      document-storage:
+        condition: service_started
+      google-maps-mock:
+        condition: service_started
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  gateway:
+    image: ramo-nessa-admin-gateway:test
+    build:
+      context: ../../apps/admin
+      dockerfile: Dockerfile
+    depends_on:
+      core:
+        condition: service_healthy
+    ports:
+      - "${TEST_HTTP_PORT:-8080}:8080"
+    restart: unless-stopped
+
+volumes:
+  ramo_test_postgres:

@@ -1,0 +1,69 @@
+import 'features/rides/data/http_ride_preparation_service.dart';
+import 'features/rides/data/ride_preparation_service.dart';
+import 'features/payments/data/http_passenger_payment_service.dart';
+import 'features/payments/data/passenger_payment_service.dart';
+import 'features/profile/data/http_passenger_privacy_service.dart';
+import 'features/profile/data/http_passenger_saved_place_service.dart';
+import 'features/profile/data/http_passenger_support_service.dart';
+import 'features/profile/data/passenger_privacy_service.dart';
+import 'features/profile/data/passenger_saved_place_service.dart';
+import 'features/profile/data/passenger_support_service.dart';
+import 'features/rides/data/http_passenger_activity_service.dart';
+import 'features/rides/data/passenger_activity_service.dart';
+import 'preview/passenger_preview_dependencies.dart';
+
+/// One selection for the home and profile. Preview tokens must never select
+/// private Core endpoints, even when a public Maps Core URL is configured.
+class PassengerSessionServices {
+  PassengerSessionServices({
+    required Uri? coreUri,
+    required String? accessToken,
+    String? clientInstanceId,
+    PassengerPreviewDependencies? preview,
+    PassengerPaymentService? paymentService,
+  }) {
+    final token = accessToken?.trim();
+    final authenticated = coreUri != null &&
+        token != null &&
+        token.length >= 20;
+
+    if (preview != null) {
+      payments = paymentService ?? preview.payments;
+      preparation = preview.ridePreparation;
+      activity = preview.activity;
+      support = preview.support;
+      privacy = null;
+      savedPlaces = null;
+    } else if (authenticated) {
+      payments = paymentService ??
+          HttpPassengerPaymentService(
+            baseUrl: coreUri,
+            accessToken: token,
+            clientInstanceId: clientInstanceId,
+          );
+      preparation = HttpRidePreparationService(baseUrl: coreUri, accessToken: token, clientInstanceId: clientInstanceId);
+      activity =
+          HttpPassengerActivityService(baseUrl: coreUri, accessToken: token);
+      support =
+          HttpPassengerSupportService(baseUrl: coreUri, accessToken: token);
+      privacy =
+          HttpPassengerPrivacyService(baseUrl: coreUri, accessToken: token);
+      savedPlaces =
+          HttpPassengerSavedPlaceService(baseUrl: coreUri, accessToken: token);
+    } else {
+      payments = paymentService;
+      preparation = null;
+      activity = null;
+      support = null;
+      privacy = null;
+      savedPlaces = null;
+    }
+  }
+
+  late final PassengerPaymentService? payments;
+  late final RidePreparationService? preparation;
+  late final PassengerActivityService? activity;
+  late final PassengerSupportService? support;
+  late final PassengerPrivacyService? privacy;
+  late final PassengerSavedPlaceService? savedPlaces;
+}

@@ -1,0 +1,110 @@
+name: Driver route economy - verified live installer OFF
+on:
+  push:
+    branches: [ops/driver-economy-live-20261026]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: driver-economy-live-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve the exact app source and scoped Web GPS compatibility
+        run: git diff --exit-code 77fa0e56d9427a2b8103f1e9e46c17735598b210 HEAD -- backend apps packages config/web
+      - name: Validate installer and preserved runtime contracts
+        run: |
+          node --check deploy/staging/economy-web-update.mjs
+          node --check deploy/staging/economy-migrations.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_economy.py
+          node --test scripts/web/push_worker_test.mjs deploy/staging/economy-web.test.mjs deploy/staging/google-search-update.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+      - name: Compile the installed Core baseline and the exact reviewed update
+        run: |
+          mkdir baseline
+          git archive 5f51e1f7b9fd714ded24801afb034de0c292f2fd backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run typecheck --prefix backend/core
+          npm run build --prefix backend/core
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Test driver policy integration without changing native configuration
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+      - name: Compile configured Passenger and Driver Web with preserved public provider settings
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          for role in passenger driver; do
+            if [ "$role" = passenger ]; then prefix=passageiro; else prefix=motorista; fi
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            (cd "apps/$role" && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href="/$prefix/" --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true)
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Assemble hash-pinned files and strict manifest
+        run: |
+          node scripts/web/package_economy_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib,zipfile
+          with zipfile.ZipFile('RamoNessa-Economia-Rotas-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum RamoNessa-Economia-Rotas-Web.zip > RamoNessa-Economia-Rotas-Web.zip.sha256
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Exercise both configured applications in both browser engines
+        run: |
+          for role in passenger driver; do
+            for engine in chromium webkit; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/activities_web_browser_test.mjs
+            done
+          done
+      - name: Rehearse real backup restore, additive migration, update failures and safe rollback
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-economy-web-update.mjs "$PWD/RamoNessa-Economia-Rotas-Web.zip" "$PWD/baseline"
+      - name: Package installer after successful rehearsal
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Economia-Rotas-Web.tar.gz
+          sha256sum Instalador-Economia-Rotas-Web.tar.gz > Instalador-Economia-Rotas-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-economy-live-tested
+          path: |
+            RamoNessa-Economia-Rotas-Web.zip
+            RamoNessa-Economia-Rotas-Web.zip.sha256
+            Instalador-Economia-Rotas-Web.tar.gz
+            Instalador-Economia-Rotas-Web.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: driver-economy-browser-evidence, path: artifacts/ride-activities/, if-no-files-found: ignore}
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: driver-economy-live-tested, path: package}
+      - name: Publish verified package without accessing the VPS
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          cd package
+          sha256sum -c RamoNessa-Economia-Rotas-Web.zip.sha256
+          sha256sum -c Instalador-Economia-Rotas-Web.tar.gz.sha256
+          gh release create driver-economy-web-20261026-r1 RamoNessa-Economia-Rotas-Web.zip RamoNessa-Economia-Rotas-Web.zip.sha256 Instalador-Economia-Rotas-Web.tar.gz Instalador-Economia-Rotas-Web.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Economia de rotas — instalação DESLIGADA' --notes 'Atualização Core/ADM/Motorista Web com migração aditiva 099 e economia DESLIGADA. Passageiro Web copiado da versão ativa sem alteração. GPS Cinema Web e mapa/GPS nativos preservados. Backup restaurado em isolamento e retorno sem restaurar pagamentos. Instalação manual na VPS. Pacotes Android/iOS em workflow separado.'
