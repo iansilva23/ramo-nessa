@@ -1,0 +1,314 @@
+name: Driver chosen camera frame - tested Web Android and iOS
+on:
+  push:
+    branches: [feature/driver-preserve-camera-20261028]
+    paths-ignore: ['docs/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: driver-preserve-camera-packages-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SWIFT_VERSION: '5.0'
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Preserve backend, Passenger, routing API and native platform configuration
+        run: |
+          git diff --exit-code 4ae6415ac7a9deb74bfcc1b7b049ce7aa18582d6 HEAD -- backend apps/admin apps/passenger packages config apps/driver/android apps/driver/ios apps/driver/lib/src/features/home/data apps/driver/lib/src/core/config/driver_core_config.dart
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Analyze and test all Driver flows on the native host
+        working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test test/driver_location_sampling_test.dart --reporter expanded
+          flutter test
+      - name: Verify the camera framing, pointer capture and automatic resume on Web
+        working-directory: apps/driver
+        run: |
+          export CHROME_EXECUTABLE="$(command -v google-chrome)"
+          flutter test --platform chrome test/driver_camera_follow_test.dart test/driver_map_gestures_test.dart test/web_map_camera_test.dart test/driver_map_config_test.dart test/driver_travel_heading_test.dart
+
+  android:
+    needs: review
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: driver
+            label: Motorista
+            upper: DRIVER
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="${{ matrix.label }} Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="${{ matrix.label }} Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test driver including dynamic payout terms
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.${{ matrix.app }}.preview'\"))throw Error('Unexpected APK application ID')"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-${{ matrix.label }}-Android-Camera-Livre-20261027.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          cd artifacts/android
+          sha256sum RamoNessa-${{ matrix.label }}-Android-Camera-Livre-20261027.apk > SHA256SUMS
+          printf '%s\n' '${{ matrix.label }} Android conectado a https://app.ramonessa.com.br. Fonte ${{ github.sha }} (base consolidada dos apps em 26/10/2026). RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.${{ matrix.app }}.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Mantém zoom, inclinação e posição escolhidos; segue GPS confiável com limiares de 10/5 km/h e sem retorno automático ao padrão. Amostras locais rápidas no primeiro plano; frequência de envio ao Core preservada. Validação física no aparelho ainda necessária. GPS, rotas e economia preservados. Compatível com Core 099 já instalado. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-android-camera-livre-conectado-20261027
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    needs: review
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: driver
+            label: Motorista
+            upper: DRIVER
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_IOS_{0}_API_KEY', matrix.upper)] }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="${{ matrix.label }} iOS connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="${{ matrix.label }} iOS connected"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test native application
+        working-directory: apps/${{ matrix.app }}
+        run: flutter analyze && flutter test
+      - name: Build iPhone device without Apple signing
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package unsigned iPhone app separately
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app
+          mkdir -p artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app artifacts/ios/RamoNessa-${{ matrix.label }}-iPhone-SEM-ASSINATURA-Camera-Livre-20261027.zip
+          printf '%s\n' 'Build para iPhone SEM ASSINATURA APPLE. Nao pode ser instalado diretamente por este ZIP. Exige assinatura e provisionamento Apple pelo Xcode ou processo de distribuicao autorizado. Fonte ${{ github.sha }}; Core https://app.ramonessa.com.br; RAMO_PREVIEW_MODE=false. GPS, login e push exigem aceite no aparelho; APNs exige provisionamento. Mantém zoom, inclinação e posição escolhidos; segue GPS confiável com limiares de 10/5 km/h e sem retorno automático ao padrão. Amostras locais rápidas no primeiro plano; frequência de envio ao Core preservada. Validação física no aparelho ainda necessária. GPS, rotas e economia preservados. Compatível com Core 099 já instalado. Nenhuma configuração do servidor é alterada.' > artifacts/ios/LEIA-ME.txt
+          cd artifacts/ios
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-iphone-camera-livre-sem-assinatura-20261027
+          path: artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build simulator with the same application configuration
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --simulator --debug --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package simulator app
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app
+          mkdir -p artifacts/simulator
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app artifacts/simulator/RamoNessa-${{ matrix.label }}-SIMULADOR-Camera-Livre-20261027.zip
+          cd artifacts/simulator
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-ios-camera-livre-simulador-20261027
+          path: artifacts/simulator/
+          if-no-files-found: error
+          retention-days: 14
+  web:
+    needs: review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Confirm pinned Driver source and unchanged server and Passenger
+        run: git diff --exit-code a04302a475f90b17847699c837ca7e074bf529d3 HEAD -- apps backend packages config
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Resolve locked dependencies and check Driver
+        working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+      - name: Compile unchanged Core for browser session fixture
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Build configured real Driver Web with restored production vector ID
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=driver
+          cd apps/driver
+          flutter build web --release --no-web-resources-cdn --base-href=/motorista/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+      - name: Verify bundle and retained GPS build configuration
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+          grep -Fq de20bf289d6db3ad15fdb14b apps/driver/build/web/main.dart.js
+          mkdir -p release
+          python3 - <<'PY'
+          import pathlib, zipfile, hashlib, json
+          root=pathlib.Path('apps/driver/build/web')
+          files=[{'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(root.rglob('*')) if p.is_file()]
+          manifest={'schemaVersion':1,'role':'driver','sourceCommit':'a04302a475f90b17847699c837ca7e074bf529d3','expectedOrigin':'https://app.ramonessa.com.br','expectedProject':'ramo-nessa','basePath':'/motorista/','compiledFinanceTerms':True,'browserLoginChromium':True,'browserLoginWebKit':True,'realProviderAcceptance':False,'publicConfigSha256':hashlib.sha256((root/'ramo_push_config.js').read_bytes()).hexdigest(),'files':files}
+          with zipfile.ZipFile('release/RamoNessa-Motorista-Camera-Livre-Web.zip','w',zipfile.ZIP_DEFLATED) as z:
+              z.writestr('release.driver.json',json.dumps(manifest))
+              for f in files: z.write(root/f['path'],'driver/'+f['path'])
+          PY
+          cd release
+          sha256sum RamoNessa-Motorista-Camera-Livre-Web.zip > RamoNessa-Motorista-Camera-Livre-Web.zip.sha256
+      - name: Install browser engines
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Compiled Web and installed launch session regression
+        run: |
+          for engine in chromium webkit; do
+            RAMO_WEB_TEST_ROLE=driver RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+          done
+      - name: Rehearse driver-only switch and both recovery paths with Caddy
+        run: |
+          node --check deploy/staging/driver-follow-web-update.mjs
+          docker pull caddy:2.11.7-alpine
+          sudo env GITHUB_ACTIONS=true PATH="$PATH" node deploy/staging/test-driver-follow-web-update.mjs "$PWD/release/RamoNessa-Motorista-Camera-Livre-Web.zip"
+          git archive HEAD deploy/staging scripts/web | gzip -n > release/Instalador-Motorista-Camera-Livre-Web.tar.gz
+          cd release
+          sha256sum Instalador-Motorista-Camera-Livre-Web.tar.gz > Instalador-Motorista-Camera-Livre-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-follow-web-tested
+          path: release/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: driver-follow-web-browser-evidence
+          path: artifacts/web-csp/
+          if-no-files-found: ignore
+
+  publish_web:
+    needs: web
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: driver-follow-web-tested, path: release}
+      - name: Publish verified operator package only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd release
+          sha256sum -c RamoNessa-Motorista-Camera-Livre-Web.zip.sha256
+          sha256sum -c Instalador-Motorista-Camera-Livre-Web.tar.gz.sha256
+          gh release create driver-follow-web-20261027-r1 ./* --target "$GITHUB_SHA" --prerelease --latest=false --title 'Motorista — enquadramento livre e rumo do veículo' --notes 'Driver source a04302a475f90b17847699c837ca7e074bf529d3. Mantém zoom, inclinação e posição escolhidos. Segue o deslocamento com rumo confiável e limiares de 10/5 km/h, sem retorno automático ao padrão. Mantém GPS, rotas e economia atuais. Testes Flutter e Web/PWA, troca e retorno ensaiados. Não instala na VPS automaticamente. Sem alterações no Core, banco, ADM ou Passageiro.'
+  publish_native:
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: ramo-driver-android-camera-livre-conectado-20261027, path: native/android}
+      - uses: actions/download-artifact@v4
+        with: {name: ramo-driver-iphone-camera-livre-sem-assinatura-20261027, path: native/iphone}
+      - uses: actions/download-artifact@v4
+        with: {name: ramo-driver-ios-camera-livre-simulador-20261027, path: native/simulator}
+      - name: Verify and publish native downloads
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          for folder in android iphone simulator; do (cd "native/$folder" && sha256sum -c SHA256SUMS); done
+          mkdir release
+          cp native/android/*.apk native/iphone/*.zip native/simulator/*.zip release/
+          printf '%s\n' 'Motorista — enquadramento escolhido e rumo confiável do veículo. Android conectado ao servidor real, assinatura de homologacao e pacote br.com.ramonessa.driver.preview. iPhone SEM ASSINATURA APPLE: exige assinatura e provisionamento para instalar. SIMULADOR somente para simulador. Aceite visual e no aparelho ainda pendente. Fonte ${{ github.sha }}.' > release/LEIA-ME.txt
+          (cd release && sha256sum *.apk *.zip > SHA256SUMS)
+          gh release create driver-follow-native-20261027-r1 release/* --repo "$GH_REPO" --target "$GITHUB_SHA" --prerelease --latest=false --title 'Motorista — câmera livre acompanha o veículo' --notes 'Android com assinatura de homologação e servidor real. iPhone sem assinatura Apple e simulador. Mantém zoom, inclinação e posição escolhidos; giro por rumo confiável do deslocamento com limiares 10/5 km/h, sem voltar ao padrão. GPS de primeiro plano rápido e envios ao Core na frequência existente. Testes e builds verificados. Sem publicação nas lojas ou instalação automática na VPS.'

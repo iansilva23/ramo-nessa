@@ -11,14 +11,14 @@ abstract final class RamoColors {
   static const brandGold = Color(0xFFF6BF09);
   static const brandBlack = Color(0xFF0D0D0D);
 
-  static const ink = Color(0xFF111315);
-  static const inkSoft = Color(0xFF383B40);
-  static const muted = Color(0xFF74787F);
+  static const ink = Color(0xFF090A0B);
+  static const inkSoft = Color(0xFF2F3134);
+  static const muted = Color(0xFF6E7177);
 
-  static const canvas = Color(0xFFF5F5F1);
+  static const canvas = Color(0xFFFFFFFF);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceRaised = Color(0xFFFAFAF7);
-  static const border = Color(0xFFE4E5E1);
+  static const surfaceRaised = Color(0xFFF5F5F3);
+  static const border = Color(0xFFE9EAE6);
 
   static const darkCanvas = Color(0xFF0D0F11);
   static const darkSurface = Color(0xFF16191C);

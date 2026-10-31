@@ -1,0 +1,68 @@
+name: Regions and Pricing - Full Database Review
+on:
+  push:
+    branches: [feature/admin-regions-pricing-simple-20261020]
+    paths:
+      - 'backend/core/**'
+      - 'scripts/web/admin_localities_core_browser_e2e.mjs'
+      - 'deploy/staging/inspect-regions-pricing*'
+      - '.github/workflows/regions-pricing-database-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: regions-pricing-database-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  postgres-full:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ramo_v5_ci
+          POSTGRES_USER: ramo_ci
+          POSTGRES_PASSWORD: ramo_ci_ephemeral_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ramo_ci -d ramo_v5_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_ATOMIC_PG_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_EPHEMERAL_PG: 'true'
+      DB_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Verify read-only runtime inventory contract
+        run: |
+          node --check deploy/staging/inspect-regions-pricing.mjs
+          node --test deploy/staging/inspect-regions-pricing.test.mjs
+      - name: Assert local disposable database before any database command
+        run: |
+          test "$GITHUB_ACTIONS" = "true"
+          test "$RAMO_V5_EPHEMERAL_PG" = "true"
+          test "$DATABASE_URL" = "postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci"
+          test "$RAMO_V5_ATOMIC_PG_URL" = "$DATABASE_URL"
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Existing legacy browser integration dependencies
+        working-directory: scripts/web/browser-tests
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Migrate ephemeral schema and verify migration idempotence
+        working-directory: backend/core
+        run: |
+          npm run db:migrate
+          npm run db:migrate
+      - name: Typecheck and full serial Core suite including PostgreSQL regressions
+        working-directory: backend/core
+        run: |
+          npm run typecheck
+          node --import tsx --test --test-concurrency=1 test/*.test.ts

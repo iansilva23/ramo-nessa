@@ -1,191 +1,281 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../domain/service_type.dart';
-import 'service_selector.dart';
+/// Wait for the floating panel to finish resizing before fitting map bounds.
+const ramoTripCardResizeDuration = Duration(milliseconds: 260);
 
+/// A floating, content-sized route panel. It leaves the rest of the map
+/// interactive and never stretches a pointer interceptor over the viewport.
 class RideBottomSheet extends StatelessWidget {
   const RideBottomSheet({
     super.key,
-    required this.selectedService,
-    required this.onServiceChanged,
     required this.onOriginTap,
     required this.onDestinationTap,
-    required this.onRequestRide,
+    required this.onContinue,
+    this.onDestinationClear,
     this.origin,
     this.destination,
     this.routeSummary,
-    this.estimatedFare,
     this.serviceAreaLabel,
     this.coverageMessage,
     this.routeLoading = false,
+    this.isPreparing = false,
+    this.onLayoutSettled,
   });
 
-  final ServiceType selectedService;
-  final ValueChanged<ServiceType> onServiceChanged;
   final VoidCallback onOriginTap;
   final VoidCallback onDestinationTap;
-  final VoidCallback onRequestRide;
+  final VoidCallback onContinue;
+  final VoidCallback? onDestinationClear;
   final String? origin;
   final String? destination;
   final String? routeSummary;
-  final String? estimatedFare;
   final String? serviceAreaLabel;
   final String? coverageMessage;
   final bool routeLoading;
+  /// Prevents multiple preparation requests while the existing ride flow runs.
+  final bool isPreparing;
+  final VoidCallback? onLayoutSettled;
 
   @override
   Widget build(BuildContext context) {
     final hasTrip = origin != null && destination != null;
-    final canRequest = hasTrip &&
-        estimatedFare != null &&
-        coverageMessage == null &&
-        !routeLoading;
+    final canContinue = hasTrip && routeSummary != null &&
+        coverageMessage == null && !routeLoading && !isPreparing;
+    final colors = Theme.of(context).colorScheme;
+    final isLight = colors.brightness == Brightness.light;
 
-    return DraggableScrollableSheet(
-      initialChildSize: hasTrip ? 0.58 : 0.50,
-      minChildSize: 0.40,
-      maxChildSize: 0.82,
-      snap: true,
-      snapSizes: const [0.50, 0.82],
-      builder: (context, scrollController) {
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(RamoRadius.lg),
-            ),
-            boxShadow: RamoElevation.floating(context),
-          ),
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(
-              RamoSpacing.md,
-              RamoSpacing.xs,
-              RamoSpacing.md,
-              RamoSpacing.xl,
-            ),
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: RamoSpacing.md),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(RamoRadius.pill),
-                  ),
-                ),
-              ),
-              Text(
-                'Bora?',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Escolha de onde sai e pra onde vai.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.62),
-                    ),
-              ),
-              const SizedBox(height: RamoSpacing.md),
-              _LocationField(
-                icon: Icons.trip_origin_rounded,
-                label: 'Origem',
-                value: origin ?? 'Escolher origem',
-                onTap: onOriginTap,
-              ),
-              const SizedBox(height: RamoSpacing.xs),
-              _LocationField(
-                icon: Icons.flag_rounded,
-                label: 'Destino',
-                value: destination ?? 'Pra onde vamos?',
-                onTap: onDestinationTap,
-              ),
-              if (routeLoading) ...[
-                const SizedBox(height: RamoSpacing.sm),
-                const LinearProgressIndicator(minHeight: 3),
-              ],
-              if (coverageMessage != null) ...[
-                const SizedBox(height: RamoSpacing.sm),
-                _CoverageNotice(message: coverageMessage!),
-              ],
-              if (routeSummary != null && !routeLoading) ...[
-                const SizedBox(height: RamoSpacing.sm),
-                Row(
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          RamoSpacing.md, 0, RamoSpacing.md, RamoSpacing.xxl + RamoSpacing.sm,
+        ),
+        // On the Web, intercept the actual controls, not the whole map.
+        child: RamoWebMapOverlay(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: SingleChildScrollView(
+              child: AnimatedSize(
+                duration: ramoTripCardResizeDuration,
+                onEnd: onLayoutSettled,
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.bottomCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(Icons.route_rounded, size: 18),
-                    const SizedBox(width: RamoSpacing.xs),
-                    Expanded(
-                      child: Text(
-                        serviceAreaLabel == null
-                            ? routeSummary!
-                            : '$routeSummary · $serviceAreaLabel',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
+                    // The guidance card follows the active theme and
+                    // disappears as soon as a destination is selected.
+                    if (destination == null) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Material(
+                          key: const Key('destination-guidance-card'),
+                          color: colors.surface,
+                          elevation: isLight ? 7 : 4,
+                          shadowColor: isLight
+                              ? Colors.black.withValues(alpha: .20)
+                              : Colors.black54,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
                             ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Escolha seu destino',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: RamoSpacing.sm),
+                    ],
+                    Material(
+                      key: const Key('floating-trip-card'),
+                      color: isLight ? Colors.white : colors.surface,
+                      elevation: isLight ? 4 : 3,
+                      shadowColor: isLight
+                          ? Colors.black.withValues(alpha: .14)
+                          : Colors.black26,
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(26),
+                      child: _TripCard(
+                        origin: origin ?? 'Escolher origem',
+                        destination: destination ?? 'Pra onde vamos?',
+                        onOriginTap: onOriginTap,
+                        onDestinationTap: onDestinationTap,
+                        onDestinationClear: onDestinationClear,
                       ),
                     ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: RamoSpacing.md),
-              ServiceSelector(
-                selected: selectedService,
-                onChanged: onServiceChanged,
-              ),
-              if (hasTrip) ...[
-                const SizedBox(height: RamoSpacing.lg),
-                AnimatedSwitcher(
-                  duration: RamoMotion.standard,
-                  child: Row(
-                    key: ValueKey((selectedService, estimatedFare)),
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selectedService.description,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              estimatedFare ?? '—',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                            Text(
-                              'estimativa pela rota',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      FilledButton(
-                        onPressed: canRequest ? onRequestRide : null,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(154, 54),
-                          backgroundColor: RamoColors.signal,
-                          foregroundColor: RamoColors.signalInk,
-                        ),
-                        child: const Text('Solicitar'),
+                    if (routeLoading) ...[
+                      const SizedBox(height: RamoSpacing.sm),
+                      const ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(99)),
+                        child: LinearProgressIndicator(minHeight: 3),
                       ),
                     ],
-                  ),
+                    if (coverageMessage != null) ...[
+                      const SizedBox(height: RamoSpacing.sm),
+                      _CoverageNotice(message: coverageMessage!),
+                    ],
+                    if (routeSummary != null && !routeLoading) ...[
+                      const SizedBox(height: RamoSpacing.sm),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          key: const Key('floating-route-summary'),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(RamoRadius.pill),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.route_rounded, color: colors.onSurface, size: 17),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                serviceAreaLabel == null
+                                    ? routeSummary!
+                                    : '$routeSummary · $serviceAreaLabel',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.onSurface,
+                                ),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ],
+                    if (hasTrip) ...[
+                      const SizedBox(height: RamoSpacing.md),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
+                        child: SizedBox(
+                          height: 54,
+                          child: FilledButton(
+                            key: const Key('confirm-destination-button'),
+                            onPressed: canContinue ? onContinue : null,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: RamoColors.brandBlack,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: colors.surfaceContainerHighest,
+                              disabledForegroundColor: colors.onSurfaceVariant,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: isPreparing
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.max,
+                                    children: [
+                                      SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Expanded(
+                                        child: Text(
+                                          'Preparando corrida…',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    routeLoading
+                                        ? 'Calculando rota…'
+                                        : 'Confirmar destino',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+}
+
+class _TripCard extends StatelessWidget {
+  const _TripCard({
+    required this.origin,
+    required this.destination,
+    required this.onOriginTap,
+    required this.onDestinationTap,
+    this.onDestinationClear,
+  });
+
+  final String origin;
+  final String destination;
+  final VoidCallback onOriginTap;
+  final VoidCallback onDestinationTap;
+  final VoidCallback? onDestinationClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(RamoRadius.lg),
+      ),
+      child: Column(
+        children: [
+          _LocationField(
+            icon: Icons.my_location_rounded,
+            label: 'Origem',
+            value: origin,
+            onTap: onOriginTap,
+          ),
+          Divider(
+            height: 1,
+            indent: 48,
+            endIndent: RamoSpacing.sm,
+            color: Theme.of(context).dividerColor.withValues(alpha: .55),
+          ),
+          _LocationField(
+            icon: Icons.location_on_rounded,
+            label: 'Destino',
+            value: destination,
+            onTap: onDestinationTap,
+            destination: true,
+            trailingAction: onDestinationClear,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -196,30 +286,45 @@ class _LocationField extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onTap,
+    this.destination = false,
+    this.trailingAction,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final VoidCallback onTap;
+  final bool destination;
+  final VoidCallback? trailingAction;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(RamoRadius.md),
+      borderRadius: BorderRadius.circular(RamoRadius.lg),
       onTap: onTap,
-      child: Ink(
+      child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: RamoSpacing.md,
-          vertical: RamoSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(RamoRadius.md),
+          vertical: 13,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20),
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: destination
+                    ? RamoColors.brandBlack
+                    : Theme.of(context).colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 16,
+                color: destination ? Colors.white : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
             const SizedBox(width: RamoSpacing.sm),
             Expanded(
               child: Column(
@@ -227,21 +332,38 @@ class _LocationField extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: Theme.of(context).textTheme.labelSmall,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded),
+            if (trailingAction != null)
+              IconButton(
+                tooltip: 'Remover destino',
+                onPressed: trailingAction,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: .35),
+              ),
           ],
         ),
       ),
@@ -272,7 +394,7 @@ class _CoverageNotice extends StatelessWidget {
           const SizedBox(width: RamoSpacing.xs),
           Expanded(
             child: Text(
-              '$message Atendemos Jeri, Jijoca e Preá.',
+              message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onErrorContainer,
                     fontWeight: FontWeight.w700,
