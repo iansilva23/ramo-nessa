@@ -1,0 +1,245 @@
+name: Full platform baseline validation
+on:
+  push:
+    branches: [sync/full-platform-review-20261030]
+    paths: ['apps/**', 'backend/**', '.github/workflows/full-platform-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: coupons-native-packages-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SWIFT_VERSION: '5.0'
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: ramo, POSTGRES_PASSWORD: ramo, POSTGRES_DB: ramo}
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramo:ramo@127.0.0.1:5432/ramo
+      DB_SSL: 'false'
+      RAMO_BOARDING_POSTGRES: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run typecheck && npm run db:migrate && npm run db:migrate && node --import tsx --test --test-concurrency=1 test/**/*.test.ts && npm run build
+        working-directory: backend/core
+      - run: node --test scripts/web/push_worker_test.mjs
+      - run: npm test --prefix apps/admin
+      - run: node --test deploy/staging/inspect-ride-consistency.test.mjs
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix: {app: [driver, passenger]}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Preserve maps, GPS configuration and existing native identities
+        run: git diff --exit-code f8417a6e6e59a11fee4b498c08ce42eaa167f716 HEAD -- apps/driver/android apps/driver/ios apps/passenger/android apps/passenger/ios packages config apps/driver/lib/src/core apps/driver/lib/src/features/home/data
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Analyze and test application
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+      - name: Verify driver chosen framing and campaign cards in Chrome
+        if: matrix.app == 'driver'
+        working-directory: apps/driver
+        run: |
+          export CHROME_EXECUTABLE="$(command -v google-chrome)"
+          flutter test --platform chrome test/driver_camera_follow_test.dart test/driver_campaign_notice_test.dart test/driver_travel_heading_test.dart
+  android:
+    needs: [review, core]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: driver
+            label: Motorista
+            upper: DRIVER
+          - app: passenger
+            label: Passageiro
+            upper: PASSENGER
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="${{ matrix.label }} Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="${{ matrix.label }} Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test driver including dynamic payout terms
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.${{ matrix.app }}.preview'\"))throw Error('Unexpected APK application ID')"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-${{ matrix.label }}-Android-Cupons-20261028.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          cd artifacts/android
+          sha256sum RamoNessa-${{ matrix.label }}-Android-Cupons-20261028.apk > SHA256SUMS
+          printf '%s\n' '${{ matrix.label }} Android conectado a https://app.ramonessa.com.br. Fonte ${{ github.sha }} (base consolidada dos apps em 26/10/2026). RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.${{ matrix.app }}.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Mantém zoom, inclinação e posição escolhidos; segue GPS confiável com limiares de 10/5 km/h e sem retorno automático ao padrão. Amostras locais rápidas no primeiro plano; frequência de envio ao Core preservada. Validação física no aparelho ainda necessária. GPS, rotas e economia preservados. Novos cupons e apresentação exigem Core 100 do pacote conjunto. Funciona com as modalidades anteriores no Core atual. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-android-cupons-conectado-20261028
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    needs: [review, core]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: driver
+            label: Motorista
+            upper: DRIVER
+          - app: passenger
+            label: Passageiro
+            upper: PASSENGER
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_IOS_{0}_API_KEY', matrix.upper)] }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="${{ matrix.label }} iOS connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="${{ matrix.label }} iOS connected"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test native application
+        working-directory: apps/${{ matrix.app }}
+        run: flutter analyze && flutter test
+      - name: Build iPhone device without Apple signing
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package unsigned iPhone app separately
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app
+          mkdir -p artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app artifacts/ios/RamoNessa-${{ matrix.label }}-iPhone-SEM-ASSINATURA-Cupons-20261028.zip
+          printf '%s\n' 'Build para iPhone SEM ASSINATURA APPLE. Nao pode ser instalado diretamente por este ZIP. Exige assinatura e provisionamento Apple pelo Xcode ou processo de distribuicao autorizado. Fonte ${{ github.sha }}; Core https://app.ramonessa.com.br; RAMO_PREVIEW_MODE=false. GPS, login e push exigem aceite no aparelho; APNs exige provisionamento. Mantém zoom, inclinação e posição escolhidos; segue GPS confiável com limiares de 10/5 km/h e sem retorno automático ao padrão. Amostras locais rápidas no primeiro plano; frequência de envio ao Core preservada. Validação física no aparelho ainda necessária. GPS, rotas e economia preservados. Novos cupons e apresentação exigem Core 100 do pacote conjunto. Funciona com as modalidades anteriores no Core atual. Nenhuma configuração do servidor é alterada.' > artifacts/ios/LEIA-ME.txt
+          cd artifacts/ios
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-iphone-cupons-sem-assinatura-20261028
+          path: artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build simulator with the same application configuration
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --simulator --debug --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package simulator app
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app
+          mkdir -p artifacts/simulator
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app artifacts/simulator/RamoNessa-${{ matrix.label }}-SIMULADOR-Cupons-20261028.zip
+          cd artifacts/simulator
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-ios-cupons-simulador-20261028
+          path: artifacts/simulator/
+          if-no-files-found: error
+          retention-days: 14
+  publish_native:
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'ramo-*-cupons-*-20261028', path: native}
+      - name: Verify and publish native downloads
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          find native -name SHA256SUMS -execdir sha256sum -c SHA256SUMS \;
+          mkdir release
+          find native -type f \( -name '*.apk' -o -name '*.zip' \) -exec cp '{}' release/ \;
+          test "$(find release -type f | wc -l)" -eq 6
+          printf '%s\n' 'Passageiro e Motorista: cupons adicionais e apresentação de campanhas. Android conectado ao servidor real, assinatura de homologacao e pacotes .preview. iPhone SEM ASSINATURA APPLE exige assinatura e provisionamento. SIMULADOR somente para simulador. Câmera escolhida do motorista preservada. Fonte ${{ github.sha }}. Novas funcionalidades exigem instalar Core/ADM/Web do mesmo pacote; nenhuma publicação nas lojas.' > release/LEIA-ME.txt
+          (cd release && sha256sum *.apk *.zip > SHA256SUMS)
+          gh release create coupons-native-20261028-r1 release/* --repo "$GH_REPO" --target "$GITHUB_SHA" --prerelease --latest=false --title 'Cupons e campanhas — Android e iOS' --notes 'Empresa paga, tags e apresentação editável no ADM. Mantém modalidades anteriores e câmera escolhida do Motorista. Android conectado com assinatura de homologação. iPhone sem assinatura Apple e simulador. GPS real exige aceite no aparelho. Sem publicação nas lojas ou instalação automática na VPS.'
