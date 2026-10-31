@@ -3,18 +3,24 @@ import 'package:flutter/services.dart';
 
 /// Reports Android screen state; it does not change driver availability.
 class DriverScreenLockEvents {
-  DriverScreenLockEvents({EventChannel? channel})
+  DriverScreenLockEvents({EventChannel? channel, Stream<Object?>? testEvents})
       : _channel = channel ??
-            const EventChannel('br.com.ramonessa.driver/screen-lock');
+            const EventChannel('br.com.ramonessa.driver/screen-lock'),
+        _testEvents = testEvents;
 
   final EventChannel _channel;
+  final Stream<Object?>? _testEvents;
 
   Stream<bool> get states {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+    final Stream<Object?> source;
+    if (_testEvents != null) {
+      source = _testEvents;
+    } else if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return const Stream<bool>.empty();
+    } else {
+      source = _channel.receiveBroadcastStream();
     }
-    return _channel
-        .receiveBroadcastStream()
+    return source
         .where((event) => event == 'locked' || event == 'unlocked')
         .map((event) => event == 'locked')
         .distinct();
