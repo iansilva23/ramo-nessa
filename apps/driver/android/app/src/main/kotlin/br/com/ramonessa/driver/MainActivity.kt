@@ -9,6 +9,7 @@ import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 
 class MainActivity : FlutterActivity() {
     private var offerTone: ToneGenerator? = null
@@ -16,6 +17,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "br.com.ramonessa.driver/screen-lock")
+            .setStreamHandler(ScreenLockEvents(applicationContext))
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "br.com.ramonessa.driver/ride-alerts")
             .setMethodCallHandler { call, result ->
                 if (call.method != "playOfferAlert") {
