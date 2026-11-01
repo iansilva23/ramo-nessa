@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -140,6 +141,45 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   String? _lastAlertedOfferId;
+  final AudioPlayer _offerTonePlayer = AudioPlayer();
+  String? _playingOfferId;
+  int _toneGeneration = 0;
+  Timer? _toneExpiryTimer;
+
+  void _stopOfferTone() {
+    _toneGeneration++;
+    _toneExpiryTimer?.cancel();
+    _toneExpiryTimer = null;
+    _playingOfferId = null;
+    unawaited(_offerTonePlayer.stop());
+  }
+
+  Future<void> _syncOfferTone(DriverOffer? offer) async {
+    if (!mounted || offer == null || !offer.expiresAt.isAfter(DateTime.now())) {
+      if (_playingOfferId != null) _stopOfferTone();
+      return;
+    }
+    if (_playingOfferId == offer.id) return;
+    _stopOfferTone();
+    _playingOfferId = offer.id;
+    final generation = _toneGeneration;
+    final duration = offer.expiresAt.difference(DateTime.now());
+    _toneExpiryTimer = Timer(duration, () {
+      if (generation == _toneGeneration) _stopOfferTone();
+    });
+    try {
+      await _offerTonePlayer.setReleaseMode(ReleaseMode.loop);
+      if (!mounted || generation != _toneGeneration) return;
+      await _offerTonePlayer.play(AssetSource('audio/nova_corrida.mp3'));
+      if (!mounted || generation != _toneGeneration ||
+          !offer.expiresAt.isAfter(DateTime.now())) {
+        await _offerTonePlayer.stop();
+      }
+    } catch (_) {
+      // Som não pode impedir recebimento ou aceite da oferta.
+    }
+  }
+
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
@@ -445,6 +485,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
+    _stopOfferTone();
+    unawaited(_offerTonePlayer.dispose());
     _notificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
@@ -656,6 +698,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   void _announceOffer(DriverOffer? offer) {
+    unawaited(_syncOfferTone(offer));
     if (offer == null ||
         !offer.expiresAt.isAfter(DateTime.now()) ||
         _lastAlertedOfferId == offer.id) {
@@ -665,21 +708,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _completedPresentation = null;
     _collapsedRidePanel = null;
     unawaited(HapticFeedback.mediumImpact());
-    unawaited(_playOfferAlert());
-  }
-
-  Future<void> _playOfferAlert() async {
-    try {
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        await const MethodChannel(
-          'br.com.ramonessa.driver/ride-alerts',
-        ).invokeMethod<void>('playOfferAlert');
-      } else {
-        await SystemSound.play(SystemSoundType.alert);
-      }
-    } catch (_) {
-      // A device without sound support still shows the offer and its deadline.
-    }
   }
 
   void _startRealtime() {
@@ -950,7 +978,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() {
         _supply = updated;
         _changingStatus = false;
-        if (!online) _offer = null;
+        if (!online) { _offer = null; _stopOfferTone(); }
       });
 
       if (updated.online) {
@@ -1041,6 +1069,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
+    _stopOfferTone();
     setState(() => _offerAction = true);
     try {
       final ride = await api.acceptOffer(offer.id);
@@ -1769,6 +1798,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
+    _stopOfferTone();
     setState(() => _offerAction = true);
     try {
       await api.rejectOffer(offer.id);
