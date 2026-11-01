@@ -43,6 +43,20 @@ jobs:
           flutter build web --release --no-pub
           --base-href /motorista/
           --dart-define=RAMO_CORE_BASE_URL=https://app.ramonessa.com.br
+      - name: Corrigir apenas a dimensao do icone PWA no pacote (sem alterar marca)
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check Pillow==11.3.0
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          p=Path('apps/driver/build/web/icons/Icon-512.png')
+          with Image.open(p) as icon:
+            assert icon.format=='PNG' and icon.size==(384,384), 'Icone inesperado: preservar e revisar, nao substituir'
+            icon.resize((512,512),Image.Resampling.LANCZOS).save(p,format='PNG',optimize=True)
+          with Image.open(p) as verify:
+            assert verify.size==(512,512)
+          print('Icone oficial preservado, apenas ajustado de 384x384 para 512x512 neste artefato de homologacao.')
+          PY
       - name: Marcar Maps como placeholder seguro para revisao
         run: |
           node --input-type=module <<'JS'
