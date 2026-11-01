@@ -75,6 +75,13 @@ jobs:
           import json, hashlib, zipfile
           root=Path('apps/driver/build/web')
           assert root.is_dir(), 'Build Web nao encontrado'
+          # Existing source validator checks /motorista/. Change only the compiled
+          # base path AFTER it passes, so the package can live at a separate URL.
+          index=root/'index.html'
+          original=index.read_text()
+          assert original.count('<base href="/motorista/">')==1, 'Base href do Flutter inesperado'
+          index.write_text(original.replace('<base href="/motorista/">','<base href="/motorista-toque-hml/">'))
+          assert '<base href="/motorista-toque-hml/">' in index.read_text()
           audio=list(root.glob('assets/**/nova_corrida.mp3'))
           assert len(audio)==1, 'Toque MP3 nao foi incluido exatamente uma vez no build'
           audio_sha=hashlib.sha256(audio[0].read_bytes()).hexdigest()
@@ -85,7 +92,7 @@ jobs:
           files=sorted(p for p in root.rglob('*') if p.is_file())
           manifest={
             'schemaVersion':1,'role':'driver','sourceCommit':'${{ github.sha }}',
-            'basePath':'/motorista/','expectedOrigin':'https://app.ramonessa.com.br',
+            'basePath':'/motorista-toque-hml/','expectedOrigin':'https://app.ramonessa.com.br',
             'ciPreviewOnly':True,'maps':'PLACEHOLDER - NAO PUBLICAR',
             'push':'DESATIVADO - NAO PUBLICAR',
             'audioSha256':audio_sha,
