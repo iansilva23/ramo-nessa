@@ -111,6 +111,31 @@ jobs:
           python3 -m py_compile deploy/staging/driver-tone-hml-stage.py
           cp deploy/staging/driver-tone-hml-stage.py artifacts/driver-tone-hml-stage.py
           (cd artifacts && sha256sum RamoNessa-Motorista-Toque-HML.zip driver-tone-hml-stage.py > SHA256SUMS)
+      - name: Ensaiar extracao segura em diretório descartavel (sem VPS)
+        run: |
+          python3 - <<'PY'
+          import importlib.util, pathlib, tempfile, hashlib, sys
+          file=pathlib.Path('deploy/staging/driver-tone-hml-stage.py')
+          spec=importlib.util.spec_from_file_location('hml_stage', file)
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          archive=pathlib.Path('artifacts/RamoNessa-Motorista-Toque-HML.zip').resolve()
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          with tempfile.TemporaryDirectory(prefix='ramo-tone-ci-') as tmp:
+              mod.ROOT=pathlib.Path(tmp)/'staged'
+              mod.docker_snapshot=lambda: {'gateway':'CI_ONLY','activeWebRoot':'/ci-only',
+                                           'activeDriverIndexSha256':'ci','activeDriverMainSha256':'ci'}
+              mod.os.geteuid=lambda:0
+              mod.sys.argv=[str(file),str(archive),digest]
+              mod.main()
+              dirs=list(mod.ROOT.glob('review-*'))
+              assert len(dirs)==1
+              p=dirs[0]
+              assert (p/'driver/main.dart.js').is_file()
+              assert (p/'report.private.json').is_file()
+              assert 'STAGED_ONLY_NOT_LIVE' in (p/'report.private.json').read_text()
+          print('Ensaiado: ZIP, hashes, extração e isolamento sem modificar servidor.')
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: ramo-motorista-toque-hml-web
