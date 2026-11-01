@@ -42,7 +42,7 @@ def docker_snapshot():
     if result.returncode:
         stop('Gateway indisponivel. Execute a conferencia antes de instalar.')
     gateway = json.loads(result.stdout)[0]
-    if not gateway['State'].get('Running') or gateway['State'].get('Health', {}).get('Status') != 'healthy':
+    if not gateway['State'].get('Running') or (gateway['State'].get('Health') or {}).get('Status') != 'healthy':
         stop('Gateway nao esta saudavel.')
     mounts = [m for m in gateway['Mounts'] if m.get('Destination') == '/srv/web']
     if len(mounts) != 1 or mounts[0].get('Type') != 'bind':
@@ -94,7 +94,7 @@ def main():
         if 'manifest.hml.json' not in names:
             stop('Manifesto de homologacao ausente.')
         manifest = json.loads(z.read('manifest.hml.json'))
-        required = {'schemaVersion': 1, 'role': 'driver', 'basePath': '/motorista/',
+        required = {'schemaVersion': 1, 'role': 'driver', 'basePath': '/motorista-toque-hml/',
                     'expectedOrigin': 'https://app.ramonessa.com.br',
                     'ciPreviewOnly': True, 'maps': 'PLACEHOLDER - NAO PUBLICAR',
                     'push': 'DESATIVADO - NAO PUBLICAR', 'audioSha256': TONE_SHA}
@@ -124,7 +124,7 @@ def main():
             value = z.read('driver/' + name)
             if len(value) != item['bytes'] or sha_bytes(value) != item['sha256']:
                 stop('Arquivo diverge do manifesto: ' + name)
-        if b'WEB_KEY_NOT_CONFIGURED_FOR_CI' not in z.read('driver/index.html'):
+        if b'<base href="/motorista-toque-hml/">' not in z.read('driver/index.html'):\n            stop('O bundle nao foi isolado na rota de homologacao.')\n        if b'WEB_KEY_NOT_CONFIGURED_FOR_CI' not in z.read('driver/index.html'):
             stop('Pacote nao esta isolado da configuracao de producao.')
         if ROOT.is_symlink():
             stop('Pasta de destino nao pode ser link simbolico.')
