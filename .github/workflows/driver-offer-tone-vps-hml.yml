@@ -1,0 +1,89 @@
+name: Motorista - pacote isolado de homologacao do toque
+
+on:
+  push:
+    branches:
+      - feature/driver-new-ride-ringtone-20261101
+    paths:
+      - .github/workflows/driver-offer-tone-vps-hml.yml
+      - apps/driver/**
+      - packages/**
+      - docs/DRIVER_OFFER_RINGTONE_HOMOLOG_20261101.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-hml:
+    name: Build Web e pacote sem configuracao de producao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Dependencias, analise e regressao
+        working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+      - name: Preparar bridge Web Push sem segredos
+        run: node scripts/web/prepare_web_push.mjs --role=driver
+      - name: Build Web para rota existente do motorista (nao publicar)
+        working-directory: apps/driver
+        run: >
+          flutter build web --release --no-pub
+          --base-href /motorista/
+          --dart-define=RAMO_CORE_BASE_URL=https://app.ramonessa.com.br
+      - name: Marcar Maps como placeholder seguro para revisao
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { prepareMapsWebIndex } from './scripts/web/maps_web_config.mjs';
+          const p = 'apps/driver/build/web/index.html';
+          const updated = prepareMapsWebIndex(readFileSync(p, 'utf8'), '', {allowReviewPlaceholder: true});
+          writeFileSync(p, updated);
+          JS
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist="$PWD/apps/driver/build/web" --ci-review
+      - name: Verificar MP3 e empacotar arquivo auditavel
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, hashlib, zipfile
+          root=Path('apps/driver/build/web')
+          assert root.is_dir(), 'Build Web nao encontrado'
+          audio=list(root.glob('assets/**/nova_corrida.mp3'))
+          assert len(audio)==1, 'Toque MP3 nao foi incluido exatamente uma vez no build'
+          audio_sha=hashlib.sha256(audio[0].read_bytes()).hexdigest()
+          assert audio_sha=='715ddb02d47699c91d48820d6ee8eb3fd1eb860d2517e54acd731609ead6bb25', 'Toque difere do aprovado'
+          assert b'WEB_KEY_NOT_CONFIGURED_FOR_CI' in (root/'index.html').read_bytes(), 'Chave Maps deve continuar como placeholder'
+          output=Path('artifacts')
+          output.mkdir(exist_ok=True)
+          files=sorted(p for p in root.rglob('*') if p.is_file())
+          manifest={
+            'schemaVersion':1,'role':'driver','sourceCommit':'${{ github.sha }}',
+            'basePath':'/motorista/','expectedOrigin':'https://app.ramonessa.com.br',
+            'ciPreviewOnly':True,'maps':'PLACEHOLDER - NAO PUBLICAR',
+            'push':'DESATIVADO - NAO PUBLICAR',
+            'audioSha256':audio_sha,
+            'files':[{'path':p.relative_to(root).as_posix(),'bytes':p.stat().st_size,
+                      'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in files]
+          }
+          with zipfile.ZipFile(output/'RamoNessa-Motorista-Toque-HML.zip','w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+            z.writestr('manifest.hml.json', json.dumps(manifest,ensure_ascii=False,sort_keys=True,indent=2)+'\n')
+            for p in files: z.write(p,'driver/'+p.relative_to(root).as_posix())
+          digest=hashlib.sha256((output/'RamoNessa-Motorista-Toque-HML.zip').read_bytes()).hexdigest()
+          (output/'RamoNessa-Motorista-Toque-HML.zip.sha256').write_text(digest+'  RamoNessa-Motorista-Toque-HML.zip\n')
+          print('SHA-256 pacote:',digest,'arquivos:',len(files),'toque:',audio_sha)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-toque-hml-web
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
