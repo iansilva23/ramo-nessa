@@ -12,6 +12,7 @@ on:
       - apps/driver/**
       - packages/**
       - docs/DRIVER_OFFER_RINGTONE_HOMOLOG_20261101.md
+      - deploy/staging/driver-tone-hml-stage.py
   workflow_dispatch:
 
 permissions:
@@ -98,9 +99,46 @@ jobs:
           (output/'RamoNessa-Motorista-Toque-HML.zip.sha256').write_text(digest+'  RamoNessa-Motorista-Toque-HML.zip\n')
           print('SHA-256 pacote:',digest,'arquivos:',len(files),'toque:',audio_sha)
           PY
+      - name: Verificar instalador de preparacao sem publicacao
+        run: |
+          python3 -m py_compile deploy/staging/driver-tone-hml-stage.py
+          cp deploy/staging/driver-tone-hml-stage.py artifacts/driver-tone-hml-stage.py
+          (cd artifacts && sha256sum RamoNessa-Motorista-Toque-HML.zip driver-tone-hml-stage.py > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
           name: ramo-motorista-toque-hml-web
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
+
+  release-hml:
+    name: Publicar pre-release somente para preparacao da homologacao
+    needs: build-hml
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-motorista-toque-hml-web
+          path: artifacts
+      - name: Publicar ZIP e instalador como pre-release (nao atualizar VPS)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="driver-tone-hml-${GITHUB_SHA:0:12}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Esse pre-release ja existe; nenhuma substituicao sera feita."
+            exit 0
+          fi
+          (cd artifacts && sha256sum --check SHA256SUMS)
+          gh release create "$tag" \
+            artifacts/RamoNessa-Motorista-Toque-HML.zip \
+            artifacts/RamoNessa-Motorista-Toque-HML.zip.sha256 \
+            artifacts/driver-tone-hml-stage.py \
+            artifacts/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Motorista toque - SOMENTE PREPARACAO DE HOMOLOGACAO" \
+            --notes "NAO INSTALAR COMO PRODUCAO. Este Web contem placeholder Maps e Web Push desativado. O script apenas prepara os arquivos em pasta separada na VPS, nao altera Gateway/Passageiro/ADM/Core/banco. Comparar runtime e configurar HTTPS isolado antes dos testes reais."
