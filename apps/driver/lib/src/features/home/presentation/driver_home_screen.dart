@@ -49,6 +49,7 @@ import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
 import 'widgets/driver_map_panel_extent.dart';
+import 'offer_tone_lifecycle.dart';
 import 'widgets/driver_web_heading_compass.dart';
 
 part 'widgets/driver_ride_design.dart';
@@ -142,58 +143,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverOffer? _offer;
   String? _lastAlertedOfferId;
   final AudioPlayer _offerTonePlayer = AudioPlayer();
-  String? _playingOfferId;
-  int _toneGeneration = 0;
-  Timer? _toneExpiryTimer;
+  late final OfferToneLifecycle _offerTone = OfferToneLifecycle(
+    startLoop: () async {
+      await _offerTonePlayer.setReleaseMode(ReleaseMode.loop);
+      await _offerTonePlayer.play(AssetSource('audio/nova_corrida.mp3'));
+    },
+    stopAudio: _offerTonePlayer.stop,
+  );
 
-  Future<void> _stopPlayerSafely() async {
-    try {
-      await _offerTonePlayer.stop();
-    } catch (_) {
-      // O plugin de áudio pode não estar disponível (Web/testes).
-    }
-  }
-
-  Future<void> _disposePlayerSafely() async {
-    await _stopPlayerSafely();
+  Future<void> _disposeOfferTone() async {
+    await _offerTone.dispose();
     try {
       await _offerTonePlayer.dispose();
     } catch (_) {
-      // Não interromper o descarte da tela por causa do áudio.
-    }
-  }
-
-  void _stopOfferTone() {
-    _toneGeneration++;
-    _toneExpiryTimer?.cancel();
-    _toneExpiryTimer = null;
-    _playingOfferId = null;
-    unawaited(_stopPlayerSafely());
-  }
-
-  Future<void> _syncOfferTone(DriverOffer? offer) async {
-    if (!mounted || offer == null || !offer.expiresAt.isAfter(DateTime.now())) {
-      if (_playingOfferId != null) _stopOfferTone();
-      return;
-    }
-    if (_playingOfferId == offer.id) return;
-    _stopOfferTone();
-    _playingOfferId = offer.id;
-    final generation = _toneGeneration;
-    final duration = offer.expiresAt.difference(DateTime.now());
-    _toneExpiryTimer = Timer(duration, () {
-      if (generation == _toneGeneration) _stopOfferTone();
-    });
-    try {
-      await _offerTonePlayer.setReleaseMode(ReleaseMode.loop);
-      if (!mounted || generation != _toneGeneration) return;
-      await _offerTonePlayer.play(AssetSource('audio/nova_corrida.mp3'));
-      if (!mounted || generation != _toneGeneration ||
-          !offer.expiresAt.isAfter(DateTime.now())) {
-        await _offerTonePlayer.stop();
-      }
-    } catch (_) {
-      // Som não pode impedir recebimento ou aceite da oferta.
+      // Audio failures must not interfere with ride screen disposal.
     }
   }
 
@@ -502,11 +465,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
-    _toneGeneration++;
-    _toneExpiryTimer?.cancel();
-    _toneExpiryTimer = null;
-    _playingOfferId = null;
-    unawaited(_disposePlayerSafely());
+    unawaited(_disposeOfferTone());
     _notificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
@@ -718,7 +677,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   void _announceOffer(DriverOffer? offer) {
-    unawaited(_syncOfferTone(offer));
+    _offerTone.synchronize(offer?.id, offer?.expiresAt);
     if (offer == null ||
         !offer.expiresAt.isAfter(DateTime.now()) ||
         _lastAlertedOfferId == offer.id) {
@@ -998,7 +957,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() {
         _supply = updated;
         _changingStatus = false;
-        if (!online) { _offer = null; _stopOfferTone(); }
+        if (!online) { _offer = null; _offerTone.stop(); }
       });
 
       if (updated.online) {
@@ -1089,7 +1048,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
-    _stopOfferTone();
+    _offerTone.stop();
     setState(() => _offerAction = true);
     try {
       final ride = await api.acceptOffer(offer.id);
@@ -1120,14 +1079,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       }
     } on DriverApiException catch (error) {
       if (!mounted) return;
-      unawaited(_syncOfferTone(_offer));
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
-      unawaited(_syncOfferTone(_offer));
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos aceitar a corrida agora.';
@@ -1820,7 +1779,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
-    _stopOfferTone();
+    _offerTone.stop();
     setState(() => _offerAction = true);
     try {
       await api.rejectOffer(offer.id);
@@ -1833,14 +1792,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       });
     } on DriverApiException catch (error) {
       if (!mounted) return;
-      unawaited(_syncOfferTone(_offer));
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
-      unawaited(_syncOfferTone(_offer));
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos recusar a corrida agora.';
