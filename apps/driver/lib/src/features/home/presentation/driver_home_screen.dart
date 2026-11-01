@@ -146,12 +146,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   int _toneGeneration = 0;
   Timer? _toneExpiryTimer;
 
+  Future<void> _stopPlayerSafely() async {
+    try {
+      await _offerTonePlayer.stop();
+    } catch (_) {
+      // O plugin de áudio pode não estar disponível (Web/testes).
+    }
+  }
+
+  Future<void> _disposePlayerSafely() async {
+    await _stopPlayerSafely();
+    try {
+      await _offerTonePlayer.dispose();
+    } catch (_) {
+      // Não interromper o descarte da tela por causa do áudio.
+    }
+  }
+
   void _stopOfferTone() {
     _toneGeneration++;
     _toneExpiryTimer?.cancel();
     _toneExpiryTimer = null;
     _playingOfferId = null;
-    unawaited(_offerTonePlayer.stop());
+    unawaited(_stopPlayerSafely());
   }
 
   Future<void> _syncOfferTone(DriverOffer? offer) async {
@@ -485,8 +502,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
-    _stopOfferTone();
-    unawaited(_offerTonePlayer.dispose());
+    _toneGeneration++;
+    _toneExpiryTimer?.cancel();
+    _toneExpiryTimer = null;
+    _playingOfferId = null;
+    unawaited(_disposePlayerSafely());
     _notificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
