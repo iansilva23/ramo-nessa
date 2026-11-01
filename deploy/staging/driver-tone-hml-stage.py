@@ -124,7 +124,9 @@ def main():
             value = z.read('driver/' + name)
             if len(value) != item['bytes'] or sha_bytes(value) != item['sha256']:
                 stop('Arquivo diverge do manifesto: ' + name)
-        if b'<base href="/motorista-toque-hml/">' not in z.read('driver/index.html'):\n            stop('O bundle nao foi isolado na rota de homologacao.')\n        if b'WEB_KEY_NOT_CONFIGURED_FOR_CI' not in z.read('driver/index.html'):
+        if b'<base href="/motorista-toque-hml/">' not in z.read('driver/index.html'):
+            stop('O bundle nao foi isolado na rota de homologacao.')
+        if b'WEB_KEY_NOT_CONFIGURED_FOR_CI' not in z.read('driver/index.html'):
             stop('Pacote nao esta isolado da configuracao de producao.')
         if ROOT.is_symlink():
             stop('Pasta de destino nao pode ser link simbolico.')
