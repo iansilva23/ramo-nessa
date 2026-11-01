@@ -1,0 +1,176 @@
+name: Motorista - pacote isolado de homologacao do toque
+
+on:
+  pull_request:
+    branches:
+      - feature/driver-preserve-camera-20261028
+  push:
+    branches:
+      - feature/driver-new-ride-ringtone-20261101
+    paths:
+      - .github/workflows/driver-offer-tone-vps-hml.yml
+      - apps/driver/**
+      - packages/**
+      - docs/DRIVER_OFFER_RINGTONE_HOMOLOG_20261101.md
+      - deploy/staging/driver-tone-hml-stage.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-hml:
+    name: Build Web e pacote sem configuracao de producao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Dependencias, analise e regressao
+        working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+      - name: Preparar bridge Web Push sem segredos
+        run: node scripts/web/prepare_web_push.mjs --role=driver
+      - name: Build Web para rota existente do motorista (nao publicar)
+        working-directory: apps/driver
+        run: >
+          flutter build web --release --no-pub
+          --base-href /motorista/
+          --dart-define=RAMO_CORE_BASE_URL=https://app.ramonessa.com.br
+      - name: Corrigir apenas a dimensao do icone PWA no pacote (sem alterar marca)
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check Pillow==11.3.0
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          p=Path('apps/driver/build/web/icons/Icon-512.png')
+          with Image.open(p) as icon:
+            assert icon.format=='PNG' and icon.size==(384,384), 'Icone inesperado: preservar e revisar, nao substituir'
+            icon.resize((512,512),Image.Resampling.LANCZOS).save(p,format='PNG',optimize=True)
+          with Image.open(p) as verify:
+            assert verify.size==(512,512)
+          print('Icone oficial preservado, apenas ajustado de 384x384 para 512x512 neste artefato de homologacao.')
+          PY
+      - name: Marcar Maps como placeholder seguro para revisao
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { prepareMapsWebIndex } from './scripts/web/maps_web_config.mjs';
+          const p = 'apps/driver/build/web/index.html';
+          const updated = prepareMapsWebIndex(readFileSync(p, 'utf8'), '', {allowReviewPlaceholder: true});
+          writeFileSync(p, updated);
+          JS
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist="$PWD/apps/driver/build/web" --ci-review
+      - name: Verificar MP3 e empacotar arquivo auditavel
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, hashlib, zipfile
+          root=Path('apps/driver/build/web')
+          assert root.is_dir(), 'Build Web nao encontrado'
+          # Existing source validator checks /motorista/. Change only the compiled
+          # base path AFTER it passes, so the package can live at a separate URL.
+          index=root/'index.html'
+          original=index.read_text()
+          assert original.count('<base href="/motorista/">')==1, 'Base href do Flutter inesperado'
+          index.write_text(original.replace('<base href="/motorista/">','<base href="/motorista-toque-hml/">'))
+          assert '<base href="/motorista-toque-hml/">' in index.read_text()
+          audio=list(root.glob('assets/**/nova_corrida.mp3'))
+          assert len(audio)==1, 'Toque MP3 nao foi incluido exatamente uma vez no build'
+          audio_sha=hashlib.sha256(audio[0].read_bytes()).hexdigest()
+          assert audio_sha=='715ddb02d47699c91d48820d6ee8eb3fd1eb860d2517e54acd731609ead6bb25', 'Toque difere do aprovado'
+          assert b'WEB_KEY_NOT_CONFIGURED_FOR_CI' in (root/'index.html').read_bytes(), 'Chave Maps deve continuar como placeholder'
+          output=Path('artifacts')
+          output.mkdir(exist_ok=True)
+          files=sorted(p for p in root.rglob('*') if p.is_file())
+          manifest={
+            'schemaVersion':1,'role':'driver','sourceCommit':'${{ github.sha }}',
+            'basePath':'/motorista-toque-hml/','expectedOrigin':'https://app.ramonessa.com.br',
+            'ciPreviewOnly':True,'maps':'PLACEHOLDER - NAO PUBLICAR',
+            'push':'DESATIVADO - NAO PUBLICAR',
+            'audioSha256':audio_sha,
+            'files':[{'path':p.relative_to(root).as_posix(),'bytes':p.stat().st_size,
+                      'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in files]
+          }
+          with zipfile.ZipFile(output/'RamoNessa-Motorista-Toque-HML.zip','w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+            z.writestr('manifest.hml.json', json.dumps(manifest,ensure_ascii=False,sort_keys=True,indent=2)+'\n')
+            for p in files: z.write(p,'driver/'+p.relative_to(root).as_posix())
+          digest=hashlib.sha256((output/'RamoNessa-Motorista-Toque-HML.zip').read_bytes()).hexdigest()
+          (output/'RamoNessa-Motorista-Toque-HML.zip.sha256').write_text(digest+'  RamoNessa-Motorista-Toque-HML.zip\n')
+          print('SHA-256 pacote:',digest,'arquivos:',len(files),'toque:',audio_sha)
+          PY
+      - name: Verificar instalador de preparacao sem publicacao
+        run: |
+          python3 -m py_compile deploy/staging/driver-tone-hml-stage.py
+          cp deploy/staging/driver-tone-hml-stage.py artifacts/driver-tone-hml-stage.py
+          (cd artifacts && sha256sum RamoNessa-Motorista-Toque-HML.zip driver-tone-hml-stage.py > SHA256SUMS)
+      - name: Ensaiar extracao segura em diretório descartavel (sem VPS)
+        run: |
+          python3 - <<'PY'
+          import importlib.util, pathlib, tempfile, hashlib, sys
+          file=pathlib.Path('deploy/staging/driver-tone-hml-stage.py')
+          spec=importlib.util.spec_from_file_location('hml_stage', file)
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          archive=pathlib.Path('artifacts/RamoNessa-Motorista-Toque-HML.zip').resolve()
+          digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+          with tempfile.TemporaryDirectory(prefix='ramo-tone-ci-') as tmp:
+              mod.ROOT=pathlib.Path(tmp)/'staged'
+              mod.docker_snapshot=lambda: {'gateway':'CI_ONLY','activeWebRoot':'/ci-only',
+                                           'activeDriverIndexSha256':'ci','activeDriverMainSha256':'ci'}
+              mod.os.geteuid=lambda:0
+              mod.sys.argv=[str(file),str(archive),digest]
+              mod.main()
+              dirs=list(mod.ROOT.glob('review-*'))
+              assert len(dirs)==1
+              p=dirs[0]
+              assert (p/'driver/main.dart.js').is_file()
+              assert (p/'report.private.json').is_file()
+              assert 'STAGED_ONLY_NOT_LIVE' in (p/'report.private.json').read_text()
+          print('Ensaiado: ZIP, hashes, extração e isolamento sem modificar servidor.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-toque-hml-web
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+  release-hml:
+    name: Publicar pre-release somente para preparacao da homologacao
+    needs: build-hml
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-motorista-toque-hml-web
+          path: artifacts
+      - name: Publicar ZIP e instalador como pre-release (nao atualizar VPS)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="driver-tone-hml-${GITHUB_SHA:0:12}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Esse pre-release ja existe; nenhuma substituicao sera feita."
+            exit 0
+          fi
+          (cd artifacts && sha256sum --check SHA256SUMS)
+          gh release create "$tag" \
+            artifacts/RamoNessa-Motorista-Toque-HML.zip \
+            artifacts/RamoNessa-Motorista-Toque-HML.zip.sha256 \
+            artifacts/driver-tone-hml-stage.py \
+            artifacts/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Motorista toque - SOMENTE PREPARACAO DE HOMOLOGACAO" \
+            --notes "NAO INSTALAR COMO PRODUCAO. Este Web contem placeholder Maps e Web Push desativado. O script apenas prepara os arquivos em pasta separada na VPS, nao altera Gateway/Passageiro/ADM/Core/banco. Comparar runtime e configurar HTTPS isolado antes dos testes reais."

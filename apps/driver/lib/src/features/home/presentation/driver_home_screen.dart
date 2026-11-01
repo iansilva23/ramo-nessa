@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -48,6 +49,7 @@ import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
 import 'widgets/driver_map_panel_extent.dart';
+import 'offer_tone_lifecycle.dart';
 import 'widgets/driver_web_heading_compass.dart';
 
 part 'widgets/driver_ride_design.dart';
@@ -140,6 +142,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   String? _lastAlertedOfferId;
+  final AudioPlayer _offerTonePlayer = AudioPlayer();
+  late final OfferToneLifecycle _offerTone = OfferToneLifecycle(
+    startLoop: () async {
+      await _offerTonePlayer.setReleaseMode(ReleaseMode.loop);
+      await _offerTonePlayer.play(AssetSource('audio/nova_corrida.mp3'));
+    },
+    stopAudio: _offerTonePlayer.stop,
+  );
+
+  Future<void> _disposeOfferTone() async {
+    await _offerTone.dispose();
+    try {
+      await _offerTonePlayer.dispose();
+    } catch (_) {
+      // Audio failures must not interfere with ride screen disposal.
+    }
+  }
+
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
@@ -445,6 +465,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
+    unawaited(_disposeOfferTone());
     _notificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
@@ -656,6 +677,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   void _announceOffer(DriverOffer? offer) {
+    _offerTone.synchronize(offer?.id, offer?.expiresAt);
     if (offer == null ||
         !offer.expiresAt.isAfter(DateTime.now()) ||
         _lastAlertedOfferId == offer.id) {
@@ -665,21 +687,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _completedPresentation = null;
     _collapsedRidePanel = null;
     unawaited(HapticFeedback.mediumImpact());
-    unawaited(_playOfferAlert());
-  }
-
-  Future<void> _playOfferAlert() async {
-    try {
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        await const MethodChannel(
-          'br.com.ramonessa.driver/ride-alerts',
-        ).invokeMethod<void>('playOfferAlert');
-      } else {
-        await SystemSound.play(SystemSoundType.alert);
-      }
-    } catch (_) {
-      // A device without sound support still shows the offer and its deadline.
-    }
   }
 
   void _startRealtime() {
@@ -950,7 +957,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() {
         _supply = updated;
         _changingStatus = false;
-        if (!online) _offer = null;
+        if (!online) { _offer = null; _offerTone.stop(); }
       });
 
       if (updated.online) {
@@ -1041,6 +1048,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
+    _offerTone.stop();
     setState(() => _offerAction = true);
     try {
       final ride = await api.acceptOffer(offer.id);
@@ -1071,12 +1079,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       }
     } on DriverApiException catch (error) {
       if (!mounted) return;
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos aceitar a corrida agora.';
@@ -1769,6 +1779,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
+    _offerTone.stop();
     setState(() => _offerAction = true);
     try {
       await api.rejectOffer(offer.id);
@@ -1781,12 +1792,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       });
     } on DriverApiException catch (error) {
       if (!mounted) return;
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
+      _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos recusar a corrida agora.';
