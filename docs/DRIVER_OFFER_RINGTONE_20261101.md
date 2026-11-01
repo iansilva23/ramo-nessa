@@ -22,11 +22,11 @@ O `pubspec.yaml` declara o asset e a dependência `audioplayers`.
 
 ## Pendências obrigatórias antes de merge/deploy
 
-1. `apps/driver/pubspec.lock` precisa ser regenerado com `flutter pub get` para registrar `audioplayers` e suas dependências. A versão atual ainda não contém esse pacote.
+1. **Concluído:** `apps/driver/pubspec.lock` foi regenerado na branch pelo GitHub Actions e agora contém `audioplayers` e suas dependências.
 2. Executar `flutter analyze`, `flutter test`, build Web, Android e iOS (simulador e aparelhos reais onde possível).
 3. Testar chegada, aceite, recusa, expiração, cancelamento remoto e offline, incluindo múltiplas ofertas sequenciais e condições de corrida/reconexão.
 4. Validar Web/PWA com as políticas de autoplay e notificações em segundo plano. Não presumir áudio com o aplicativo fechado ou em background.
 5. Confirmar que a versão ativa na VPS corresponde à árvore deste PR; a branch não está implantada.
 6. Comparar a qualidade da versão compacta com a gravação original antes da aprovação final.
 
-**Status:** áudio commitado e verificado no GitHub, PR de rascunho, sem merge, sem testes reais e sem deploy.
+**Status:** áudio commitado e verificado no GitHub, dependências travadas, PR de rascunho, análise/builds/testes de dispositivos ainda não comprovados, sem merge e sem deploy.
