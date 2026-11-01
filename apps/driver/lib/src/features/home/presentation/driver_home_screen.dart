@@ -1100,12 +1100,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       }
     } on DriverApiException catch (error) {
       if (!mounted) return;
+      unawaited(_syncOfferTone(_offer));
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
+      unawaited(_syncOfferTone(_offer));
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos aceitar a corrida agora.';
@@ -1811,12 +1813,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       });
     } on DriverApiException catch (error) {
       if (!mounted) return;
+      unawaited(_syncOfferTone(_offer));
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
+      unawaited(_syncOfferTone(_offer));
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos recusar a corrida agora.';
