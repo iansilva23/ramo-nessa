@@ -1,6 +1,9 @@
 name: Motorista - pacote isolado de homologacao do toque
 
 on:
+  pull_request:
+    branches:
+      - feature/driver-preserve-camera-20261028
   push:
     branches:
       - feature/driver-new-ride-ringtone-20261101
