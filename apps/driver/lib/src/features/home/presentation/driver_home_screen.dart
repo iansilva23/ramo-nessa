@@ -402,7 +402,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     if(ride!=null && const ['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].contains(ride.state)) {
       title=ride.state=='IN_PROGRESS'?'Corrida em andamento':ride.state=='DRIVER_ARRIVED'?'Aguardando embarque':'A caminho do passageiro';
       detail=ride.originDisplayName+' → '+ride.destinationDisplayName;
-      stage=ride.state=='IN_PROGRESS'?4:ride.state=='DRIVER_ARRIVED'?3:2;
+      stage=ride.state=='IN_PROGRESS'?3:ride.state=='DRIVER_ARRIVED'?2:1;
     } else if(_androidScreenLocked && _lockOfflineConfirmed) {
       title='Você está offline';
       detail='Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
@@ -437,9 +437,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _screenLockRetry?.cancel();
         return;
       }
-      _lockOfflineConfirmed=true;
-      unawaited(_updateActivityNotification());
       final supply=await api.getSupply();
+      _lockOfflineConfirmed=!supply.online && !supply.busy;
       if(!mounted) return;
       setState(() {
         _supply=supply;
