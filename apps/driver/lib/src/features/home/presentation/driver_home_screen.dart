@@ -224,6 +224,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _releaseDialogShown = false;
   bool _registryAccessBlocked = false;
   bool _webBackgrounded = false;
+  Timer? _activityNotificationTimer;
+  String? _activityNotificationPayload;
+  bool _activityNotificationBusy=false;
+  bool _lockOfflineConfirmed=false;
   bool _supplyLoadInFlight=false;
   bool _androidScreenLocked=false;
   bool _androidLockPending=false;
@@ -255,8 +259,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void initState() {
     super.initState();
+    _activityNotificationTimer=Timer.periodic(const Duration(seconds:3),(_)=>unawaited(_updateActivityNotification()));
     _screenLockSubscription=DriverScreenLockEvents().states.listen((locked) {
       _androidScreenLocked=locked;
+      if(!locked) _lockOfflineConfirmed=false;
+      unawaited(_updateActivityNotification());
       if(locked) _androidLockPending=true;
       unawaited(_syncAndroidScreenLock());
     },onError:(Object _) {
@@ -387,6 +394,35 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
+  Future<void> _updateActivityNotification() async {
+    if(!mounted || kIsWeb || defaultTargetPlatform!=TargetPlatform.android || _activityNotificationBusy) return;
+    final ride=_activeRide;
+    String? title,detail;
+    int stage=0;
+    if(ride!=null && const ['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].contains(ride.state)) {
+      title=ride.state=='IN_PROGRESS'?'Corrida em andamento':ride.state=='DRIVER_ARRIVED'?'Aguardando embarque':'A caminho do passageiro';
+      detail=ride.originDisplayName+' → '+ride.destinationDisplayName;
+      stage=ride.state=='IN_PROGRESS'?4:ride.state=='DRIVER_ARRIVED'?3:2;
+    } else if(_androidScreenLocked && _lockOfflineConfirmed) {
+      title='Você está offline';
+      detail='Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
+    }
+    final payload=title==null?'clear':'$title|$detail|$stage';
+    if(payload==_activityNotificationPayload) return;
+    _activityNotificationBusy=true;
+    try {
+      const channel=MethodChannel('br.com.ramonessa.driver/ride-activity');
+      if(title==null) {
+        await channel.invokeMethod<bool>('clear');
+      } else {
+        await channel.invokeMethod<bool>('show',{'title':title,'detail':detail,'stage':stage});
+      }
+      _activityNotificationPayload=payload;
+    } catch(_) {
+      // GPS and ride state do not depend on notification permission or rendering.
+    } finally {_activityNotificationBusy=false;}
+  }
+
   Future<void> _syncAndroidScreenLock() async {
     if(!mounted || _loading || _supplyLoadInFlight || !_androidLockPending || _androidLockInFlight) return;
     final api=_api;
@@ -401,6 +437,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _screenLockRetry?.cancel();
         return;
       }
+      _lockOfflineConfirmed=true;
+      unawaited(_updateActivityNotification());
       final supply=await api.getSupply();
       if(!mounted) return;
       setState(() {
@@ -502,6 +540,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
+    _activityNotificationTimer?.cancel();
+    if(!kIsWeb && defaultTargetPlatform==TargetPlatform.android) {
+      unawaited(const MethodChannel('br.com.ramonessa.driver/ride-activity').invokeMethod<bool>('clear').catchError((Object _) => false));
+    }
     _screenLockSubscription?.cancel();
     _screenLockRetry?.cancel();
     _notificationSubscription?.cancel();
