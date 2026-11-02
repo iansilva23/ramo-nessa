@@ -34,6 +34,15 @@ def image_matches(image, expected):
     refs += [x.rsplit("@",1)[-1] for x in image.get("RepoDigests") or []]
     return expected in refs
 
+def write_payload(directory):
+    test_dir=directory/"payload"
+    test_dir.mkdir(mode=0o755)
+    test_dir.chmod(0o755)
+    test_file=test_dir/"lock-candidate.test.mjs"
+    test_file.write_text(TEST_SOURCE)
+    test_file.chmod(0o644)
+    return test_dir
+
 def main():
     if os.geteuid()!=0: raise SystemExit("Execute com sudo python3.")
     os.umask(0o077)
@@ -73,11 +82,7 @@ def main():
     stem="ramo-lock-test-"+nonce
     directory=base/stem
     directory.mkdir(mode=0o700)
-    test_dir=directory/"payload"
-    test_dir.mkdir(mode=0o755)
-    test_file=test_dir/"lock-candidate.test.mjs"
-    test_file.write_text(TEST_SOURCE)
-    test_file.chmod(0o644)
+    test_dir=write_payload(directory)
     db_name,runner=stem+"-postgres",stem+"-runner"
     volumes=[stem+"-data",stem+"-socket"]
     created=[]
@@ -139,7 +144,7 @@ def main():
         url="postgresql://ramo_security:"+password+"@127.0.0.1/ramo_lock_test?host=/run/security-pg"
         command=["run","--rm","--pull=never","--network=none","--name",runner,"--label",label,
                  "--memory=512m","--cpus=0.75","--pids-limit=128","--read-only",
-                 "--tmpfs","/tmp:rw,nosuid,size=64m",
+                 "--tmpfs","/tmp:rw,nosuid,size=64m,mode=1777",
                  "--mount","type=volume,src="+volumes[1]+",dst=/run/security-pg,readonly",
                  "--mount","type=bind,src="+str(test_dir)+",dst=/candidate-test,readonly",
                  "-e","NODE_ENV=test","-e","DB_SSL=false","-e","DATABASE_URL="+url,
