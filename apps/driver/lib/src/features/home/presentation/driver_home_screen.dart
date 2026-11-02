@@ -224,6 +224,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _releaseDialogShown = false;
   bool _registryAccessBlocked = false;
   bool _webBackgrounded = false;
+  bool _supplyLoadInFlight=false;
   bool _androidScreenLocked=false;
   bool _androidLockPending=false;
   bool _androidLockInFlight=false;
@@ -387,7 +388,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _syncAndroidScreenLock() async {
-    if(!mounted || _loading || !_androidLockPending || _androidLockInFlight) return;
+    if(!mounted || _loading || _supplyLoadInFlight || !_androidLockPending || _androidLockInFlight) return;
     final api=_api;
     if(api == null || api is! DriverScreenLockApi) return;
     _androidLockInFlight=true;
@@ -516,6 +517,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   Future<void> _applyLoadedSupply(DriverSupplySnapshot supply) async {
     if (!mounted) return;
+    _supplyLoadInFlight=true;
+    try {
     setState(() {
       _supply = supply;
       _registryAccessBlocked = false;
@@ -527,7 +530,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       const Duration(seconds: 10),
       (_) => unawaited(_restoreCurrentRide()),
     );
-    unawaited(_syncAndroidScreenLock());
     await _refreshFinance(showError: false);
     unawaited(_refreshProfile());
     unawaited(_refreshActivity());
@@ -557,6 +559,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _startPolling();
         await _refreshOffer();
       }
+    }
+    } finally {
+      _supplyLoadInFlight=false;
+      unawaited(_syncAndroidScreenLock());
     }
   }
 
