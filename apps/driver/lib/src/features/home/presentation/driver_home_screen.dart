@@ -394,10 +394,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     try {
       final outcome=await (api as DriverScreenLockApi).lockScreen();
       if(!mounted) return;
-      _androidLockPending=false;
-      _screenLockRetry?.cancel();
       if(outcome=='ACCEPTED') {
         await _restoreCurrentRide();
+        _androidLockPending=false;
+        _screenLockRetry?.cancel();
         return;
       }
       final supply=await api.getSupply();
@@ -413,6 +413,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         await _stopLocationTracking();
         await _stopRealtime();
       }
+      _androidLockPending=false;
+      _screenLockRetry?.cancel();
     } catch(_) {
       if(mounted) {
         setState(()=>_message='Aguardando conexão para confirmar sua disponibilidade.');
