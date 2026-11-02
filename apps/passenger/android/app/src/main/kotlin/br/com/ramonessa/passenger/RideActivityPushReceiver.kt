@@ -11,6 +11,10 @@ class RideActivityPushReceiver: BroadcastReceiver() {
         val extras=intent.extras ?: return
         val type=extras.getString("type") ?: return
         val rideId=extras.getString("rideId") ?: return
-        RideActivityNotification(context.applicationContext).fromPush(rideId,type)
+        try {
+            RideActivityNotification(context.applicationContext).fromPush(rideId,type)
+        } catch(_:RuntimeException) {
+            // Notification rendering must not crash background message delivery.
+        }
     }
 }
