@@ -14,6 +14,8 @@ jobs:
         with: {flutter-version: '3.47.5', channel: stable, cache: true}
       - run: flutter pub get --enforce-lockfile
         working-directory: apps/driver
+      - run: dart format lib/src/features/home/presentation/driver_home_screen.dart lib/src/features/home/presentation/widgets/driver_live_map.dart
+        working-directory: apps/driver
       - run: dart fix --apply --code=curly_braces_in_flow_control_structures
         working-directory: apps/driver
       - run: flutter analyze
