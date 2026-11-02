@@ -1,4 +1,4 @@
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -1238,8 +1238,35 @@ try {
     );
   }
 
+  // Validate the reason on an existing synthetic ride: the current route
+  // correctly returns 404 before validating fields when a ride is missing.
+  const cancellationValidationRideId = randomUUID();
+  const cancellationFixture = compose([
+    'exec', '-T', 'core', 'node', '--input-type=module', '-e',
+    `
+      import { createPostgresPool } from './dist/src/db/postgres.js';
+      import { PostgresRideRepository } from './dist/src/rides/repositories/postgres-ride-repository.js';
+      const pool=createPostgresPool(process.env.DATABASE_URL);
+      try {
+        const now=new Date().toISOString();
+        await new PostgresRideRepository(pool).create({
+          id:${JSON.stringify(cancellationValidationRideId)},
+          passengerId:${JSON.stringify(smokePassenger.passengerId)},
+          state:'AWAITING_PAYMENT',paymentStatus:'created',
+          origin:{zoneId:'prea'},destination:{zoneId:'jijoca'},
+          category:'car',period:'day',passengers:1,
+          quote:{ruleId:'smoke-cancellation-validation',baseAmountCents:1000,
+            pickupCompensationCents:0,totalAmountCents:1000,
+            platformCommissionCents:100,driverNetCents:900},
+          createdAt:now,updatedAt:now,
+        });
+      } finally {await pool.end();}
+    `,
+  ]);
+  requireOk(cancellationFixture, 'fixture isolada de validação do cancelamento');
+
   const invalidAdminCancel = await jsonRequest(
-    '/v1/admin/rides/99999999-9999-4999-8999-999999999999/cancel',
+    `/v1/admin/rides/${cancellationValidationRideId}/cancel`,
     {
       method: 'POST',
       headers: {
