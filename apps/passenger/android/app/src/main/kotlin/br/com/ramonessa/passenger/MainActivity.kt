@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                     "clear" -> {card.clear();result.success(true)}
+                    "disable" -> {card.disable();result.success(true)}
                     else -> result.notImplemented()
                 }
             }
