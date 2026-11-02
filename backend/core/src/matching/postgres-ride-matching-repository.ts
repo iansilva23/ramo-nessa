@@ -400,6 +400,16 @@ export class PostgresRideMatchingRepository
         await client.query('COMMIT');
         return 'ACCEPTED';
       }
+      if ((offer.status === 'REJECTED' || offer.status === 'EXPIRED') && ride != null) {
+        const pending = await client.query(
+          'SELECT 1 FROM android_lock_dispatch_pending WHERE offer_id = $1',
+          [offer.id],
+        );
+        if ((pending.rowCount ?? 0) > 0) {
+          await client.query('COMMIT');
+          return offer.status;
+        }
+      }
       if (offer.status !== 'OFFERED' || ride == null || supply == null || supply.busy) {
         await client.query('COMMIT');
         return 'INACTIVE';
@@ -421,6 +431,13 @@ export class PostgresRideMatchingRepository
          WHERE id = $1 AND reserved_driver_id = $2`,
         [offer.ride_id, offer.driver_id, input.at],
       );
+      if (ride.state === 'PAID' || ride.state === 'SEARCHING_DRIVER') {
+        await client.query(
+          `INSERT INTO android_lock_dispatch_pending (offer_id, ride_id, created_at)
+           VALUES ($1, $2, $3) ON CONFLICT (offer_id) DO NOTHING`,
+          [offer.id, offer.ride_id, input.at],
+        );
+      }
       await client.query('COMMIT');
       return status;
     } catch (error) {
