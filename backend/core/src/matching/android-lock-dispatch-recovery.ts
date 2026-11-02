@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { dispatchNextDriver } from './dispatch-next-driver.js';
 
 /**
  * Experimental isolated recovery helper. The injected action must use the
@@ -50,4 +51,29 @@ export async function recoverLockedOfferDispatch(input: {
     }
     client.release();
   }
+}
+
+/** One recovery attempt; a scheduler must still invoke this after restart. */
+export async function resumeLockedRideSearch(input: {
+  pool: Pool;
+  offerId: string;
+  dispatch: Omit<Parameters<typeof dispatchNextDriver>[0], 'rideId' | 'pickup'>;
+}): Promise<'BUSY' | 'NOT_PENDING' | 'RETRY' | 'COMPLETE'> {
+  return recoverLockedOfferDispatch({
+    pool: input.pool,
+    offerId: input.offerId,
+    continueSearch: async rideId => {
+      const ride = await input.dispatch.rides.findById(rideId);
+      // A missing ride is not enough proof of successful dispatch.
+      if (ride == null) return false;
+      if (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER') return true;
+      if (ride.pickupLatitude == null || ride.pickupLongitude == null) return false;
+      await dispatchNextDriver({
+        ...input.dispatch,
+        rideId,
+        pickup: {latitude: ride.pickupLatitude, longitude: ride.pickupLongitude},
+      });
+      return true;
+    },
+  });
 }
