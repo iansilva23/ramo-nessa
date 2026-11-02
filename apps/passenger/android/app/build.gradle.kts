@@ -102,6 +102,8 @@ android {
         )
     }
 
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     buildFeatures {
         buildConfig = true
     }
@@ -152,6 +154,8 @@ kotlin {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     implementation(
         platform("com.mercadopago.android.sdk:sdk-android-bom:0.2.3"),
     )
