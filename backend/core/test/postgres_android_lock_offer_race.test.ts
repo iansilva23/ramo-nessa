@@ -150,3 +150,40 @@ test('diagnostic: going offline before acceptance leaves offer pending', { skip:
     assert.equal((await rides.findById(rideId))?.state, 'SEARCHING_DRIVER');
   } finally { await pool.end(); }
 });
+
+
+test('screen lock and acceptance serialize without abandoning an accepted paid ride', { skip: process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only' }, async () => {
+  const url = new URL(process.env.DATABASE_URL ?? '');
+  assert.equal(url.hostname, '127.0.0.1'); assert.equal(url.pathname, '/ramo_lock_test');
+  const pool = createPostgresPool(url.toString()), rides = new PostgresRideRepository(pool);
+  const drivers = new PostgresDriverSupplyRepository(pool), matching = new PostgresRideMatchingRepository(pool);
+  const start = new Date('2026-10-01T12:00:00.000Z'), at = new Date(start.getTime()+5000).toISOString();
+  try {
+    for (let i=0; i<32; i++) {
+      const rideId=randomUUID(), driverId='atomic-lock-'+randomUUID();
+      await rides.create({id:rideId, passengerId:'test-'+randomUUID(), state:'PAID', paymentStatus:'paid',
+        origin:{zoneId:'prea'}, destination:{zoneId:'jijoca'}, category:'car', period:'day', passengers:1,
+        quote:{ruleId:'test',baseAmountCents:1000,pickupCompensationCents:0,totalAmountCents:1000,platformCommissionCents:100,driverNetCents:900},
+        createdAt:start.toISOString(),updatedAt:start.toISOString()});
+      await drivers.upsert({driverId,vehicleId:randomUUID(),categories:['car'],fourByFour:false,seatCapacity:4,
+        online:true,busy:false,latitude:-2.821,longitude:-40.414,locationUpdatedAt:start.toISOString(),updatedAt:start.toISOString()});
+      const created=await matching.createOffer({rideId,driverId,approximatePickupDistanceKm:1,createdAt:start.toISOString(),
+        expiresAt:new Date(start.getTime()+35000).toISOString()});
+      const lock=()=>matching.lockScreenPendingOffer({offerId:created.offer.id,driverId,at});
+      const accept=()=>matching.acceptOffer({offerId:created.offer.id,driverId,acceptedAt:at});
+      if(i===0) { assert.equal(await lock(),'REJECTED'); await assert.rejects(accept); }
+      else if(i===1) { await accept(); assert.equal(await lock(),'ACCEPTED'); }
+      else await Promise.allSettled(i%2===0?[lock(),accept()]:[accept(),lock()]);
+      const offer=await matching.findOfferById(created.offer.id),ride=await rides.findById(rideId),supply=await drivers.findByDriverId(driverId);
+      assert.ok(offer && ride && supply);
+      assert.equal(ride.paymentStatus,'paid');
+      if(offer.status==='ACCEPTED') {
+        assert.equal(ride.driverId,driverId); assert.equal(ride.state,'DRIVER_ASSIGNED');
+        assert.equal(supply.busy,true); assert.equal(supply.online,true);
+      } else {
+        assert.equal(offer.status,'REJECTED'); assert.equal(supply.online,false);
+        assert.equal(supply.busy,false); assert.notEqual(ride.driverId,driverId);
+      }
+    }
+  } finally { await pool.end(); }
+});
