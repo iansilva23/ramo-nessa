@@ -11,6 +11,9 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         tools:replace="android:allowBackup">
+        <receiver android:name=".RideActivityPushReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE" /></intent-filter>
+        </receiver>
         <activity
             android:name=".CardTokenizationActivity"
             android:exported="false"
