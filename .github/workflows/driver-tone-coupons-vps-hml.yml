@@ -8,7 +8,7 @@ on:
     branches:
       - feature/driver-tone-coupons-20261102
     paths:
-      - .github/workflows/driver-offer-tone-vps-hml.yml
+      - .github/workflows/driver-tone-coupons-vps-hml.yml
       - apps/driver/**
       - packages/**
       - docs/DRIVER_TONE_COUPONS_HML_20261102.md
