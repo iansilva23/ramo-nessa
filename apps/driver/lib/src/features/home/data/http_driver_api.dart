@@ -18,6 +18,7 @@ class HttpDriverApi
         RamoRideSupportApi,
         RamoRideChatApi,
         DriverApi,
+        DriverScreenLockApi,
         DriverRideIdentityApi,
         DriverBoardingApi,
         DriverPassengerRatingApi,
@@ -661,6 +662,57 @@ class HttpDriverApi
     return DriverPayoutReservation.fromJson(
       _expectObject(response, expectedStatus: 201),
     );
+  }
+
+  @override
+  Future<String> lockPendingOffer(String offerId) async {
+    if (!RegExp(r'^[0-9a-fA-F-]{36}
+    http.Response response, {
+    required int expectedStatus,
+  }) {
+    dynamic decoded;
+    try {
+      decoded = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body);
+    } catch (_) {
+      throw const DriverApiException(
+        'O servidor retornou uma resposta inválida. Tente novamente.',
+      );
+    }
+
+    if (response.statusCode == expectedStatus &&
+        decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      throw DriverApiException(
+        decoded['message'] as String? ??
+            'Não foi possível concluir esta ação agora.',
+        code: decoded['error'] as String?,
+        statusCode: response.statusCode,
+      );
+    }
+
+    throw const DriverApiException(
+      'Não foi possível concluir esta ação agora.',
+    );
+  }
+}
+).hasMatch(offerId)) {
+      throw const DriverApiException('Identificador da oferta inválido.');
+    }
+    final response = await _client.post(
+      _baseUrl.resolve('/v1/driver/me/offers/$offerId/screen-lock'),
+      headers: _headers,
+    ).timeout(DriverCoreConfig.requestTimeout);
+    final outcome = _expectObject(response, expectedStatus: 200)['outcome'];
+    if (outcome is! String ||
+        !const ['ACCEPTED', 'REJECTED', 'EXPIRED', 'INACTIVE'].contains(outcome)) {
+      throw const DriverApiException('Resposta de bloqueio inválida.');
+    }
+    return outcome;
   }
 
   Map<String, dynamic> _expectObject(
