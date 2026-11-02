@@ -387,7 +387,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _syncAndroidScreenLock() async {
-    if(!mounted || !_androidLockPending || _androidLockInFlight) return;
+    if(!mounted || _loading || !_androidLockPending || _androidLockInFlight) return;
     final api=_api;
     if(api is! DriverScreenLockApi) return;
     _androidLockInFlight=true;
@@ -715,6 +715,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   void _announceOffer(DriverOffer? offer) {
+    if (_androidScreenLocked || _androidLockPending) return;
     if (offer == null ||
         !offer.expiresAt.isAfter(DateTime.now()) ||
         _lastAlertedOfferId == offer.id) {
