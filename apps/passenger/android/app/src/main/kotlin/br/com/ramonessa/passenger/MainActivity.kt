@@ -11,6 +11,18 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "br.com.ramonessa.passenger/ride-activity")
+            .setMethodCallHandler { call, result ->
+                val card=RideActivityNotification(applicationContext)
+                when(call.method) {
+                    "update" -> {
+                        card.update(call.argument<String>("rideId") ?: "",call.argument<String>("state") ?: "",call.argument<String>("detail") ?: "")
+                        result.success(true)
+                    }
+                    "clear" -> {card.clear();result.success(true)}
+                    else -> result.notImplemented()
+                }
+            }
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
