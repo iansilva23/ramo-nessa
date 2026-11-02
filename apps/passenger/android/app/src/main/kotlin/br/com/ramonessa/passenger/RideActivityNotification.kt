@@ -20,7 +20,7 @@ class RideActivityNotification(private val context: Context) {
         if(state in TERMINAL) {finish(rideId);return}
         prefs.edit().putBoolean("enabled",true).putString("cachedRide",rideId).putString("detail",detail.take(350)).apply()
         if(state=="IN_PROGRESS") show(rideId,detail)
-        else if(prefs.getString("activeRide",null)==rideId) clear()
+        // A delayed pre-start snapshot must not undo a confirmed start.
     }
     fun fromPush(rideId:String,type:String) {
         if(!prefs.getBoolean("enabled",false)) return;
