@@ -15,11 +15,20 @@ class RideActivityNotification(private val context: Context) {
     private val prefs=context.getSharedPreferences("ride_activity",Context.MODE_PRIVATE)
     private val manager=context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    fun update(rideId:String,state:String,detail:String) {
+    fun update(rideId:String,state:String,detail:String, destination:String="", eta:String="",
+               identity:String="", progress:Double?=null, category:String="car") {
         if(!rideId.matches(Regex("[0-9a-fA-F-]{36}"))) return
         if(state in TERMINAL) {finish(rideId);return}
+        if(prefs.getString("cachedRide",null)!=rideId) {
+            prefs.edit().remove("destination").remove("eta").remove("identity").remove("progress").remove("category").apply()
+        }
         prefs.edit().putBoolean("enabled",true).putString("cachedRide",rideId).putString("detail",detail.take(350)).apply()
-        if(state=="IN_PROGRESS") show(rideId,detail)
+        if(state=="IN_PROGRESS") {
+            prefs.edit().putString("destination",destination.take(100)).putString("eta",eta.take(100))
+                .putString("identity",identity.take(120)).putString("category",category)
+                .putFloat("progress",progress?.takeIf {it.isFinite()}?.toFloat() ?: -1f).apply()
+            show(rideId,detail)
+        }
         // A delayed pre-start snapshot must not undo a confirmed start.
     }
     fun fromPush(rideId:String,type:String) {
@@ -40,10 +49,22 @@ class RideActivityNotification(private val context: Context) {
         val pending=PendingIntent.getActivity(context,ID,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(context,CHANNEL) else Notification.Builder(context)
         val text=detail.ifBlank{"Abra o Ramo Nessa para acompanhar sua corrida."}.take(350)
-        manager.notify(ID,builder.setSmallIcon(R.mipmap.ic_launcher).setContentTitle("Corrida em andamento")
-            .setContentText(text).setStyle(Notification.BigTextStyle().bigText(text))
+        val destination=prefs.getString("destination","") ?: ""
+        val eta=prefs.getString("eta","") ?: ""
+        val identity=prefs.getString("identity","") ?: ""
+        val category=prefs.getString("category","car") ?: "car"
+        val progress=prefs.getFloat("progress",-1f).takeIf {it>=0f && it<=1f}?.toDouble()
+        val publicBuilder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(context,CHANNEL) else Notification.Builder(context)
+        builder.setPublicVersion(publicBuilder.setSmallIcon(R.drawable.ramo_notification_mark)
+            .setContentTitle("Corrida em andamento").setContentText("Desbloqueie para ver os dados da corrida.")
+            .setContentIntent(pending).setVisibility(Notification.VISIBILITY_PUBLIC).setShowWhen(false).build())
+        manager.notify(ID,builder.setSmallIcon(R.drawable.ramo_notification_mark).setContentTitle("Corrida em andamento")
+            .setContentText(text).setStyle(Notification.DecoratedCustomViewStyle())
+            .setCustomContentView(RideNotificationCard.views(context,"Corrida em andamento",text,true,destination,expanded=false))
+            .setCustomBigContentView(RideNotificationCard.views(context,"Corrida em andamento",text,true,destination,eta,identity,progress,category))
+            .setColor(android.graphics.Color.rgb(245,180,0))
             .setContentIntent(pending).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false)
-            .setVisibility(Notification.VISIBILITY_PRIVATE).setProgress(4,3,false).build())
+            .setVisibility(Notification.VISIBILITY_PRIVATE).build())
     }
     private fun finish(rideId:String) {
         val ended=prefs.getStringSet("ended",emptySet())!!.toMutableSet()
@@ -60,3 +81,4 @@ class RideActivityNotification(private val context: Context) {
         private val END_TYPES=setOf("passenger.ride.completed","passenger.ride.cancelled_by_driver","passenger.ride.cancelled_by_passenger","passenger.ride.cancelled_by_admin")
     }
 }
+

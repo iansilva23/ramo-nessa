@@ -80,6 +80,7 @@ android {
     }
 
     defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         applicationId = "br.com.ramonessa.passenger"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -154,6 +155,8 @@ kotlin {
 }
 
 dependencies {
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     implementation(
@@ -176,3 +179,4 @@ flutter {
 tasks.matching { it.name == "packageDebugUnitTestForUnitTest" }.configureEach {
     dependsOn("copyFlutterAssetsDebug")
 }
+

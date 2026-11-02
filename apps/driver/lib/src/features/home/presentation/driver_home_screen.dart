@@ -417,6 +417,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
+  final _notificationJourney = RamoNotificationJourney();
+
   Future<void> _updateActivityNotification() async {
     if (!mounted ||
         kIsWeb ||
@@ -426,6 +428,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
     final ride = _activeRide;
     String? title, detail;
+    var destination = '';
+    var eta = '';
+    double? progress;
+    var category = 'car';
     int stage = 0;
     if (ride != null &&
         const [
@@ -435,11 +441,26 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           'IN_PROGRESS',
         ].contains(ride.state)) {
       title = ride.state == 'IN_PROGRESS'
-          ? 'Corrida em andamento'
+          ? 'Viagem em andamento'
           : ride.state == 'DRIVER_ARRIVED'
           ? 'Aguardando embarque'
           : 'A caminho do passageiro';
       detail = '${ride.originDisplayName} → ${ride.destinationDisplayName}';
+      final dropoff = ride.state == 'IN_PROGRESS';
+      destination = dropoff ? ride.destinationDisplayName : ride.originDisplayName;
+      category = ride.category;
+      final supply = _supply;
+      final validRoute = _routeForRide == ride.id && _routeWasDropoff == dropoff ? _activeRoute : null;
+      if (supply != null) {
+        final metrics = _notificationJourney.sample(
+          key: '${ride.id}/$dropoff',
+          points: validRoute?.points.map((p) => (latitude: p.latitude, longitude: p.longitude)) ?? const [],
+          latitude: supply.latitude, longitude: supply.longitude,
+          positionAt: supply.locationUpdatedAt, now: DateTime.now(), duration: validRoute?.duration,
+        );
+        progress = metrics?.progress;
+        eta = metrics?.eta ?? '';
+      }
       stage = ride.state == 'IN_PROGRESS'
           ? 3
           : ride.state == 'DRIVER_ARRIVED'
@@ -450,7 +471,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       detail =
           'Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
     }
-    final payload = title == null ? 'clear' : '$title|$detail|$stage';
+    if (stage == 0) {
+      _notificationJourney.clear();
+    }
+    final payload = title == null ? 'clear' : '$title|$detail|$stage|$destination|$eta|$progress|$category';
     if (payload == _activityNotificationPayload) {
       return;
     }
@@ -464,6 +488,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           'title': title,
           'detail': detail,
           'stage': stage,
+          'destination': destination,
+          'eta': eta,
+          'progress': progress,
+          'category': category,
         });
       }
       _activityNotificationPayload = payload;
@@ -5837,3 +5865,4 @@ class _UnavailableDriverRouteService implements DriverRouteService {
     );
   }
 }
+

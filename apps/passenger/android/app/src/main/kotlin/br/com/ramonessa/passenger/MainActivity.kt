@@ -16,7 +16,10 @@ class MainActivity : FlutterActivity() {
                 val card=RideActivityNotification(applicationContext)
                 when(call.method) {
                     "update" -> {
-                        card.update(call.argument<String>("rideId") ?: "",call.argument<String>("state") ?: "",call.argument<String>("detail") ?: "")
+                        card.update(call.argument<String>("rideId") ?: "",call.argument<String>("state") ?: "",call.argument<String>("detail") ?: "",
+                            call.argument<String>("destination") ?: "",call.argument<String>("eta") ?: "",
+                            call.argument<String>("identity") ?: "",call.argument<Number>("progress")?.toDouble(),
+                            call.argument<String>("category") ?: "car")
                         result.success(true)
                     }
                     "clear" -> {card.clear();result.success(true)}
@@ -161,3 +164,4 @@ class MainActivity : FlutterActivity() {
         private const val CARD_REQUEST_CODE = 8042
     }
 }
+

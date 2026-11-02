@@ -175,9 +175,22 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     );
   }
 
+  final _notificationJourney = RamoNotificationJourney();
+
   Future<void> _updateRideActivity(PassengerRideTrackingSnapshot snapshot) async {
     if(kIsWeb || defaultTargetPlatform!=TargetPlatform.android) return;
     final driver=snapshot.driver;
+    final location=snapshot.driverLocation;
+    final routeInfo=snapshot.state=='IN_PROGRESS' && _lastRouteState==snapshot.state ? _route : null;
+    final metrics=location==null || location.stale || snapshot.state!='IN_PROGRESS' ? null : _notificationJourney.sample(
+      key: snapshot.rideId,
+      points: routeInfo?.points.map((p)=>(latitude:p.latitude,longitude:p.longitude)) ?? const [],
+      latitude:location.latitude,longitude:location.longitude,positionAt:location.updatedAt,
+      now:DateTime.now(),duration:routeInfo?.duration,
+    );
+    if(snapshot.isTerminal) {
+      _notificationJourney.clear();
+    }
     final route=[snapshot.pickupLabel,snapshot.dropoffLabel]
         .whereType<String>().where((s)=>s.trim().isNotEmpty).join(' → ');
     final identity=[driver?.displayName,driver?.vehicleModel,driver?.vehiclePlate]
@@ -185,6 +198,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     try {
       await const MethodChannel('br.com.ramonessa.passenger/ride-activity').invokeMethod<bool>('update',{
         'rideId':snapshot.rideId,'state':snapshot.state,
+        'destination':snapshot.dropoffLabel ?? '',
+        'category':snapshot.category,'identity':identity,
+        'eta':metrics?.eta ?? '', 'progress':metrics?.progress,
         'detail':[identity,route].where((s)=>s.isNotEmpty).join('\n'),
       });
     } catch(_) {
@@ -305,6 +321,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
         return;
       }
       setState(() => _route = route);
+      unawaited(_updateRideActivity(latest));
       _fitTrackingRouteIfNeeded();
     } catch (_) {
       // A telemetria continua visível; uma nova tentativa acontece no próximo
@@ -1037,3 +1054,4 @@ class _AssignedDriverCard extends StatelessWidget {
     );
   }
 }
+

@@ -25,7 +25,11 @@ class MainActivity : FlutterActivity() {
                     "show" -> result.success(activityNotification.show(
                         call.argument<String>("title") ?: "Ramo Nessa",
                         call.argument<String>("detail") ?: "",
-                        call.argument<Int>("stage") ?: 0))
+                        call.argument<Int>("stage") ?: 0,
+                        call.argument<String>("destination") ?: "",
+                        call.argument<String>("eta") ?: "",
+                        call.argument<Number>("progress")?.toDouble(),
+                        call.argument<String>("category") ?: "car"))
                     else -> result.notImplemented()
                 }
             }
@@ -65,3 +69,4 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
     }
 }
+

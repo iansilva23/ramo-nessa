@@ -2,7 +2,14 @@ name: Android screen lock - connected device APKs
 on:
   push:
     branches: [feature/android-lock-offer-safety-20261031]
-    paths: [.github/workflows/android-lock-connected-apks.yml]
+    paths:
+      - .github/workflows/android-lock-connected-apks.yml
+      - 'apps/driver/android/**'
+      - 'apps/passenger/android/**'
+      - 'apps/driver/lib/src/features/home/presentation/driver_home_screen.dart'
+      - 'apps/passenger/lib/src/features/rides/presentation/ride_tracking_screen.dart'
+      - 'packages/design_system/lib/src/rides/ramo_notification_journey.dart'
+      - 'packages/design_system/test/notification_journey_test.dart' 
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,7 +21,7 @@ env:
 jobs:
   android:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +50,13 @@ jobs:
           set -euo pipefail
           node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="Screen lock ${{ matrix.app }} Android"
           node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="Screen lock ${{ matrix.app }} Android"
+      - name: Test notification journey metrics
+        if: matrix.app == 'passenger'
+        working-directory: packages/design_system
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test test/notification_journey_test.dart
       - name: Test and build connected APK without store signing
         working-directory: apps/${{ matrix.app }}
         run: |
@@ -53,7 +67,7 @@ jobs:
           flutter build apk --release --no-pub \
             --build-number=$((200000 + ${{ github.run_number }})) \
             --dart-define=RAMO_PREVIEW_MODE=false \
-            --dart-define=RAMO_APP_VERSION=0.1.0-connected-lock \
+            --dart-define=RAMO_APP_VERSION=0.1.0-notification-visual \
             --dart-define=RAMO_APP_BUILD=$((200000 + ${{ github.run_number }})) \
             --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
             --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
@@ -61,6 +75,43 @@ jobs:
             --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
             --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
             --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Build offline Android notification UI tests
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          flutter build apk --debug --no-pub --target-platform android-x64
+          cd android
+          if [ "${{ matrix.app }}" = passenger ]; then
+            ./gradlew :app:testDebugUnitTest -Ptarget-platform=android-x64
+          fi
+          ./gradlew :app:assembleDebugAndroidTest -Ptarget-platform=android-x64
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test and capture the real Android notification UI
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          ram-size: 2048M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash tooling/test-native-notification-ui.sh '${{ matrix.app }}'
+      - name: Preserve native screenshots and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lock-${{ matrix.app }}-VISUAL-EVIDENCE
+          path: |
+            visual-artifacts/
+            apps/${{ matrix.app }}/build/app/outputs/androidTest-results/
+            apps/${{ matrix.app }}/build/app/outputs/connected_android_test_additional_output/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Verify APK and attach release identity
         run: |
           set -euo pipefail
@@ -83,3 +134,4 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 14
+

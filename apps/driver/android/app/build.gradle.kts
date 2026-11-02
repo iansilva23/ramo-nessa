@@ -72,6 +72,7 @@ android {
     }
 
     defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         applicationId = "br.com.ramonessa.driver"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
@@ -127,4 +128,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+
+dependencies {
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

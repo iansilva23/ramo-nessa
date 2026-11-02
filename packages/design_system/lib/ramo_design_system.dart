@@ -21,3 +21,5 @@ export 'src/rides/ramo_ride_activity.dart';
 export 'src/rides/ramo_ride_support.dart';
 
 export 'src/rides/ramo_ride_occurrence.dart';
+
+export 'src/rides/ramo_notification_journey.dart';
