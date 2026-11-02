@@ -6,6 +6,9 @@ on:
       - 'apps/driver/android/app/src/main/kotlin/**'
       - 'apps/driver/lib/src/core/availability/**'
       - 'apps/driver/test/driver_screen_lock_events_test.dart'
+      - 'apps/driver/test/driver_screen_lock_api_test.dart'
+      - 'apps/driver/lib/src/features/home/data/driver_api.dart'
+      - 'apps/driver/lib/src/features/home/data/http_driver_api.dart'
       - '.github/workflows/android-screen-lock-review.yml'
 permissions:
   contents: read
@@ -30,7 +33,7 @@ jobs:
         run: flutter analyze lib/src/core/availability/driver_screen_lock_events.dart test/driver_screen_lock_events_test.dart
         working-directory: apps/driver
       - name: Test event adapter
-        run: flutter test test/driver_screen_lock_events_test.dart
+        run: flutter test test/driver_screen_lock_events_test.dart test/driver_screen_lock_api_test.dart
         working-directory: apps/driver
       - name: Compile Android debug without publishing
         run: flutter build apk --debug --no-pub
