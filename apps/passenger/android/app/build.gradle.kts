@@ -171,3 +171,8 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+// The host-test package consumes the Flutter asset directory as well.
+tasks.matching { it.name == "packageDebugUnitTestForUnitTest" }.configureEach {
+    dependsOn("copyFlutterAssetsDebug")
+}
