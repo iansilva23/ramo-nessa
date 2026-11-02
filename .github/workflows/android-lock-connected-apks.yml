@@ -4,6 +4,7 @@ on:
     branches: [feature/android-lock-offer-safety-20261031]
     paths:
       - .github/workflows/android-lock-connected-apks.yml
+      - tooling/test-native-notification-ui.sh
       - 'apps/driver/android/**'
       - 'apps/passenger/android/**'
       - 'apps/driver/lib/src/features/home/presentation/driver_home_screen.dart'
