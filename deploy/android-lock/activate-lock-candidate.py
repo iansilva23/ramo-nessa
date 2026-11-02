@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import stat
 import subprocess
 import sys
@@ -46,6 +45,13 @@ def private_file(path):
     require(stat.S_ISREG(s.st_mode) and s.st_uid == 0 and not s.st_mode & 0o022,
             'Arquivo operacional inválido; nenhuma substituição autorizada.')
     return path.read_bytes()
+
+
+def bound_hash(path):
+    # Existing mounted credentials may belong to the deploying account. Read and
+    # compare their bytes without changing ownership, permissions or contents.
+    require(path.is_file(), 'Arquivo montado indisponível; troca não iniciada.')
+    return digest(path.read_bytes())
 
 
 def save(name, value):
@@ -230,7 +236,7 @@ def state():
 def intact(p, check_other=True):
     require(digest(private_file(CONFIG)) == p['sourceHash'], 'Configuração original mudou; exige revisão.')
     for path, expected in p['bindHashes'].items():
-        require(digest(private_file(Path(path))) == expected, 'Arquivo de integração mudou; exige revisão.')
+        require(bound_hash(Path(path)) == expected, 'Arquivo de integração mudou; exige revisão.')
     if check_other:
         for c in p['before'][1:]:
             require(identity(c) == identity(inspect(c['Name'])), 'Outro serviço mudou; exige revisão.')
@@ -335,7 +341,7 @@ def activate():
     p = {'originalImage': OLD, 'candidateReference': NEXT, 'candidateId': candidate['Id'],
          'sourceHash': digest(raw), 'before': before, 'candidateHashes': hashes,
          'files': {n: digest(private_file(DIRECTORY / n)) for n in files},
-         'bindHashes': {m['Source']: digest(private_file(Path(m['Source'])))
+         'bindHashes': {m['Source']: bound_hash(Path(m['Source']))
                         for m in before[0]['Mounts'] if m['Type'] == 'bind'}}
     save('plan.private.json', p)
     intact(p)
