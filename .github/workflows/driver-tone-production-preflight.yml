@@ -1,0 +1,23 @@
+name: Motorista - validar preparacao segura do toque oficial
+on:
+  push:
+    branches: [feature/driver-tone-coupons-20261102]
+    paths:
+      - deploy/staging/driver-tone-prepare-production.py
+      - deploy/staging/test_driver_tone_prepare.py
+      - .github/workflows/driver-tone-production-preflight.yml
+  pull_request:
+    branches: [ops/driver-tone-coupons-base-20261102]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safe-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar sintaxe e testes do preparador imutavel
+        run: |
+          python3 -m py_compile deploy/staging/driver-tone-prepare-production.py
+          python3 -m unittest discover -s deploy/staging -p 'test_driver_tone_prepare.py' -v
