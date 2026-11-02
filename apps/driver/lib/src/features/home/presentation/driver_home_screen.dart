@@ -389,7 +389,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   Future<void> _syncAndroidScreenLock() async {
     if(!mounted || _loading || !_androidLockPending || _androidLockInFlight) return;
     final api=_api;
-    if(api is! DriverScreenLockApi) return;
+    if(api == null || api is! DriverScreenLockApi) return;
     _androidLockInFlight=true;
     try {
       final outcome=await (api as DriverScreenLockApi).lockScreen();
