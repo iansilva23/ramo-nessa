@@ -18,14 +18,15 @@ class RideActivityNotification(private val context: Context) {
     fun update(rideId:String,state:String,detail:String) {
         if(!rideId.matches(Regex("[0-9a-fA-F-]{36}"))) return
         if(state in TERMINAL) {finish(rideId);return}
-        prefs.edit().putString("cachedRide",rideId).putString("detail",detail.take(350)).apply()
+        prefs.edit().putBoolean("enabled",true).putString("cachedRide",rideId).putString("detail",detail.take(350)).apply()
         if(state=="IN_PROGRESS") show(rideId,detail)
         else if(prefs.getString("activeRide",null)==rideId) clear()
     }
     fun fromPush(rideId:String,type:String) {
+        if(!prefs.getBoolean("enabled",false)) return;
         if(!rideId.matches(Regex("[0-9a-fA-F-]{36}"))) return
         if(type in END_TYPES) {finish(rideId);return}
-        if(type=="passenger.ride.started") {
+        if(type=="passenger.ride.started" && prefs.getString("cachedRide",null)==rideId) {
             val detail=if(prefs.getString("cachedRide",null)==rideId) prefs.getString("detail","") ?: "" else ""
             show(rideId,detail)
         }
@@ -51,6 +52,7 @@ class RideActivityNotification(private val context: Context) {
         if(prefs.getString("activeRide",null)==rideId) clear()
     }
     fun clear() {manager.cancel(ID);prefs.edit().remove("activeRide").apply()}
+    fun disable() {manager.cancel(ID);prefs.edit().clear().apply()}
     companion object {
         private const val ID=31042
         private const val CHANNEL="ramo_passenger_ride_activity"
