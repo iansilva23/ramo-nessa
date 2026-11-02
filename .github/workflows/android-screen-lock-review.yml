@@ -11,6 +11,9 @@ on:
       - 'apps/driver/lib/src/features/home/presentation/driver_home_screen.dart'
       - 'apps/driver/lib/src/features/home/data/http_driver_api.dart'
       - '.github/workflows/android-screen-lock-review.yml'
+concurrency:
+  group: android-screen-lock-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
