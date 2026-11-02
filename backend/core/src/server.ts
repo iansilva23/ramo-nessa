@@ -7789,6 +7789,27 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/driver/me/screen-lock') {
+      const driverId=await resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository});
+      if (rideMatchingRepository.lockDriverScreen == null || rideMatchingRepository.lockScreenPendingOffer == null) {
+        json(response,503,{error:'SCREEN_LOCK_UNAVAILABLE'}); return;
+      }
+      for(let attempt=0;attempt<20;attempt++) {
+        const state=await rideMatchingRepository.lockDriverScreen({driverId,at:new Date().toISOString()});
+        if(state.outcome !== 'OFFER_PENDING') {
+          json(response,200,{outcome:state.outcome}); return;
+        }
+        if(state.offerId == null) break;
+        const outcome=await rideMatchingRepository.lockScreenPendingOffer({driverId,offerId:state.offerId,at:new Date().toISOString()});
+        if(outcome === 'ACCEPTED') {json(response,200,{outcome:'ACCEPTED'});return;}
+        if(outcome === 'REJECTED' || outcome === 'EXPIRED') {
+          realtimeHub.publishDriver(driverId,{type:'driver.offer.updated',offer:null,serverTime:new Date().toISOString()});
+          void runPendingDispatch();
+        }
+      }
+      json(response,503,{error:'SCREEN_LOCK_RETRY'}); return;
+    }
+
     const driverOfferAction = requestUrl.pathname.match(
       /^\/v1\/driver\/me\/offers\/([0-9a-fA-F-]+)\/(accept|reject|screen-lock)$/,
     );
