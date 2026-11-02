@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/**/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 test/**/*.test.ts",
     "start": "tsx src/server.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "auth:provision-driver": "tsx scripts/provision-driver-auth.ts",
