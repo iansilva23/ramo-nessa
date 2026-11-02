@@ -28,3 +28,5 @@ jobs:
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/src/features/rides/presentation/ride_tracking_screen.dart
       - run: flutter test test/passenger_ride_tracking_snapshot_test.dart test/notification_intent_test.dart
       - run: flutter build apk --debug --no-pub
+      - run: ./gradlew :app:testDebugUnitTest
+        working-directory: apps/passenger/android
