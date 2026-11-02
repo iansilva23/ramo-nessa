@@ -175,7 +175,7 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
         await assert.rejects(() => matching.lockScreenPendingOffer({offerId:created.offer.id,driverId:'other-driver',at}));
         assert.equal((await matching.findOfferById(created.offer.id))?.status,'OFFERED');
         assert.equal(await lock(),'REJECTED');
-        assert.equal(await lock(),'INACTIVE'); // Retry cannot yet tell dispatch must resume.
+        assert.equal(await lock(),'REJECTED'); // Retry finds the durable pending marker.
         await assert.rejects(accept);
       }
       else if(i===1) { await accept(); assert.equal(await lock(),'ACCEPTED'); }
@@ -184,6 +184,9 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
       const offer=await matching.findOfferById(created.offer.id),ride=await rides.findById(rideId),supply=await drivers.findByDriverId(driverId);
       assert.ok(offer && ride && supply);
       assert.equal(ride.paymentStatus,'paid');
+      const pending=await pool.query('SELECT ride_id FROM android_lock_dispatch_pending WHERE offer_id = $1',[created.offer.id]);
+      assert.equal(pending.rowCount,offer.status==='ACCEPTED'?0:1);
+      if (pending.rowCount) assert.equal(pending.rows[0].ride_id,rideId);
       if(offer.status==='ACCEPTED') {
         assert.equal(ride.driverId,driverId); assert.equal(ride.state,'DRIVER_ASSIGNED');
         assert.equal(supply.busy,true); assert.equal(supply.online,true);
