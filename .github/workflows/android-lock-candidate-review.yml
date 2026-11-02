@@ -13,3 +13,5 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: python3 deploy/android-lock/test_prepare_candidate.py
+      - run: python3 deploy/android-lock/test_candidate_runner_guards.py
+      - run: node --check deploy/android-lock/lock-candidate.test.mjs

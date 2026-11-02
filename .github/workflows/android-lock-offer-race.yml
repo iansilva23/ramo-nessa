@@ -2,7 +2,7 @@ name: Android lock offer race isolation
 on:
   push:
     branches: [feature/android-lock-offer-safety-20261031]
-    paths: ['backend/core/test/postgres_android_lock_offer_race.test.ts', 'backend/core/src/matching/**', 'backend/core/src/server.ts', 'backend/core/migrations/120_android_lock_dispatch_recovery.sql', '.github/workflows/android-lock-offer-race.yml']
+    paths: ['backend/core/test/postgres_android_lock_offer_race.test.ts', 'backend/core/src/matching/**', 'backend/core/src/server.ts', 'deploy/android-lock/lock-candidate.test.mjs', '.github/workflows/android-lock-offer-race.yml']
 permissions:
   contents: read
 jobs:
@@ -34,3 +34,7 @@ jobs:
         working-directory: backend/core
       - run: node --import tsx --test test/postgres_android_lock_offer_race.test.ts
         working-directory: backend/core
+      - run: node --test --test-concurrency=1 ../../deploy/android-lock/lock-candidate.test.mjs
+        working-directory: backend/core
+        env:
+          RAMO_LOCK_CORE_DIST: ${{ github.workspace }}/backend/core/dist
