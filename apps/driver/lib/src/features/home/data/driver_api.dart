@@ -145,5 +145,6 @@ class DriverApiException implements Exception {
 
 /// Optional capability; only acts on the specified pending offer.
 abstract interface class DriverScreenLockApi {
+  Future<String> lockScreen();
   Future<String> lockPendingOffer(String offerId);
 }
