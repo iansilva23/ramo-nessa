@@ -1,6 +1,5 @@
 import { advancePendingRideDispatch } from '../src/rides/pending-dispatch-service.js';
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
-import { recoverLockedOfferDispatch, resumeLockedRideSearch } from '../src/matching/android-lock-dispatch-recovery.js';
 import { updateDriverSupplyFromApp } from '../src/drivers/driver-app-service.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -178,7 +177,7 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
         await assert.rejects(() => matching.lockScreenPendingOffer({offerId:created.offer.id,driverId:'other-driver',at}));
         assert.equal((await matching.findOfferById(created.offer.id))?.status,'OFFERED');
         assert.equal(await lock(),'REJECTED');
-        assert.equal(await lock(),'REJECTED'); // Retry finds the durable pending marker.
+        assert.equal(await lock(),'REJECTED'); // Retry is idempotent; the paid ride itself records pending work.
         await assert.rejects(accept);
       }
       else if(i===1) { await accept(); assert.equal(await lock(),'ACCEPTED'); }
@@ -187,9 +186,6 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
       const offer=await matching.findOfferById(created.offer.id),ride=await rides.findById(rideId),supply=await drivers.findByDriverId(driverId);
       assert.ok(offer && ride && supply);
       assert.equal(ride.paymentStatus,'paid');
-      const pending=await pool.query('SELECT ride_id FROM android_lock_dispatch_pending WHERE offer_id = $1',[created.offer.id]);
-      assert.equal(pending.rowCount,offer.status==='ACCEPTED'?0:1);
-      if (pending.rowCount) assert.equal(pending.rows[0].ride_id,rideId);
       if(offer.status==='ACCEPTED') {
         assert.equal(ride.driverId,driverId); assert.equal(ride.state,'DRIVER_ASSIGNED');
         assert.equal(supply.busy,true); assert.equal(supply.online,true);
@@ -199,27 +195,6 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
       }
     }
   } finally { await pool.end(); }
-});
-
-test('dispatch recovery retains work after error and serializes retries', {skip:process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only'}, async () => {
-  const url=new URL(process.env.DATABASE_URL ?? '');
-  assert.equal(url.hostname,'127.0.0.1'); assert.equal(url.pathname,'/ramo_lock_test');
-  const pool=createPostgresPool(url.toString()), offerId=randomUUID(), rideId=randomUUID();
-  try {
-    await pool.query('INSERT INTO android_lock_dispatch_pending (offer_id,ride_id,created_at) VALUES ($1,$2,now())',[offerId,rideId]);
-    await assert.rejects(()=>recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>{throw new Error('simulated failure')}}));
-    assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>false}),'RETRY');
-    let release!: ()=>void, started!: ()=>void;
-    const startedPromise=new Promise<void>(r=>started=r), barrier=new Promise<void>(r=>release=r);
-    const first=recoverLockedOfferDispatch({pool,offerId,continueSearch:async id=>{
-      assert.equal(id,rideId); started(); await barrier; return true;
-    }});
-    await startedPromise;
-    assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>{throw new Error('must not run concurrently')}}),'BUSY');
-    release();
-    assert.equal(await first,'COMPLETE');
-    assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>true}),'NOT_PENDING');
-  } finally {await pool.end();}
 });
 
 test('recovery invokes real dispatch and retry does not duplicate the offer', {skip:process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only'}, async()=>{
@@ -245,12 +220,13 @@ test('recovery invokes real dispatch and retry does not duplicate the offer', {s
       onFailure:(_rideId,error)=>failures.push(error),
     });
     assert.equal(failures.length,0);
-    assert.equal(await resumeLockedRideSearch(request),'COMPLETE');
     let active=(await matching.listOffersForRide(rideId)).filter(o=>o.status==='OFFERED');
     assert.equal(active.length,1); assert.equal(active[0]?.driverId,second);
-    // Simulate a crash after sending an offer but before acknowledging the marker.
-    await pool.query('INSERT INTO android_lock_dispatch_pending (offer_id,ride_id,created_at) VALUES ($1,$2,$3)',[offer.offer.id,rideId,at.toISOString()]);
-    assert.equal(await resumeLockedRideSearch(request),'COMPLETE');
+    // Re-running the existing sweep must retain the active offer.
+    await advancePendingRideDispatch({
+      rides, now:at,
+      dispatch:(ride,now)=>dispatchRideAfterPayment({...request.dispatch,ride,now}),
+    });
     active=(await matching.listOffersForRide(rideId)).filter(o=>o.status==='OFFERED');
     assert.equal(active.length,1); assert.equal(active[0]?.driverId,second);
     assert.equal((await rides.findById(rideId))?.paymentStatus,'paid');
