@@ -375,8 +375,8 @@ export class PostgresRideMatchingRepository
     }
   }
 
-  // Experimental primitive: never dispatches or changes payment. It must only be
-  // exposed after the caller has handled retries and dispatch on commit.
+  // Changes availability and the offer together. Recovery uses the existing
+  // paid-ride sweep, which also runs after restart; no extra queue is needed.
   async lockScreenPendingOffer(input: { offerId: string; driverId: string; at: string }):
       Promise<'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'INACTIVE'> {
     const client = await this.pool.connect();
@@ -401,14 +401,8 @@ export class PostgresRideMatchingRepository
         return 'ACCEPTED';
       }
       if ((offer.status === 'REJECTED' || offer.status === 'EXPIRED') && ride != null) {
-        const pending = await client.query(
-          'SELECT 1 FROM android_lock_dispatch_pending WHERE offer_id = $1',
-          [offer.id],
-        );
-        if ((pending.rowCount ?? 0) > 0) {
-          await client.query('COMMIT');
-          return offer.status;
-        }
+        await client.query('COMMIT');
+        return offer.status;
       }
       if (offer.status !== 'OFFERED' || ride == null || supply == null || supply.busy) {
         await client.query('COMMIT');
@@ -431,13 +425,6 @@ export class PostgresRideMatchingRepository
          WHERE id = $1 AND reserved_driver_id = $2`,
         [offer.ride_id, offer.driver_id, input.at],
       );
-      if (ride.state === 'PAID' || ride.state === 'SEARCHING_DRIVER') {
-        await client.query(
-          `INSERT INTO android_lock_dispatch_pending (offer_id, ride_id, created_at)
-           VALUES ($1, $2, $3) ON CONFLICT (offer_id) DO NOTHING`,
-          [offer.id, offer.ride_id, input.at],
-        );
-      }
       await client.query('COMMIT');
       return status;
     } catch (error) {
