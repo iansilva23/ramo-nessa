@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -200,6 +201,11 @@ class FirebasePushRegistrationService {
   }
 
   Future<void> stop() async {
+    if(!kIsWeb && defaultTargetPlatform==TargetPlatform.android) {
+      try {
+        await const MethodChannel('br.com.ramonessa.passenger/ride-activity').invokeMethod<bool>('disable');
+      } catch(_) { /* Logout must continue when native notifications are unavailable. */ }
+    }
     _generation++;
     await _openedSubscription?.cancel();
     await _foregroundSubscription?.cancel();
