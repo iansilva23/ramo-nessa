@@ -1,4 +1,4 @@
-import { recoverLockedOfferDispatch } from '../src/matching/android-lock-dispatch-recovery.js';
+import { recoverLockedOfferDispatch, resumeLockedRideSearch } from '../src/matching/android-lock-dispatch-recovery.js';
 import { updateDriverSupplyFromApp } from '../src/drivers/driver-app-service.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -218,4 +218,31 @@ test('dispatch recovery retains work after error and serializes retries', {skip:
     assert.equal(await first,'COMPLETE');
     assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>true}),'NOT_PENDING');
   } finally {await pool.end();}
+});
+
+test('recovery invokes real dispatch and retry does not duplicate the offer', {skip:process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only'}, async()=>{
+  const url=new URL(process.env.DATABASE_URL ?? ''); assert.equal(url.hostname,'127.0.0.1'); assert.equal(url.pathname,'/ramo_lock_test');
+  const pool=createPostgresPool(url.toString()), rides=new PostgresRideRepository(pool), drivers=new PostgresDriverSupplyRepository(pool), matching=new PostgresRideMatchingRepository(pool);
+  const start=new Date('2026-10-01T12:00:00.000Z'), at=new Date(start.getTime()+5000);
+  const rideId=randomUUID(), first='lock-first-'+randomUUID(), second='lock-next-'+randomUUID();
+  try{
+    await rides.create({id:rideId,passengerId:'recovery-'+randomUUID(),state:'PAID',paymentStatus:'paid',
+      pickupLatitude:-2.821,pickupLongitude:-40.414,origin:{zoneId:'prea'},destination:{zoneId:'jijoca'},category:'car',period:'day',passengers:1,
+      quote:{ruleId:'test',baseAmountCents:1000,pickupCompensationCents:0,totalAmountCents:1000,platformCommissionCents:100,driverNetCents:900},
+      createdAt:start.toISOString(),updatedAt:start.toISOString()});
+    for(const driverId of [first,second]) await drivers.upsert({driverId,vehicleId:randomUUID(),categories:['car'],fourByFour:false,seatCapacity:4,
+      online:true,busy:false,latitude:-2.821,longitude:-40.414,locationUpdatedAt:start.toISOString(),updatedAt:start.toISOString()});
+    const offer=await matching.createOffer({rideId,driverId:first,approximatePickupDistanceKm:1,createdAt:start.toISOString(),expiresAt:new Date(start.getTime()+35000).toISOString()});
+    assert.equal(await matching.lockScreenPendingOffer({offerId:offer.offer.id,driverId:first,at:at.toISOString()}),'REJECTED');
+    const request={pool,offerId:offer.offer.id,dispatch:{rides,drivers,matching,now:at,canOfferDriver:async (id:string)=>id===second}};
+    assert.equal(await resumeLockedRideSearch(request),'COMPLETE');
+    let active=(await matching.listOffersForRide(rideId)).filter(o=>o.status==='OFFERED');
+    assert.equal(active.length,1); assert.equal(active[0]?.driverId,second);
+    // Simulate a crash after sending an offer but before acknowledging the marker.
+    await pool.query('INSERT INTO android_lock_dispatch_pending (offer_id,ride_id,created_at) VALUES ($1,$2,$3)',[offer.offer.id,rideId,at.toISOString()]);
+    assert.equal(await resumeLockedRideSearch(request),'COMPLETE');
+    active=(await matching.listOffersForRide(rideId)).filter(o=>o.status==='OFFERED');
+    assert.equal(active.length,1); assert.equal(active[0]?.driverId,second);
+    assert.equal((await rides.findById(rideId))?.paymentStatus,'paid');
+  }finally{await pool.end();}
 });
