@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import '../lib/src/features/home/data/http_driver_api.dart';
-import '../lib/src/features/home/data/driver_api.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/http_driver_api.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
 
 void main() {
   test('idle driver lock uses authenticated driver-wide endpoint', () async {
