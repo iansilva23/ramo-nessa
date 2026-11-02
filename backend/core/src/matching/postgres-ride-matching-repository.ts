@@ -377,6 +377,39 @@ export class PostgresRideMatchingRepository
 
   // Changes availability and the offer together. Recovery uses the existing
   // paid-ride sweep, which also runs after restart; no extra queue is needed.
+  async lockDriverScreen(input: {driverId: string; at: string}):
+      Promise<{outcome:'OFFLINE' | 'ACCEPTED' | 'OFFER_PENDING'; offerId?:string}> {
+    const client=await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Lock supply first, but do not lock offers or rides from this transaction.
+      // Acceptance may hold an offer lock while waiting for this supply row.
+      const supply=await client.query<{busy:boolean}>(
+        'SELECT busy FROM driver_supply WHERE driver_id=$1 FOR UPDATE',[input.driverId]);
+      if (supply.rows[0]?.busy) {
+        await client.query('COMMIT'); return {outcome:'ACCEPTED'};
+      }
+      const active=await client.query(
+        `SELECT 1 FROM rides WHERE driver_id=$1 AND state IN
+          ('AWAITING_PAYMENT','PAID','DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS') LIMIT 1`,
+        [input.driverId]);
+      if ((active.rowCount ?? 0)>0) {
+        await client.query('COMMIT'); return {outcome:'ACCEPTED'};
+      }
+      const offered=await client.query<{id:string}>(
+        "SELECT id FROM ride_offers WHERE driver_id=$1 AND status='OFFERED' ORDER BY created_at,id LIMIT 1",
+        [input.driverId]);
+      if (offered.rows[0]!=null) {
+        await client.query('COMMIT'); return {outcome:'OFFER_PENDING',offerId:offered.rows[0].id};
+      }
+      await client.query('UPDATE driver_supply SET online=FALSE, updated_at=$2 WHERE driver_id=$1',
+        [input.driverId,input.at]);
+      await client.query('COMMIT'); return {outcome:'OFFLINE'};
+    } catch(error) {
+      await client.query('ROLLBACK'); throw error;
+    } finally {client.release();}
+  }
+
   async lockScreenPendingOffer(input: { offerId: string; driverId: string; at: string }):
       Promise<'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'INACTIVE'> {
     const client = await this.pool.connect();
