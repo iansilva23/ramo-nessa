@@ -159,7 +159,7 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
   const drivers = new PostgresDriverSupplyRepository(pool), matching = new PostgresRideMatchingRepository(pool);
   const start = new Date('2026-10-01T12:00:00.000Z'), at = new Date(start.getTime()+5000).toISOString();
   try {
-    for (let i=0; i<32; i++) {
+    for (let i=0; i<33; i++) {
       const rideId=randomUUID(), driverId='atomic-lock-'+randomUUID();
       await rides.create({id:rideId, passengerId:'test-'+randomUUID(), state:'PAID', paymentStatus:'paid',
         origin:{zoneId:'prea'}, destination:{zoneId:'jijoca'}, category:'car', period:'day', passengers:1,
@@ -171,8 +171,15 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
         expiresAt:new Date(start.getTime()+35000).toISOString()});
       const lock=()=>matching.lockScreenPendingOffer({offerId:created.offer.id,driverId,at});
       const accept=()=>matching.acceptOffer({offerId:created.offer.id,driverId,acceptedAt:at});
-      if(i===0) { assert.equal(await lock(),'REJECTED'); await assert.rejects(accept); }
+      if(i===0) {
+        await assert.rejects(() => matching.lockScreenPendingOffer({offerId:created.offer.id,driverId:'other-driver',at}));
+        assert.equal((await matching.findOfferById(created.offer.id))?.status,'OFFERED');
+        assert.equal(await lock(),'REJECTED');
+        assert.equal(await lock(),'INACTIVE'); // Retry cannot yet tell dispatch must resume.
+        await assert.rejects(accept);
+      }
       else if(i===1) { await accept(); assert.equal(await lock(),'ACCEPTED'); }
+      else if(i===32) { assert.equal(await matching.lockScreenPendingOffer({offerId:created.offer.id,driverId,at:new Date(start.getTime()+36000).toISOString()}),'EXPIRED'); }
       else await Promise.allSettled(i%2===0?[lock(),accept()]:[accept(),lock()]);
       const offer=await matching.findOfferById(created.offer.id),ride=await rides.findById(rideId),supply=await drivers.findByDriverId(driverId);
       assert.ok(offer && ride && supply);
@@ -181,7 +188,7 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
         assert.equal(ride.driverId,driverId); assert.equal(ride.state,'DRIVER_ASSIGNED');
         assert.equal(supply.busy,true); assert.equal(supply.online,true);
       } else {
-        assert.equal(offer.status,'REJECTED'); assert.equal(supply.online,false);
+        assert.equal(offer.status,i===32?'EXPIRED':'REJECTED'); assert.equal(supply.online,false);
         assert.equal(supply.busy,false); assert.notEqual(ride.driverId,driverId);
       }
     }
