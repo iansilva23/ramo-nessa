@@ -1469,7 +1469,7 @@ try {
   );
   if (
     pricingCatalog.response.status !== 200 ||
-    pricingCatalog.payload?.catalogVersion !== 'v1' ||
+    pricingCatalog.payload?.catalogVersion !== 'approved-2026-10-03' ||
     pricingCatalog.payload?.authority !== 'core' ||
     pricingCatalog.payload?.mode !== 'static' ||
     pricingCatalog.payload?.editable !== false ||
@@ -1485,7 +1485,7 @@ try {
     )
   ) {
     throw new Error(
-      'Catálogo administrativo read-only de preços não foi confirmado.',
+      `Catálogo administrativo read-only não confirmado: HTTP ${pricingCatalog.response.status}, versão ${pricingCatalog.payload?.catalogVersion}, modo ${pricingCatalog.payload?.mode}.`,
     );
   }
 
