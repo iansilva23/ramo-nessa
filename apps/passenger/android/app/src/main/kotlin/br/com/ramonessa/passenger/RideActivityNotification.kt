@@ -40,7 +40,7 @@ class RideActivityNotification(private val context: Context) {
         val pending=PendingIntent.getActivity(context,ID,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(context,CHANNEL) else Notification.Builder(context)
         val text=detail.ifBlank{"Abra o Ramo Nessa para acompanhar sua corrida."}.take(350)
-        manager.notify(ID,builder.setSmallIcon(R.drawable.ic_launcher).setContentTitle("Corrida em andamento")
+        manager.notify(ID,builder.setSmallIcon(R.mipmap.ic_launcher).setContentTitle("Corrida em andamento")
             .setContentText(text).setStyle(Notification.BigTextStyle().bigText(text))
             .setContentIntent(pending).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false)
             .setVisibility(Notification.VISIBILITY_PRIVATE).setProgress(4,3,false).build())
