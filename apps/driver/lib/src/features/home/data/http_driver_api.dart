@@ -666,41 +666,7 @@ class HttpDriverApi
 
   @override
   Future<String> lockPendingOffer(String offerId) async {
-    if (!RegExp(r'^[0-9a-fA-F-]{36}
-    http.Response response, {
-    required int expectedStatus,
-  }) {
-    dynamic decoded;
-    try {
-      decoded = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
-    } catch (_) {
-      throw const DriverApiException(
-        'O servidor retornou uma resposta inválida. Tente novamente.',
-      );
-    }
-
-    if (response.statusCode == expectedStatus &&
-        decoded is Map<String, dynamic>) {
-      return decoded;
-    }
-
-    if (decoded is Map<String, dynamic>) {
-      throw DriverApiException(
-        decoded['message'] as String? ??
-            'Não foi possível concluir esta ação agora.',
-        code: decoded['error'] as String?,
-        statusCode: response.statusCode,
-      );
-    }
-
-    throw const DriverApiException(
-      'Não foi possível concluir esta ação agora.',
-    );
-  }
-}
-).hasMatch(offerId)) {
+    if (!RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(offerId)) {
       throw const DriverApiException('Identificador da oferta inválido.');
     }
     final response = await _client.post(
