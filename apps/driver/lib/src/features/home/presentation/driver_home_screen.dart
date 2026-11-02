@@ -218,7 +218,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   StreamSubscription<DriverPosition>? _locationSubscription;
   StreamSubscription<DriverRealtimeUpdate>? _realtimeSubscription;
   bool _locationSyncInFlight = false;
-  final DriverLocationUploadGate _locationUploadGate = DriverLocationUploadGate();
+  final DriverLocationUploadGate _locationUploadGate =
+      DriverLocationUploadGate();
   DriverPosition? _cameraDevicePosition;
   bool _cameraForeground = true;
   bool _releaseDialogShown = false;
@@ -226,12 +227,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _webBackgrounded = false;
   Timer? _activityNotificationTimer;
   String? _activityNotificationPayload;
-  bool _activityNotificationBusy=false;
-  bool _lockOfflineConfirmed=false;
-  bool _supplyLoadInFlight=false;
-  bool _androidScreenLocked=false;
-  bool _androidLockPending=false;
-  bool _androidLockInFlight=false;
+  bool _activityNotificationBusy = false;
+  bool _lockOfflineConfirmed = false;
+  bool _supplyLoadInFlight = false;
+  bool _androidScreenLocked = false;
+  bool _androidLockPending = false;
+  bool _androidLockInFlight = false;
   StreamSubscription<bool>? _screenLockSubscription;
   Timer? _screenLockRetry;
   bool _webWasBackgrounded = false;
@@ -242,33 +243,55 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   void _onNotification(RamoNotificationIntent intent) {
     if (!mounted) return;
     if (intent.foreground) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content:Text(intent.title ?? 'Nova notificação'),
-        action: intent.isRide ? SnackBarAction(label: 'Ver', onPressed: () => unawaited(_restoreNotificationRide(intent))) : null));
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(intent.title ?? 'Nova notificação'),
+          action: intent.isRide
+              ? SnackBarAction(
+                  label: 'Ver',
+                  onPressed: () => unawaited(_restoreNotificationRide(intent)),
+                )
+              : null,
+        ),
+      );
       return;
     }
     if (intent.isRide) unawaited(_restoreNotificationRide(intent));
   }
+
   Future<void> _restoreNotificationRide(RamoNotificationIntent intent) async {
     try {
-    await _restoreCurrentRide();
-    await _refreshOffer();
-    if (!mounted) return;
-    if (intent.type == 'ride.chat.message' && _activeRide?.id == intent.rideId) await _openRideChat();
-    } catch (_) { /* Retry through the existing ride recovery controls. */ }
+      await _restoreCurrentRide();
+      await _refreshOffer();
+      if (!mounted) return;
+      if (intent.type == 'ride.chat.message' &&
+          _activeRide?.id == intent.rideId) {
+        await _openRideChat();
+      }
+    } catch (_) {
+      /* Retry through the existing ride recovery controls. */
+    }
   }
+
   @override
   void initState() {
     super.initState();
-    _activityNotificationTimer=Timer.periodic(const Duration(seconds:3),(_)=>unawaited(_updateActivityNotification()));
-    _screenLockSubscription=DriverScreenLockEvents().states.listen((locked) {
-      _androidScreenLocked=locked;
-      if(!locked) _lockOfflineConfirmed=false;
-      unawaited(_updateActivityNotification());
-      if(locked) _androidLockPending=true;
-      unawaited(_syncAndroidScreenLock());
-    },onError:(Object _) {
-      // An unavailable Android event channel must not affect other platforms.
-    });
+    _activityNotificationTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_updateActivityNotification()),
+    );
+    _screenLockSubscription = DriverScreenLockEvents().states.listen(
+      (locked) {
+        _androidScreenLocked = locked;
+        if (!locked) _lockOfflineConfirmed = false;
+        unawaited(_updateActivityNotification());
+        if (locked) _androidLockPending = true;
+        unawaited(_syncAndroidScreenLock());
+      },
+      onError: (Object _) {
+        // An unavailable Android event channel must not affect other platforms.
+      },
+    );
     _notificationSubscription = ramoNotificationIntents.listen(_onNotification);
     startNotificationIntentBridge();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -395,72 +418,119 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _updateActivityNotification() async {
-    if(!mounted || kIsWeb || defaultTargetPlatform!=TargetPlatform.android || _activityNotificationBusy) { return; }
-    final ride=_activeRide;
-    String? title,detail;
-    int stage=0;
-    if(ride!=null && const ['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].contains(ride.state)) {
-      title=ride.state=='IN_PROGRESS'?'Corrida em andamento':ride.state=='DRIVER_ARRIVED'?'Aguardando embarque':'A caminho do passageiro';
-      detail='${ride.originDisplayName} → ${ride.destinationDisplayName}';
-      stage=ride.state=='IN_PROGRESS'?3:ride.state=='DRIVER_ARRIVED'?2:1;
-    } else if(_androidScreenLocked && _lockOfflineConfirmed) {
-      title='Você está offline';
-      detail='Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
+    if (!mounted ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android ||
+        _activityNotificationBusy) {
+      return;
     }
-    final payload=title==null?'clear':'$title|$detail|$stage';
-    if(payload==_activityNotificationPayload) { return; }
-    _activityNotificationBusy=true;
+    final ride = _activeRide;
+    String? title, detail;
+    int stage = 0;
+    if (ride != null &&
+        const [
+          'DRIVER_ASSIGNED',
+          'DRIVER_ARRIVING',
+          'DRIVER_ARRIVED',
+          'IN_PROGRESS',
+        ].contains(ride.state)) {
+      title = ride.state == 'IN_PROGRESS'
+          ? 'Corrida em andamento'
+          : ride.state == 'DRIVER_ARRIVED'
+          ? 'Aguardando embarque'
+          : 'A caminho do passageiro';
+      detail = '${ride.originDisplayName} → ${ride.destinationDisplayName}';
+      stage = ride.state == 'IN_PROGRESS'
+          ? 3
+          : ride.state == 'DRIVER_ARRIVED'
+          ? 2
+          : 1;
+    } else if (_androidScreenLocked && _lockOfflineConfirmed) {
+      title = 'Você está offline';
+      detail =
+          'Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
+    }
+    final payload = title == null ? 'clear' : '$title|$detail|$stage';
+    if (payload == _activityNotificationPayload) {
+      return;
+    }
+    _activityNotificationBusy = true;
     try {
-      const channel=MethodChannel('br.com.ramonessa.driver/ride-activity');
-      if(title==null) {
+      const channel = MethodChannel('br.com.ramonessa.driver/ride-activity');
+      if (title == null) {
         await channel.invokeMethod<bool>('clear');
       } else {
-        await channel.invokeMethod<bool>('show',{'title':title,'detail':detail,'stage':stage});
+        await channel.invokeMethod<bool>('show', {
+          'title': title,
+          'detail': detail,
+          'stage': stage,
+        });
       }
-      _activityNotificationPayload=payload;
-    } catch(_) {
+      _activityNotificationPayload = payload;
+    } catch (_) {
       // GPS and ride state do not depend on notification permission or rendering.
-    } finally {_activityNotificationBusy=false;}
+    } finally {
+      _activityNotificationBusy = false;
+    }
   }
 
   Future<void> _syncAndroidScreenLock() async {
-    if(!mounted || _loading || _supplyLoadInFlight || !_androidLockPending || _androidLockInFlight) { return; }
-    final api=_api;
-    if(api == null || api is! DriverScreenLockApi) { return; }
-    _androidLockInFlight=true;
+    if (!mounted ||
+        _loading ||
+        _supplyLoadInFlight ||
+        !_androidLockPending ||
+        _androidLockInFlight) {
+      return;
+    }
+    final api = _api;
+    if (api == null || api is! DriverScreenLockApi) {
+      return;
+    }
+    _androidLockInFlight = true;
     try {
-      final outcome=await (api as DriverScreenLockApi).lockScreen();
-      if(!mounted) { return; }
-      if(outcome=='ACCEPTED') {
+      final outcome = await (api as DriverScreenLockApi).lockScreen();
+      if (!mounted) {
+        return;
+      }
+      if (outcome == 'ACCEPTED') {
         await _restoreCurrentRide();
-        _androidLockPending=false;
+        _androidLockPending = false;
         _screenLockRetry?.cancel();
         return;
       }
-      final supply=await api.getSupply();
-      _lockOfflineConfirmed=!supply.online && !supply.busy;
-      if(!mounted) { return; }
+      final supply = await api.getSupply();
+      _lockOfflineConfirmed = !supply.online && !supply.busy;
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        _supply=supply;
-        _offer=null;
-        _message='Você está offline. Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
+        _supply = supply;
+        _offer = null;
+        _message =
+            'Você está offline. Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
       });
-      if(!supply.busy && !supply.online) {
+      if (!supply.busy && !supply.online) {
         _stopPolling();
         _stopNearbyPolling();
         await _stopLocationTracking();
         await _stopRealtime();
       }
-      _androidLockPending=false;
+      _androidLockPending = false;
       _screenLockRetry?.cancel();
-    } catch(_) {
-      if(mounted) {
-        setState(()=>_message='Aguardando conexão para confirmar sua disponibilidade.');
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _message =
+              'Aguardando conexão para confirmar sua disponibilidade.',
+        );
         _screenLockRetry?.cancel();
-        _screenLockRetry=Timer(const Duration(seconds:3),()=>unawaited(_syncAndroidScreenLock()));
+        _screenLockRetry = Timer(
+          const Duration(seconds: 3),
+          () => unawaited(_syncAndroidScreenLock()),
+        );
       }
     } finally {
-      _androidLockInFlight=false;
+      _androidLockInFlight = false;
     }
   }
 
@@ -470,7 +540,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _cameraForeground = state == AppLifecycleState.resumed;
     _mapController.setVisible(_cameraForeground);
     if (state == AppLifecycleState.resumed) {
-      _navigationControlRideId=null;
+      _navigationControlRideId = null;
       unawaited(_restoreCurrentRide());
     }
     if (!kIsWeb) return;
@@ -540,8 +610,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void dispose() {
     _activityNotificationTimer?.cancel();
-    if(!kIsWeb && defaultTargetPlatform==TargetPlatform.android) {
-      unawaited(const MethodChannel('br.com.ramonessa.driver/ride-activity').invokeMethod<bool>('clear').catchError((Object _) => false));
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(
+        const MethodChannel(
+          'br.com.ramonessa.driver/ride-activity',
+        ).invokeMethod<bool>('clear').catchError((Object _) => false),
+      );
     }
     _screenLockSubscription?.cancel();
     _screenLockRetry?.cancel();
@@ -558,51 +632,56 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   Future<void> _applyLoadedSupply(DriverSupplySnapshot supply) async {
     if (!mounted) return;
-    _supplyLoadInFlight=true;
+    _supplyLoadInFlight = true;
     try {
-    setState(() {
-      _supply = supply;
-      _registryAccessBlocked = false;
-      _loading = false;
-      _message = null;
-    });
+      setState(() {
+        _supply = supply;
+        _registryAccessBlocked = false;
+        _loading = false;
+        _message = null;
+      });
 
-    _rideRecoveryTimer ??= Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => unawaited(_restoreCurrentRide()),
-    );
-    await _refreshFinance(showError: false);
-    unawaited(_refreshProfile());
-    unawaited(_refreshActivity());
+      _rideRecoveryTimer ??= Timer.periodic(
+        const Duration(seconds: 10),
+        (_) => unawaited(_restoreCurrentRide()),
+      );
+      await _refreshFinance(showError: false);
+      unawaited(_refreshProfile());
+      unawaited(_refreshActivity());
 
-    if (supply.online) {
-      _startLocationTracking();
-      _startRealtime();
-      if (!supply.busy) _startNearbyPolling();
-    }
-
-    {
-      final ride = await _api?.currentRide();
-      if (!mounted) return;
-      setState(() => _activeRide = ride);
-      if (ride != null) {
-        _startRealtime();
+      if (supply.online) {
         _startLocationTracking();
-        // Restore the driving camera during an active trip; the navigation
-        // control below still honors an explicitly paused/external mode.
-        if ((kIsWeb || ride.state == 'IN_PROGRESS') && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
-          await _startInAppNavigation();
-        } else {
-          await _refreshActiveRoute(force: true);
-        }
-        if (ride.state == 'AWAITING_PAYMENT') _startPolling();
-      } else if (supply.online) {
-        _startPolling();
-        await _refreshOffer();
+        _startRealtime();
+        if (!supply.busy) _startNearbyPolling();
       }
-    }
+
+      {
+        final ride = await _api?.currentRide();
+        if (!mounted) return;
+        setState(() => _activeRide = ride);
+        if (ride != null) {
+          _startRealtime();
+          _startLocationTracking();
+          // Restore the driving camera during an active trip; the navigation
+          // control below still honors an explicitly paused/external mode.
+          if ((kIsWeb || ride.state == 'IN_PROGRESS') &&
+              [
+                'DRIVER_ASSIGNED',
+                'DRIVER_ARRIVING',
+                'IN_PROGRESS',
+              ].contains(ride.state)) {
+            await _startInAppNavigation();
+          } else {
+            await _refreshActiveRoute(force: true);
+          }
+          if (ride.state == 'AWAITING_PAYMENT') _startPolling();
+        } else if (supply.online) {
+          _startPolling();
+          await _refreshOffer();
+        }
+      }
     } finally {
-      _supplyLoadInFlight=false;
+      _supplyLoadInFlight = false;
       unawaited(_syncAndroidScreenLock());
     }
   }
@@ -728,26 +807,53 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   Future<void> _syncTrackedPosition(DriverPosition position) async {
     final api = _api, supply = _supply;
-    if (!mounted || api == null || supply == null || (!supply.online && _activeRide == null)) return;
-    if (!position.latitude.isFinite || !position.longitude.isFinite || position.latitude.abs() > 90 || position.longitude.abs() > 180) return;
+    if (!mounted ||
+        api == null ||
+        supply == null ||
+        (!supply.online && _activeRide == null)) {
+      return;
+    }
+    if (!position.latitude.isFinite ||
+        !position.longitude.isFinite ||
+        position.latitude.abs() > 90 ||
+        position.longitude.abs() > 180) {
+      return;
+    }
     final observedAt = position.observedAt;
-    if (observedAt != null && (DateTime.now().difference(observedAt) > const Duration(seconds: 15) ||
-        observedAt.difference(DateTime.now()) > const Duration(seconds: 1))) { return; }
+    if (observedAt != null &&
+        (DateTime.now().difference(observedAt) > const Duration(seconds: 15) ||
+            observedAt.difference(DateTime.now()) >
+                const Duration(seconds: 1))) {
+      return;
+    }
     if (!_mapController.observePosition(position)) return;
     _cameraDevicePosition = position;
     // Camera and marker use the device fix immediately, including while a
     // previous HTTP upload is in flight. Routing still runs on server cadence.
     if (_cameraForeground) {
       setState(() {});
-      if (_mapReady && (_mapController.hasChosenFrame || DriverMapConfig.shouldAutoFollow(
-          hasActiveRide: _activeRide != null, navigationMode: _navigationMode))) {
+      if (_mapReady &&
+          (_mapController.hasChosenFrame ||
+              DriverMapConfig.shouldAutoFollow(
+                hasActiveRide: _activeRide != null,
+                navigationMode: _navigationMode,
+              ))) {
         final point = LatLng(position.latitude, position.longitude);
         if (_navigationMode) {
-          unawaited(_mapController.followNavigation(point, route: _activeRoute?.points ?? const []));
-        } else { unawaited(_mapController.move(point)); }
+          unawaited(
+            _mapController.followNavigation(
+              point,
+              route: _activeRoute?.points ?? const [],
+            ),
+          );
+        } else {
+          unawaited(_mapController.move(point));
+        }
       }
     }
-    if (_locationSyncInFlight || !_locationUploadGate.claim(DateTime.now())) return;
+    if (_locationSyncInFlight || !_locationUploadGate.claim(DateTime.now())) {
+      return;
+    }
     _locationSyncInFlight = true;
     try {
       final updated = await api.updateSupply(position: position);
@@ -755,10 +861,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() => _supply = updated);
       if (_activeRide != null) unawaited(_refreshActiveRoute());
     } on DriverApiException catch (error) {
-      if (mounted) setState(() => _message = 'Localização automática: ${error.message}');
+      if (mounted) {
+        setState(() => _message = 'Localização automática: ${error.message}');
+      }
     } catch (_) {
-      if (mounted) setState(() => _message = 'Localização automática: não conseguimos sincronizar agora.');
-    } finally { _locationSyncInFlight = false; }
+      if (mounted) {
+        setState(
+          () => _message =
+              'Localização automática: não conseguimos sincronizar agora.',
+        );
+      }
+    } finally {
+      _locationSyncInFlight = false;
+    }
   }
 
   void _announceOffer(DriverOffer? offer) {
@@ -1029,7 +1144,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _setOnline(bool online) async {
-    if(online && (_androidScreenLocked || _androidLockPending)) {
+    if (online && (_androidScreenLocked || _androidLockPending)) {
       await _syncAndroidScreenLock();
       return;
     }
@@ -1055,7 +1170,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
       if (!mounted) return;
       if (position != null) {
-        if (_mapController.observePosition(position)) _cameraDevicePosition = position;
+        if (_mapController.observePosition(position)) {
+          _cameraDevicePosition = position;
+        }
         _locationUploadGate.recordManualUpdate(DateTime.now());
       }
       setState(() {
@@ -1115,7 +1232,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (!mounted) return;
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
-      if (_mapController.observePosition(position)) _cameraDevicePosition = position;
+      if (_mapController.observePosition(position)) {
+        _cameraDevicePosition = position;
+      }
       _locationUploadGate.recordManualUpdate(DateTime.now());
       setState(() {
         _supply = updated;
@@ -1150,7 +1269,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   Future<void> _acceptOffer() async {
     final api = _api;
     final offer = _offer;
-    if (api == null || offer == null || _offerAction || _androidScreenLocked || _androidLockPending) return;
+    if (api == null ||
+        offer == null ||
+        _offerAction ||
+        _androidScreenLocked ||
+        _androidLockPending) {
+      return;
+    }
 
     setState(() => _offerAction = true);
     try {
@@ -1163,7 +1288,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() {
         _activeRide = ride;
         _celebratingCampaignRideId = ride.id;
-        _campaignCelebrationUntil = DateTime.now().add(const Duration(seconds: 2));
+        _campaignCelebrationUntil = DateTime.now().add(
+          const Duration(seconds: 2),
+        );
         _completedPresentation = null;
         _supply = supply;
         _offer = null;
@@ -1199,7 +1326,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   String? _navigationControlRideId;
   DateTime? _navigationControlLoadedAt;
-  bool get _routeProtectionEnabled => _navigationControl?.enabled==true;
+  bool get _routeProtectionEnabled => _navigationControl?.enabled == true;
   String _routeMode = 'internal';
   bool _routeRefreshInFlight = false;
   int _routeControlGeneration = 0;
@@ -1211,80 +1338,121 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverNavigationControl? _navigationControl;
 
   Future<bool> _loadNavigationControl(String rideId) async {
-    final service=_routeService;
-    if(service is! ControlledDriverRouteService) return true;
-    if(_navigationControlRideId==rideId && _navigationControlLoadedAt!=null && DateTime.now().difference(_navigationControlLoadedAt!)<const Duration(seconds:10)) return true;
-    final generation=_routeControlGeneration;
+    final service = _routeService;
+    if (service is! ControlledDriverRouteService) return true;
+    if (_navigationControlRideId == rideId &&
+        _navigationControlLoadedAt != null &&
+        DateTime.now().difference(_navigationControlLoadedAt!) <
+            const Duration(seconds: 10)) {
+      return true;
+    }
+    final generation = _routeControlGeneration;
     try {
-      final control=await service.navigationState(rideId);
-      if(!mounted || _activeRide?.id!=rideId || generation!=_routeControlGeneration) return false;
-      _navigationControlRideId=rideId;
-      _navigationControlLoadedAt=DateTime.now();
-      _navigationControl=control;
-      _routeMode=control.enabled?control.mode:'internal';
-      if(control.enabled && _routeMode!='internal') setState(() { _navigationMode=false; _activeRoute=null; });
+      final control = await service.navigationState(rideId);
+      if (!mounted ||
+          _activeRide?.id != rideId ||
+          generation != _routeControlGeneration) {
+        return false;
+      }
+      _navigationControlRideId = rideId;
+      _navigationControlLoadedAt = DateTime.now();
+      _navigationControl = control;
+      _routeMode = control.enabled ? control.mode : 'internal';
+      if (control.enabled && _routeMode != 'internal') {
+        setState(() {
+          _navigationMode = false;
+          _activeRoute = null;
+        });
+      }
       return true;
     } catch (_) {
-      if(mounted) setState(()=>_message='Navegação indisponível. Sua localização continua sendo enviada.');
+      if (mounted) {
+        setState(
+          () => _message =
+              'Navegação indisponível. Sua localização continua sendo enviada.',
+        );
+      }
       return false;
     }
   }
 
   Future<bool> _setRouteMode(String mode) async {
-    final rideId=_activeRide?.id;
-    if(rideId==null || _routeModeSaving) return false;
-    _routeModeSaving=true;
+    final rideId = _activeRide?.id;
+    if (rideId == null || _routeModeSaving) return false;
+    _routeModeSaving = true;
     ++_routeControlGeneration;
-    final oldMode=_routeMode;
-    if(mode!='internal') {
-      _routeMode=mode;
+    final oldMode = _routeMode;
+    if (mode != 'internal') {
+      _routeMode = mode;
       ++_activeRouteRequestId;
-      if(mounted) setState(() { _navigationMode=false; _activeRoute=null; });
+      if (mounted) {
+        setState(() {
+          _navigationMode = false;
+          _activeRoute = null;
+        });
+      }
     }
     try {
-      final service=_routeService;
-      if(service is ControlledDriverRouteService) {
-        final control=await service.setNavigationMode(rideId,mode);
-        if(!mounted || _activeRide?.id!=rideId) return false;
-        _navigationControl=control;
-        _navigationControlRideId=rideId;
-        _routeMode=control.mode;
+      final service = _routeService;
+      if (service is ControlledDriverRouteService) {
+        final control = await service.setNavigationMode(rideId, mode);
+        if (!mounted || _activeRide?.id != rideId) return false;
+        _navigationControl = control;
+        _navigationControlRideId = rideId;
+        _routeMode = control.mode;
       } else {
-        _routeMode=mode;
+        _routeMode = mode;
       }
-      if(mounted) setState(() {});
+      if (mounted) setState(() {});
       return true;
     } on DriverRouteControlException catch (error) {
-      _navigationControl=error.control??_navigationControl;
-      if(mode=='internal') _routeMode=oldMode;
-      if(error.code=='NAVIGATION_LIMIT') _showNavigationChoice();
+      _navigationControl = error.control ?? _navigationControl;
+      if (mode == 'internal') _routeMode = oldMode;
+      if (error.code == 'NAVIGATION_LIMIT') _showNavigationChoice();
       return false;
     } catch (_) {
-      if(mode=='internal') _routeMode=oldMode;
-      if(mounted) setState(()=>_message='Não foi possível salvar a navegação. Tente novamente; a corrida continua.');
+      if (mode == 'internal') _routeMode = oldMode;
+      if (mounted) {
+        setState(
+          () => _message =
+              'Não foi possível salvar a navegação. Tente novamente; a corrida continua.',
+        );
+      }
       return false;
-    } finally { _routeModeSaving=false; }
+    } finally {
+      _routeModeSaving = false;
+    }
   }
 
   void _showNavigationChoice() {
-    if(!mounted || _navigationChoiceVisible) return;
-    _navigationChoiceVisible=true;
-    ScaffoldMessenger.of(context).showMaterialBanner(MaterialBanner(
-      content: const Text('Você está seguindo outro caminho. O limite de quatro recálculos foi atingido. Como prefere continuar?'),
-      actions: [
-        TextButton(onPressed: () async {
-          if(await _setRouteMode('own') && mounted) {
-            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-            _navigationChoiceVisible=false;
-          }
-        }, child: const Text('Seguir por conta própria')),
-        TextButton(onPressed: () async {
-          ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-          _navigationChoiceVisible=false;
-          await _openExternalNavigation();
-        }, child: const Text('Recalcular pelo Google Maps')),
-      ],
-    ));
+    if (!mounted || _navigationChoiceVisible) return;
+    _navigationChoiceVisible = true;
+    ScaffoldMessenger.of(context).showMaterialBanner(
+      MaterialBanner(
+        content: const Text(
+          'Você está seguindo outro caminho. O limite de quatro recálculos foi atingido. Como prefere continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              if (await _setRouteMode('own') && mounted) {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                _navigationChoiceVisible = false;
+              }
+            },
+            child: const Text('Seguir por conta própria'),
+          ),
+          TextButton(
+            onPressed: () async {
+              ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              _navigationChoiceVisible = false;
+              await _openExternalNavigation();
+            },
+            child: const Text('Recalcular pelo Google Maps'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _startInAppNavigation({bool explicit = false}) async {
@@ -1294,12 +1462,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
 
-    if(!await _loadNavigationControl(ride.id)) return;
-    if(_routeMode!='internal') {
-      if(!explicit) { if(mounted) setState(()=>_navigationMode=false); return; }
-      if(!await _setRouteMode('internal')) return;
+    if (!await _loadNavigationControl(ride.id)) return;
+    if (_routeMode != 'internal') {
+      if (!explicit) {
+        if (mounted) setState(() => _navigationMode = false);
+        return;
+      }
+      if (!await _setRouteMode('internal')) return;
     }
-    if(!mounted || _activeRide?.id!=ride.id) return;
+    if (!mounted || _activeRide?.id != ride.id) return;
 
     final useDropoff = ride.state == 'IN_PROGRESS';
     final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
@@ -1328,7 +1499,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       } else {
         _mapController.resumeNativeFollow();
         await _mapController.followNavigation(
-          point, route: _activeRoute?.points ?? const [],
+          point,
+          route: _activeRoute?.points ?? const [],
         );
       }
     }
@@ -1341,7 +1513,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     setState(() {
       _navigationMode = false;
     });
-    if(_routeProtectionEnabled) unawaited(_setRouteMode('paused'));
+    if (_routeProtectionEnabled) unawaited(_setRouteMode('paused'));
   }
 
   Future<void> _openExternalNavigation() async {
@@ -1363,8 +1535,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
 
     // Stop internal queries before handing control to another app. GPS subscription stays alive.
-    if(!await _loadNavigationControl(ride.id)) return;
-    if(_routeProtectionEnabled && !await _setRouteMode('external')) return;
+    if (!await _loadNavigationControl(ride.id)) return;
+    if (_routeProtectionEnabled && !await _setRouteMode('external')) return;
     try {
       await _navigation.openNavigation(
         latitude: latitude,
@@ -1437,7 +1609,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (ride != null) {
         _startRealtime();
         if (!_webBackgrounded) _startLocationTracking();
-        if ((kIsWeb || ride.state == 'IN_PROGRESS') && previousId == null && ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].contains(ride.state)) {
+        if ((kIsWeb || ride.state == 'IN_PROGRESS') &&
+            previousId == null &&
+            [
+              'DRIVER_ASSIGNED',
+              'DRIVER_ARRIVING',
+              'IN_PROGRESS',
+            ].contains(ride.state)) {
           await _startInAppNavigation();
         } else {
           await _refreshActiveRoute();
@@ -1466,11 +1644,44 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
 
     _boardingPromptOpen = true;
-    if(ride.occurrencesEnabled&&ride.isCash&&api is RamoRideOccurrenceApi){
-      final received=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Recebeu o dinheiro?'),content:const Text('Receba o valor antes do início. Confirme somente após receber o dinheiro do passageiro.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Ainda não')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmo o recebimento'))]));
-      if(received!=true||!mounted){_boardingPromptOpen=false;return;}
-      try{await (api as RamoRideOccurrenceApi).occurrenceRequest('/v1/driver/me/rides/${ride.id}/cash-received',method:'POST',body:{});}catch(e){_boardingPromptOpen=false;if(mounted)setState(()=>_message=e.toString());return;}
-      if(!mounted)return;
+    if (ride.occurrencesEnabled &&
+        ride.isCash &&
+        api is RamoRideOccurrenceApi) {
+      final received = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Recebeu o dinheiro?'),
+          content: const Text(
+            'Receba o valor antes do início. Confirme somente após receber o dinheiro do passageiro.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Ainda não'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Confirmo o recebimento'),
+            ),
+          ],
+        ),
+      );
+      if (received != true || !mounted) {
+        _boardingPromptOpen = false;
+        return;
+      }
+      try {
+        await (api as RamoRideOccurrenceApi).occurrenceRequest(
+          '/v1/driver/me/rides/${ride.id}/cash-received',
+          method: 'POST',
+          body: {},
+        );
+      } catch (e) {
+        _boardingPromptOpen = false;
+        if (mounted) setState(() => _message = e.toString());
+        return;
+      }
+      if (!mounted) return;
     }
     _boardingPromptOpen = true;
     try {
@@ -1568,9 +1779,31 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
 
-    if(ride.occurrencesEnabled && api is RamoRideOccurrenceApi && (ride.state=='IN_PROGRESS'||ride.state=='INTERRUPTED'||ride.isCash)){
-      await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>Scaffold(appBar:AppBar(title:const Text('Ocorrência da corrida')),body:SafeArea(child:SingleChildScrollView(child:RamoRideOccurrencePanel(api:api as RamoRideOccurrenceApi,rideId:ride.id,driver:true,paymentMethod:ride.paymentMethod,onChanged:_restoreCurrentRide))))));
-      await _restoreCurrentRide();return;
+    if (ride.occurrencesEnabled &&
+        api is RamoRideOccurrenceApi &&
+        (ride.state == 'IN_PROGRESS' ||
+            ride.state == 'INTERRUPTED' ||
+            ride.isCash)) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: const Text('Ocorrência da corrida')),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                child: RamoRideOccurrencePanel(
+                  api: api as RamoRideOccurrenceApi,
+                  rideId: ride.id,
+                  driver: true,
+                  paymentMethod: ride.paymentMethod,
+                  onChanged: _restoreCurrentRide,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await _restoreCurrentRide();
+      return;
     }
     final cancellationApi = api as DriverRideCancellationApi;
     final noteController = TextEditingController();
@@ -2264,112 +2497,171 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final service = _routeService;
     final supply = _supply;
     final ride = _activeRide;
-    if (supply == null || ride == null || !['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].contains(ride.state)) {
-      if(mounted && _navigationChoiceVisible) { ScaffoldMessenger.of(context).hideCurrentMaterialBanner(); _navigationChoiceVisible=false; }
-      if(ride==null) { _navigationControlRideId=null; _navigationControl=null; _routeMode='internal'; _routeForRide=null; }
+    if (supply == null ||
+        ride == null ||
+        ![
+          'DRIVER_ASSIGNED',
+          'DRIVER_ARRIVING',
+          'DRIVER_ARRIVED',
+          'IN_PROGRESS',
+        ].contains(ride.state)) {
+      if (mounted && _navigationChoiceVisible) {
+        ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+        _navigationChoiceVisible = false;
+      }
+      if (ride == null) {
+        _navigationControlRideId = null;
+        _navigationControl = null;
+        _routeMode = 'internal';
+        _routeForRide = null;
+      }
       if (mounted && _activeRoute != null) {
         setState(() => _activeRoute = null);
       }
       return;
     }
 
-    if(_routeRefreshInFlight || _routeModeSaving) return;
-    if(_routeProtectionEnabled && _lastRouteRefreshAt!=null && DateTime.now().difference(_lastRouteRefreshAt!)<const Duration(seconds:15)) return;
-    _routeRefreshInFlight=true;
-    try {
-    if(!await _loadNavigationControl(ride.id)) return;
-    if(!mounted || _activeRide?.id!=ride.id) return;
-    if(_navigationChoiceVisible) {
-      if(_routeProtectionEnabled) return;
-      ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-      _navigationChoiceVisible=false;
-    }
-    if(_routeMode!='internal') return;
-    final dropoff=ride.state=='IN_PROGRESS';
-    final phaseChanged=_routeForRide!=ride.id || _routeWasDropoff!=dropoff;
-    if(phaseChanged) {
-      _activeRoute=null;
-      _lastRouteRefreshAt=null;
-      _offRouteSince=null;
-    }
-    final now = DateTime.now();
-    final currentPosition = LatLng(supply.latitude, supply.longitude);
-    final shouldFitRoute = phaseChanged || _activeRoute == null;
-    // Confirm a sustained deviation rather than reacting to one noisy GPS fix.
-    if(_routeProtectionEnabled && _activeRoute!=null) {
-      final offRoute=DriverRouteRefreshPolicy.distanceToRouteMeters(currentPosition,_activeRoute!.points)>=DriverRouteRefreshPolicy.offRouteThresholdMeters;
-      if(!offRoute) { _offRouteSince=null; return; }
-      _offRouteSince??=now;
-      if(now.difference(_offRouteSince!)<const Duration(seconds:20)) return;
-    }
-    if (!DriverRouteRefreshPolicy.shouldRefresh(
-      now: now,
-      currentPosition: currentPosition,
-      currentRoute: _activeRoute,
-      lastAttemptAt: _lastRouteRefreshAt,
-      force: _routeProtectionEnabled?phaseChanged:force,
-      protectionEnabled: _routeProtectionEnabled,
-    )) {
+    if (_routeRefreshInFlight || _routeModeSaving) return;
+    if (_routeProtectionEnabled &&
+        _lastRouteRefreshAt != null &&
+        DateTime.now().difference(_lastRouteRefreshAt!) <
+            const Duration(seconds: 15)) {
       return;
     }
-
-    final useDropoff = ride.state == 'IN_PROGRESS';
-    final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
-    final longitude = useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
-    if (latitude == null || longitude == null) return;
-
-    final routeRequestId = ++_activeRouteRequestId;
-    _lastRouteRefreshAt = now;
+    _routeRefreshInFlight = true;
     try {
-      final route = service is ControlledDriverRouteService && _routeProtectionEnabled
-        ? await service.rideRoute(rideId:ride.id,origin:currentPosition,
-            destination:LatLng(latitude,longitude),reason:phaseChanged?'initial':_activeRoute==null?'resume':'off_route')
-        : await service.route(origin:currentPosition,destination:LatLng(latitude,longitude));
-      if(service is ControlledDriverRouteService) _navigationControl=service.latestControl;
-      if (!mounted ||
-          !DriverRouteRefreshPolicy.isCurrentRouteResponse(
-            requestId: routeRequestId,
-            latestRequestId: _activeRouteRequestId,
-            requestedRideId: ride.id,
-            activeRideId: _activeRide?.id,
-            requestedDropoff: useDropoff,
-            currentDropoff: _activeRide?.state == 'IN_PROGRESS',
-          )) {
-        return;
+      if (!await _loadNavigationControl(ride.id)) return;
+      if (!mounted || _activeRide?.id != ride.id) return;
+      if (_navigationChoiceVisible) {
+        if (_routeProtectionEnabled) return;
+        ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+        _navigationChoiceVisible = false;
       }
-      setState(() => _activeRoute = route);
-      _routeForRide=ride.id;
-      _routeWasDropoff=useDropoff;
-      _offRouteSince=null;
-      if (_mapReady && _navigationMode && _supply != null) {
-        unawaited(_mapController.followNavigation(LatLng(_supply!.latitude, _supply!.longitude), route: route.points));
+      if (_routeMode != 'internal') return;
+      final dropoff = ride.state == 'IN_PROGRESS';
+      final phaseChanged =
+          _routeForRide != ride.id || _routeWasDropoff != dropoff;
+      if (phaseChanged) {
+        _activeRoute = null;
+        _lastRouteRefreshAt = null;
+        _offRouteSince = null;
       }
-      if (shouldFitRoute && _mapReady && !_navigationMode) {
-        try {
-          await _mapController.fitCoordinates(
-            route.points,
-            padding: DriverMapConfig.routeEdgePadding(
-              MediaQuery.sizeOf(context).width,
-            ),
-          );
-        } catch (_) {
-          // O desenho da rota continua visível mesmo se o Google Maps ainda
-          // não tiver concluído o layout necessário para ajustar a câmera.
+      final now = DateTime.now();
+      final currentPosition = LatLng(supply.latitude, supply.longitude);
+      final shouldFitRoute = phaseChanged || _activeRoute == null;
+      // Confirm a sustained deviation rather than reacting to one noisy GPS fix.
+      if (_routeProtectionEnabled && _activeRoute != null) {
+        final offRoute =
+            DriverRouteRefreshPolicy.distanceToRouteMeters(
+              currentPosition,
+              _activeRoute!.points,
+            ) >=
+            DriverRouteRefreshPolicy.offRouteThresholdMeters;
+        if (!offRoute) {
+          _offRouteSince = null;
+          return;
+        }
+        _offRouteSince ??= now;
+        if (now.difference(_offRouteSince!) < const Duration(seconds: 20)) {
+          return;
         }
       }
-    } on DriverRouteControlException catch (error) {
-      _navigationControl=error.control??_navigationControl;
-      if(error.code=='NAVIGATION_LIMIT') _showNavigationChoice();
-      if(error.code=='NAVIGATION_PAUSED') {
-        _routeMode=error.control?.mode??'paused';
-        if(mounted) setState(() { _navigationMode=false; _activeRoute=null; });
+      if (!DriverRouteRefreshPolicy.shouldRefresh(
+        now: now,
+        currentPosition: currentPosition,
+        currentRoute: _activeRoute,
+        lastAttemptAt: _lastRouteRefreshAt,
+        force: _routeProtectionEnabled ? phaseChanged : force,
+        protectionEnabled: _routeProtectionEnabled,
+      )) {
+        return;
       }
-    } catch (_) {
-      // A navegação externa continua disponível mesmo quando a rota
-      // embutida não puder ser recalculada. O timestamp do último
-      // intento impede rajadas contra o provedor quando ele está instável.
+
+      final useDropoff = ride.state == 'IN_PROGRESS';
+      final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+      final longitude = useDropoff
+          ? ride.dropoffLongitude
+          : ride.pickupLongitude;
+      if (latitude == null || longitude == null) return;
+
+      final routeRequestId = ++_activeRouteRequestId;
+      _lastRouteRefreshAt = now;
+      try {
+        final route =
+            service is ControlledDriverRouteService && _routeProtectionEnabled
+            ? await service.rideRoute(
+                rideId: ride.id,
+                origin: currentPosition,
+                destination: LatLng(latitude, longitude),
+                reason: phaseChanged
+                    ? 'initial'
+                    : _activeRoute == null
+                    ? 'resume'
+                    : 'off_route',
+              )
+            : await service.route(
+                origin: currentPosition,
+                destination: LatLng(latitude, longitude),
+              );
+        if (service is ControlledDriverRouteService) {
+          _navigationControl = service.latestControl;
+        }
+        if (!mounted ||
+            !DriverRouteRefreshPolicy.isCurrentRouteResponse(
+              requestId: routeRequestId,
+              latestRequestId: _activeRouteRequestId,
+              requestedRideId: ride.id,
+              activeRideId: _activeRide?.id,
+              requestedDropoff: useDropoff,
+              currentDropoff: _activeRide?.state == 'IN_PROGRESS',
+            )) {
+          return;
+        }
+        setState(() => _activeRoute = route);
+        _routeForRide = ride.id;
+        _routeWasDropoff = useDropoff;
+        _offRouteSince = null;
+        if (_mapReady && _navigationMode && _supply != null) {
+          unawaited(
+            _mapController.followNavigation(
+              LatLng(_supply!.latitude, _supply!.longitude),
+              route: route.points,
+            ),
+          );
+        }
+        if (shouldFitRoute && _mapReady && !_navigationMode) {
+          try {
+            await _mapController.fitCoordinates(
+              route.points,
+              padding: DriverMapConfig.routeEdgePadding(
+                MediaQuery.sizeOf(context).width,
+              ),
+            );
+          } catch (_) {
+            // O desenho da rota continua visível mesmo se o Google Maps ainda
+            // não tiver concluído o layout necessário para ajustar a câmera.
+          }
+        }
+      } on DriverRouteControlException catch (error) {
+        _navigationControl = error.control ?? _navigationControl;
+        if (error.code == 'NAVIGATION_LIMIT') _showNavigationChoice();
+        if (error.code == 'NAVIGATION_PAUSED') {
+          _routeMode = error.control?.mode ?? 'paused';
+          if (mounted) {
+            setState(() {
+              _navigationMode = false;
+              _activeRoute = null;
+            });
+          }
+        }
+      } catch (_) {
+        // A navegação externa continua disponível mesmo quando a rota
+        // embutida não puder ser recalculada. O timestamp do último
+        // intento impede rajadas contra o provedor quando ele está instável.
+      }
+    } finally {
+      _routeRefreshInFlight = false;
     }
-    } finally { _routeRefreshInFlight=false; }
   }
 
   Future<void> _openRideChat() async {
@@ -2385,18 +2677,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   void _enterWebDrivingPerspectiveIfNeeded() {
-    if (!mounted || !kIsWeb ||
+    if (!mounted ||
+        !kIsWeb ||
         !DriverWebHeadingConfig.cinematicTiltEnabled ||
         !_navigationMode ||
         _activeRide?.state != 'IN_PROGRESS' ||
-        !_mapReady || _supply == null) {
+        !_mapReady ||
+        _supply == null) {
       return;
     }
     final current = _supply!;
-    unawaited(_mapController.enterWebDrivingPerspective(
-      LatLng(current.latitude, current.longitude),
-      route: _activeRoute?.points ?? const [],
-    ));
+    unawaited(
+      _mapController.enterWebDrivingPerspective(
+        LatLng(current.latitude, current.longitude),
+        route: _activeRoute?.points ?? const [],
+      ),
+    );
   }
 
   void _centerDriverOnMap() {
@@ -2404,15 +2700,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     if (!_mapReady || supply == null) return;
     final point = LatLng(supply.latitude, supply.longitude);
     _mapController.resumeNativeFollow();
-    if (_navigationMode &&
-        (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
-      unawaited(_mapController.followNavigation(
-        point, route: _activeRoute?.points ?? const [],
-      ));
+    if (_navigationMode && (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
+      unawaited(
+        _mapController.followNavigation(
+          point,
+          route: _activeRoute?.points ?? const [],
+        ),
+      );
     } else {
-      unawaited(_mapController.move(
-        point, DriverMapConfig.fallbackZoom,
-      ));
+      unawaited(_mapController.move(point, DriverMapConfig.fallbackZoom));
     }
   }
 
@@ -2436,13 +2732,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         DriverLiveMap(
           controller: _mapController,
           supply: supply,
-          devicePosition: _cameraDevicePosition == null ? null : LatLng(_cameraDevicePosition!.latitude, _cameraDevicePosition!.longitude),
+          devicePosition: _cameraDevicePosition == null
+              ? null
+              : LatLng(
+                  _cameraDevicePosition!.latitude,
+                  _cameraDevicePosition!.longitude,
+                ),
           headingDegrees: _mapController.vehicleBearing,
           activeRide: _activeRide,
           route: _activeRoute,
           navigationMode: _navigationMode,
-          mapPadding: EdgeInsets.fromLTRB(14, _navigationMode ? 224 : 80, 14,
-              _mapPanelHeight + 84 + MediaQuery.paddingOf(context).bottom),
+          mapPadding: EdgeInsets.fromLTRB(
+            14,
+            _navigationMode ? 224 : 80,
+            14,
+            _mapPanelHeight + 84 + MediaQuery.paddingOf(context).bottom,
+          ),
           nearbyDrivers: _activeRide == null ? _nearbyDrivers : const [],
           networkTilesEnabled:
               widget.api == null || DriverCoreConfig.previewMode,
@@ -2474,24 +2779,32 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ValueListenableBuilder<bool>(
                     valueListenable: _mapController.followPaused,
                     builder: (context, paused, _) => _MapCircleButton(
-                      tooltip: _navigationMode &&
+                      tooltip:
+                          _navigationMode &&
                               (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
-                          ? (paused ? 'Retomar GPS'
-                              : (kIsWeb
-                                  ? 'Centralizar GPS Cinema'
-                                  : 'Centralizar GPS 3D'))
+                          ? (paused
+                                ? 'Retomar GPS'
+                                : (kIsWeb
+                                      ? 'Centralizar GPS Cinema'
+                                      : 'Centralizar GPS 3D'))
                           : 'Centralizar mapa',
-                      icon: _navigationMode && paused &&
+                      icon:
+                          _navigationMode &&
+                              paused &&
                               (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
                           ? Icons.navigation_rounded
                           : Icons.my_location_rounded,
-                      onPressed: _navigationMode &&
+                      onPressed:
+                          _navigationMode &&
                               (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
                           ? () {
                               _mapController.recenterDriver();
                               _centerDriverOnMap();
                             }
-                          : () { _mapController.recenterDriver(); unawaited(_updateLocation()); },
+                          : () {
+                              _mapController.recenterDriver();
+                              unawaited(_updateLocation());
+                            },
                     ),
                   ),
                 ],
@@ -2499,7 +2812,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             ),
           ),
         ),
-        if (_navigationMode && _activeRide != null &&
+        if (_navigationMode &&
+            _activeRide != null &&
             DriverWebHeadingConfig.hasVectorMap)
           Positioned(
             top: _message == null ? 221 : 268,
@@ -2544,114 +2858,154 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             child: Align(
               alignment: Alignment.bottomCenter,
               // Mount only one presentation: no outgoing expanded/compact duplicate.
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Align(alignment: Alignment.centerRight, child: Row(mainAxisSize:MainAxisSize.min, children:[
-                  _MapCircleButton(tooltip:'Diminuir zoom',icon:Icons.remove,onPressed:()=>unawaited(_mapController.zoomBy(-1))),
-                  const SizedBox(width:8),
-                  _MapCircleButton(tooltip:'Aumentar zoom',icon:Icons.add,onPressed:()=>unawaited(_mapController.zoomBy(1))),
-                ])),
-                const SizedBox(height:8),
-                Flexible(fit:FlexFit.loose, child: DriverMapPanelExtent(
-                onHeight: (height) { if (mounted && (height - _mapPanelHeight).abs() > .5) setState(() => _mapPanelHeight = height); },
-                child: showOffer
-                  ? (collapsed
-                        ? _ActiveRideCompactBar(
-                            key: ValueKey('offer-mini-${_offer!.id}'),
-                            offer: _offer!,
-                            onExpand: restore,
-                          )
-                        : _OfferCard(
-                            key: ValueKey('offer-${_offer!.id}'),
-                            offer: _offer!,
-                            busy: _offerAction,
-                            onAccept: _acceptOffer,
-                            onReject: _rejectOffer,
-                            onMinimize: minimize,
-                            pickupRoute: _offerPickupRoute,
-                            tripRoute: _offerTripRoute,
-                          ))
-                  : presentedRide != null
-                  ? (collapsed
-                        ? _ActiveRideCompactBar(
-                            key: ValueKey(
-                              'ride-mini-${presentedRide.id}-${presentedRide.state}',
-                            ),
-                            identity: _api is DriverRideIdentityApi
-                                ? DriverPassengerIdentity(
-                                    api: _api as DriverRideIdentityApi,
-                                    rideId: presentedRide.id,
-                                    compact: true,
-                                    showDeadline: false,
-                                  )
-                                : null,
-                            ride: presentedRide,
-                            route: _activeRoute,
-                            onChat: presentedRide.state == 'COMPLETED'
-                                ? null
-                                : _openRideChat,
-                            chatIcon: RamoUnreadChatIcon(
-                              api: _api,
-                              rideId: presentedRide.id,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            onExpand: restore,
-                          )
-                        : presentedRide.state=='INTERRUPTED' && _api is RamoRideOccurrenceApi
-                        ? RamoRideOccurrencePanel(api:_api as RamoRideOccurrenceApi,rideId:presentedRide.id,driver:true,paymentMethod:presentedRide.paymentMethod,onChanged:_restoreCurrentRide)
-                        : _ActiveRideCard(
-                            key: ValueKey(
-                              'ride-${presentedRide.id}-${presentedRide.state}',
-                            ),
-                            identity: _api is DriverRideIdentityApi
-                                ? DriverPassengerIdentity(
-                                    api: _api as DriverRideIdentityApi,
-                                    rideId: presentedRide.id,
-                                    showDeadline: [
-                                      'DRIVER_ASSIGNED',
-                                      'DRIVER_ARRIVING',
-                                    ].contains(presentedRide.state),
-                                  )
-                                : null,
-                            ride: presentedRide,
-                            celebrateUntil: _celebratingCampaignRideId == presentedRide.id ? _campaignCelebrationUntil : null,
-                            busy: _rideAction,
-                            navigationActive: _navigationMode,
-                            onNavigate: () => _startInAppNavigation(explicit:true),
-                            onStopNavigation: _stopInAppNavigation,
-                            onExternalNavigation: _openExternalNavigation,
-                            onArrived: _markArrived,
-                            onStart: _startRide,
-                            onComplete: presentedRide.state == 'COMPLETED'
-                                ? _dismissCompletedPresentation
-                                : _completeRide,
-                            onRatePassenger:
-                                presentedRide.state == 'COMPLETED' &&
-                                    _api is DriverPassengerRatingApi
-                                ? () => _openPassengerRating(presentedRide.id)
-                                : null,
-                            onCancel: _cancelRide,
-                            onChat: _openRideChat,
-                            chatIcon: RamoUnreadChatIcon(
-                              api: _api,
-                              rideId: presentedRide.id,
-                            ),
-                            onMinimize: minimize,
-                            route: _activeRoute,
-                            currentPosition: LatLng(
-                              supply.latitude,
-                              supply.longitude,
-                            ),
-                          ))
-                  : _MapAvailabilityPanel(
-                      key: ValueKey('availability-${supply.online}'),
-                      online: supply.online,
-                      changing: _changingStatus,
-                      onToggle: _setOnline,
-                      onUpdateLocation: _updateLocation,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _MapCircleButton(
+                          tooltip: 'Diminuir zoom',
+                          icon: Icons.remove,
+                          onPressed: () => unawaited(_mapController.zoomBy(-1)),
+                        ),
+                        const SizedBox(width: 8),
+                        _MapCircleButton(
+                          tooltip: 'Aumentar zoom',
+                          icon: Icons.add,
+                          onPressed: () => unawaited(_mapController.zoomBy(1)),
+                        ),
+                      ],
                     ),
-                )),
-              ]),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: DriverMapPanelExtent(
+                      onHeight: (height) {
+                        if (mounted && (height - _mapPanelHeight).abs() > .5) {
+                          setState(() => _mapPanelHeight = height);
+                        }
+                      },
+                      child: showOffer
+                          ? (collapsed
+                                ? _ActiveRideCompactBar(
+                                    key: ValueKey('offer-mini-${_offer!.id}'),
+                                    offer: _offer!,
+                                    onExpand: restore,
+                                  )
+                                : _OfferCard(
+                                    key: ValueKey('offer-${_offer!.id}'),
+                                    offer: _offer!,
+                                    busy: _offerAction,
+                                    onAccept: _acceptOffer,
+                                    onReject: _rejectOffer,
+                                    onMinimize: minimize,
+                                    pickupRoute: _offerPickupRoute,
+                                    tripRoute: _offerTripRoute,
+                                  ))
+                          : presentedRide != null
+                          ? (collapsed
+                                ? _ActiveRideCompactBar(
+                                    key: ValueKey(
+                                      'ride-mini-${presentedRide.id}-${presentedRide.state}',
+                                    ),
+                                    identity: _api is DriverRideIdentityApi
+                                        ? DriverPassengerIdentity(
+                                            api: _api as DriverRideIdentityApi,
+                                            rideId: presentedRide.id,
+                                            compact: true,
+                                            showDeadline: false,
+                                          )
+                                        : null,
+                                    ride: presentedRide,
+                                    route: _activeRoute,
+                                    onChat: presentedRide.state == 'COMPLETED'
+                                        ? null
+                                        : _openRideChat,
+                                    chatIcon: RamoUnreadChatIcon(
+                                      api: _api,
+                                      rideId: presentedRide.id,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    onExpand: restore,
+                                  )
+                                : presentedRide.state == 'INTERRUPTED' &&
+                                      _api is RamoRideOccurrenceApi
+                                ? RamoRideOccurrencePanel(
+                                    api: _api as RamoRideOccurrenceApi,
+                                    rideId: presentedRide.id,
+                                    driver: true,
+                                    paymentMethod: presentedRide.paymentMethod,
+                                    onChanged: _restoreCurrentRide,
+                                  )
+                                : _ActiveRideCard(
+                                    key: ValueKey(
+                                      'ride-${presentedRide.id}-${presentedRide.state}',
+                                    ),
+                                    identity: _api is DriverRideIdentityApi
+                                        ? DriverPassengerIdentity(
+                                            api: _api as DriverRideIdentityApi,
+                                            rideId: presentedRide.id,
+                                            showDeadline: [
+                                              'DRIVER_ASSIGNED',
+                                              'DRIVER_ARRIVING',
+                                            ].contains(presentedRide.state),
+                                          )
+                                        : null,
+                                    ride: presentedRide,
+                                    celebrateUntil:
+                                        _celebratingCampaignRideId ==
+                                            presentedRide.id
+                                        ? _campaignCelebrationUntil
+                                        : null,
+                                    busy: _rideAction,
+                                    navigationActive: _navigationMode,
+                                    onNavigate: () =>
+                                        _startInAppNavigation(explicit: true),
+                                    onStopNavigation: _stopInAppNavigation,
+                                    onExternalNavigation:
+                                        _openExternalNavigation,
+                                    onArrived: _markArrived,
+                                    onStart: _startRide,
+                                    onComplete:
+                                        presentedRide.state == 'COMPLETED'
+                                        ? _dismissCompletedPresentation
+                                        : _completeRide,
+                                    onRatePassenger:
+                                        presentedRide.state == 'COMPLETED' &&
+                                            _api is DriverPassengerRatingApi
+                                        ? () => _openPassengerRating(
+                                            presentedRide.id,
+                                          )
+                                        : null,
+                                    onCancel: _cancelRide,
+                                    onChat: _openRideChat,
+                                    chatIcon: RamoUnreadChatIcon(
+                                      api: _api,
+                                      rideId: presentedRide.id,
+                                    ),
+                                    onMinimize: minimize,
+                                    route: _activeRoute,
+                                    currentPosition: LatLng(
+                                      supply.latitude,
+                                      supply.longitude,
+                                    ),
+                                  ))
+                          : _MapAvailabilityPanel(
+                              key: ValueKey('availability-${supply.online}'),
+                              online: supply.online,
+                              changing: _changingStatus,
+                              onToggle: _setOnline,
+                              onUpdateLocation: _updateLocation,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -4953,9 +5307,20 @@ class _ActiveRideCompactBar extends StatelessWidget {
                               fontSize: 11,
                             ),
                           ),
-                          if ((offer?.campaignPresentation ?? ride?.campaignPresentation) != null)
-                            Text((offer?.campaignPresentation ?? ride?.campaignPresentation)!.label,
-                              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                          if ((offer?.campaignPresentation ??
+                                  ride?.campaignPresentation) !=
+                              null)
+                            Text(
+                              (offer?.campaignPresentation ??
+                                      ride?.campaignPresentation)!
+                                  .label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10,
+                              ),
+                            ),
                           if (identity != null) identity!,
                           Text(
                             route != null && ride?.state != 'COMPLETED'
@@ -5222,14 +5587,16 @@ class _ActiveRideCard extends StatelessWidget {
               const SizedBox(height: 12),
             ],
             if (ride.campaignPresentation != null) ...[
-              DriverCampaignNotice(presentation: ride.campaignPresentation!, celebrateUntil: celebrateUntil),
+              DriverCampaignNotice(
+                presentation: ride.campaignPresentation!,
+                celebrateUntil: celebrateUntil,
+              ),
               const SizedBox(height: 12),
             ],
             if (identity != null) identity!,
             _DriverRouteTimeline(
               origin: ride.originDisplayName,
-              destination:
-                  ride.destinationDisplayName,
+              destination: ride.destinationDisplayName,
             ),
             const SizedBox(height: 14),
             Row(
@@ -5299,7 +5666,10 @@ class _ActiveRideCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (ride.occurrenceBonusCents > 0) Text('Bônus de ocorrência + ${formatCents(ride.occurrenceBonusCents)}'),
+            if (ride.occurrenceBonusCents > 0)
+              Text(
+                'Bônus de ocorrência + ${formatCents(ride.occurrenceBonusCents)}',
+              ),
             if (ride.isCash && ride.cashCollectionAmountCents != null) ...[
               const SizedBox(height: 12),
               _DriverNoticeStrip(
