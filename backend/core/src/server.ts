@@ -7790,7 +7790,7 @@ const server = createServer(async (request, response) => {
     }
 
     const driverOfferAction = requestUrl.pathname.match(
-      /^\/v1\/driver\/me\/offers\/([0-9a-fA-F-]+)\/(accept|reject)$/,
+      /^\/v1\/driver\/me\/offers\/([0-9a-fA-F-]+)\/(accept|reject|screen-lock)$/,
     );
     if (request.method === 'POST' && driverOfferAction != null) {
       const driverId = await resolveDriverId({
@@ -7800,6 +7800,26 @@ const server = createServer(async (request, response) => {
       });
       const offerId = driverOfferAction[1]!;
       const action = driverOfferAction[2]!;
+
+      if (action === 'screen-lock') {
+        if (rideMatchingRepository.lockScreenPendingOffer == null) {
+          json(response, 503, { error: 'SCREEN_LOCK_UNAVAILABLE' });
+          return;
+        }
+        const outcome = await rideMatchingRepository.lockScreenPendingOffer({
+          offerId, driverId, at: new Date().toISOString(),
+        });
+        if (outcome === 'REJECTED' || outcome === 'EXPIRED') {
+          realtimeHub.publishDriver(driverId, {
+            type: 'driver.offer.updated', offer: null, serverTime: new Date().toISOString(),
+          });
+          // The existing sweep also runs at startup and every 10 seconds.
+          // Do not rely on the device retry to advance the paid ride.
+          void runPendingDispatch();
+        }
+        json(response, 200, { outcome });
+        return;
+      }
 
       if (action === 'accept') {
         const documentPolicy = await driverDocumentPolicy(driverId);
