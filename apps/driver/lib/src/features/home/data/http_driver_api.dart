@@ -665,6 +665,18 @@ class HttpDriverApi
   }
 
   @override
+  Future<String> lockScreen() async {
+    final response=await _client.post(
+      _baseUrl.resolve('/v1/driver/me/screen-lock'),headers:_headers,
+    ).timeout(DriverCoreConfig.requestTimeout);
+    final outcome=_expectObject(response,expectedStatus:200)['outcome'];
+    if(outcome != 'OFFLINE' && outcome != 'ACCEPTED') {
+      throw const DriverApiException('Resposta de bloqueio inválida.');
+    }
+    return outcome as String;
+  }
+
+  @override
   Future<String> lockPendingOffer(String offerId) async {
     if (!RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(offerId)) {
       throw const DriverApiException('Identificador da oferta inválido.');
