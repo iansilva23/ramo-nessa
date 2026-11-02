@@ -1,3 +1,5 @@
+import { advancePendingRideDispatch } from '../src/rides/pending-dispatch-service.js';
+import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { recoverLockedOfferDispatch, resumeLockedRideSearch } from '../src/matching/android-lock-dispatch-recovery.js';
 import { updateDriverSupplyFromApp } from '../src/drivers/driver-app-service.js';
 import assert from 'node:assert/strict';
@@ -235,6 +237,14 @@ test('recovery invokes real dispatch and retry does not duplicate the offer', {s
     const offer=await matching.createOffer({rideId,driverId:first,approximatePickupDistanceKm:1,createdAt:start.toISOString(),expiresAt:new Date(start.getTime()+35000).toISOString()});
     assert.equal(await matching.lockScreenPendingOffer({offerId:offer.offer.id,driverId:first,at:at.toISOString()}),'REJECTED');
     const request={pool,offerId:offer.offer.id,dispatch:{rides,drivers,matching,now:at,canOfferDriver:async (id:string)=>id===second}};
+    // Use the existing startup/periodic recovery, with no device retry.
+    const failures: unknown[] = [];
+    await advancePendingRideDispatch({
+      rides, now:at,
+      dispatch:(ride,now)=>dispatchRideAfterPayment({...request.dispatch,ride,now}),
+      onFailure:(_rideId,error)=>failures.push(error),
+    });
+    assert.equal(failures.length,0);
     assert.equal(await resumeLockedRideSearch(request),'COMPLETE');
     let active=(await matching.listOffersForRide(rideId)).filter(o=>o.status==='OFFERED');
     assert.equal(active.length,1); assert.equal(active[0]?.driverId,second);
