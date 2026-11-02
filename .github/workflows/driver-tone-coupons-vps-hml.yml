@@ -12,7 +12,7 @@ on:
       - apps/driver/**
       - packages/**
       - docs/DRIVER_TONE_COUPONS_HML_20261102.md
-      - deploy/staging/driver-tone-coupons-hml-stage.py
+      - deploy/staging/driver-tone-hml-stage.py
   workflow_dispatch:
 
 permissions:
@@ -108,14 +108,14 @@ jobs:
           PY
       - name: Verificar instalador de preparacao sem publicacao
         run: |
-          python3 -m py_compile deploy/staging/driver-tone-coupons-hml-stage.py
-          cp deploy/staging/driver-tone-coupons-hml-stage.py artifacts/driver-tone-coupons-hml-stage.py
+          python3 -m py_compile deploy/staging/driver-tone-hml-stage.py
+          cp deploy/staging/driver-tone-hml-stage.py artifacts/driver-tone-coupons-hml-stage.py
           (cd artifacts && sha256sum RamoNessa-Motorista-Toque-HML.zip driver-tone-coupons-hml-stage.py > SHA256SUMS)
       - name: Ensaiar extracao segura em diretório descartavel (sem VPS)
         run: |
           python3 - <<'PY'
           import importlib.util, pathlib, tempfile, hashlib, sys
-          file=pathlib.Path('deploy/staging/driver-tone-coupons-hml-stage.py')
+          file=pathlib.Path('deploy/staging/driver-tone-hml-stage.py')
           spec=importlib.util.spec_from_file_location('hml_stage', file)
           mod=importlib.util.module_from_spec(spec)
           spec.loader.exec_module(mod)
