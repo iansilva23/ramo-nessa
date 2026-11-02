@@ -30,6 +30,11 @@ class RideActivityNotificationTest {
         card.update(ride,"IN_PROGRESS","Preá → Jijoca")
         assertEquals(1,shadowOf(manager).allNotifications.size)
     }
+    @Test fun delayedPreStartSnapshotCannotHideActiveRide() {
+        card.update(ride,"IN_PROGRESS","Preá → Jijoca")
+        card.update(ride,"DRIVER_ASSIGNED","old snapshot")
+        assertEquals(1,shadowOf(manager).allNotifications.size)
+    }
     @Test fun lateStartCannotReviveCompletedRide() {
         card.update(ride,"IN_PROGRESS","Preá → Jijoca")
         card.fromPush(ride,"passenger.ride.completed")
