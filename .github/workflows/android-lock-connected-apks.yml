@@ -54,7 +54,7 @@ jobs:
         if: matrix.app == 'passenger'
         working-directory: packages/design_system
         run: |
-          flutter pub get --enforce-lockfile
+          flutter pub get
           flutter analyze
           flutter test test/notification_journey_test.dart
       - name: Test and build connected APK without store signing
