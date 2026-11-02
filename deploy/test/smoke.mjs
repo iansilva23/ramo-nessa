@@ -14,6 +14,7 @@ const envFile = resolve(here, `.env.smoke-${process.pid}`);
 const project = `ramo-nessa-smoke-${process.pid}`;
 const port = 18080;
 const baseUrl = `http://127.0.0.1:${port}`;
+const adminBasePath = '/administrodo';
 
 const cnhDocumentFixture = Buffer.from(
   '%PDF-1.4\n% Ramo Nessa CNH smoke fixture\n',
@@ -197,7 +198,14 @@ try {
     );
   }
 
-  const adminPage = await fetch(`${baseUrl}/admin/`, {
+  // The gateway intentionally serves the panel only at its configured path.
+  const legacyAdminPage = await fetch(`${baseUrl}/admin/`, {
+    cache: 'no-store',
+    redirect: 'error',
+  });
+  assert.equal(legacyAdminPage.status, 404, 'Legacy Admin path must remain unavailable.');
+
+  const adminPage = await fetch(`${baseUrl}${adminBasePath}/`, {
     cache: 'no-store',
   });
   if (!adminPage.ok) {
@@ -232,7 +240,7 @@ try {
     'auditoria',
   ];
   for (const route of adminDeepLinks) {
-    const response = await fetch(`${baseUrl}/admin/${route}`, {
+    const response = await fetch(`${baseUrl}${adminBasePath}/${route}`, {
       cache: 'no-store',
       redirect: 'error',
     });
@@ -254,7 +262,7 @@ try {
 
   for (const page of ['overview', 'fleet', 'agency', 'coupons', 'benefits']) {
     const response = await fetch(
-      `${baseUrl}/admin/pages/${page}.html`,
+      `${baseUrl}${adminBasePath}/pages/${page}.html`,
       {
         cache: 'no-store',
         redirect: 'error',
