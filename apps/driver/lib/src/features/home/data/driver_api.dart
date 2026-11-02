@@ -142,3 +142,8 @@ class DriverApiException implements Exception {
   @override
   String toString() => message;
 }
+
+/// Optional capability; only acts on the specified pending offer.
+abstract interface class DriverScreenLockApi {
+  Future<String> lockPendingOffer(String offerId);
+}
