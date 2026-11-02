@@ -1,3 +1,4 @@
+import '../../../core/availability/driver_screen_lock_events.dart';
 import 'package:ramo_push/ramo_push.dart';
 import '../data/passenger_rating_api.dart';
 import 'passenger_rating_sheet.dart';
@@ -223,6 +224,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _releaseDialogShown = false;
   bool _registryAccessBlocked = false;
   bool _webBackgrounded = false;
+  bool _androidScreenLocked=false;
+  bool _androidLockPending=false;
+  bool _androidLockInFlight=false;
+  StreamSubscription<bool>? _screenLockSubscription;
+  Timer? _screenLockRetry;
   bool _webWasBackgrounded = false;
   bool _webSafetyInFlight = false;
   bool _webSafetyRecheck = false;
@@ -248,6 +254,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void initState() {
     super.initState();
+    _screenLockSubscription=DriverScreenLockEvents().states.listen((locked) {
+      _androidScreenLocked=locked;
+      if(locked) _androidLockPending=true;
+      unawaited(_syncAndroidScreenLock());
+    },onError:(Object _) {
+      // An unavailable Android event channel must not affect other platforms.
+    });
     _notificationSubscription = ramoNotificationIntents.listen(_onNotification);
     startNotificationIntentBridge();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -373,6 +386,44 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
+  Future<void> _syncAndroidScreenLock() async {
+    if(!mounted || !_androidLockPending || _androidLockInFlight) return;
+    final api=_api;
+    if(api is! DriverScreenLockApi) return;
+    _androidLockInFlight=true;
+    try {
+      final outcome=await (api as DriverScreenLockApi).lockScreen();
+      if(!mounted) return;
+      _androidLockPending=false;
+      _screenLockRetry?.cancel();
+      if(outcome=='ACCEPTED') {
+        await _restoreCurrentRide();
+        return;
+      }
+      final supply=await api.getSupply();
+      if(!mounted) return;
+      setState(() {
+        _supply=supply;
+        _offer=null;
+        _message='Você está offline. Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
+      });
+      if(!supply.busy && !supply.online) {
+        _stopPolling();
+        _stopNearbyPolling();
+        await _stopLocationTracking();
+        await _stopRealtime();
+      }
+    } catch(_) {
+      if(mounted) {
+        setState(()=>_message='Aguardando conexão para confirmar sua disponibilidade.');
+        _screenLockRetry?.cancel();
+        _screenLockRetry=Timer(const Duration(seconds:3),()=>unawaited(_syncAndroidScreenLock()));
+      }
+    } finally {
+      _androidLockInFlight=false;
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -448,6 +499,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
+    _screenLockSubscription?.cancel();
+    _screenLockRetry?.cancel();
     _notificationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
@@ -472,6 +525,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       const Duration(seconds: 10),
       (_) => unawaited(_restoreCurrentRide()),
     );
+    unawaited(_syncAndroidScreenLock());
     await _refreshFinance(showError: false);
     unawaited(_refreshProfile());
     unawaited(_refreshActivity());
@@ -925,6 +979,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _setOnline(bool online) async {
+    if(online && (_androidScreenLocked || _androidLockPending)) {
+      await _syncAndroidScreenLock();
+      return;
+    }
     final api = _api;
     final supply = _supply;
     if (api == null || supply == null || _changingStatus) return;
@@ -1042,7 +1100,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   Future<void> _acceptOffer() async {
     final api = _api;
     final offer = _offer;
-    if (api == null || offer == null || _offerAction) return;
+    if (api == null || offer == null || _offerAction || _androidScreenLocked || _androidLockPending) return;
 
     setState(() => _offerAction = true);
     try {
