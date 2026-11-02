@@ -375,6 +375,62 @@ export class PostgresRideMatchingRepository
     }
   }
 
+  // Experimental primitive: never dispatches or changes payment. It must only be
+  // exposed after the caller has handled retries and dispatch on commit.
+  async lockScreenPendingOffer(input: { offerId: string; driverId: string; at: string }):
+      Promise<'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'INACTIVE'> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const rows = await client.query<RideOfferRow>(
+        `SELECT ${OFFER_COLUMNS} FROM ride_offers WHERE id = $1 FOR UPDATE`,
+        [input.offerId],
+      );
+      const offer = rows.rows[0];
+      if (offer == null || offer.driver_id !== input.driverId) {
+        throw new RideOfferError('OFFER_NOT_FOUND', 'Oferta não encontrada.');
+      }
+      // Same lock order as acceptOffer: offer, ride, supply.
+      const ride = await lockRide(client, offer.ride_id);
+      const supplies = await client.query<{busy: boolean}>(
+        'SELECT busy FROM driver_supply WHERE driver_id = $1 FOR UPDATE', [input.driverId],
+      );
+      const supply = supplies.rows[0];
+      if (offer.status === 'ACCEPTED' && ride?.driver_id === input.driverId) {
+        await client.query('COMMIT');
+        return 'ACCEPTED';
+      }
+      if (offer.status !== 'OFFERED' || ride == null || supply == null || supply.busy) {
+        await client.query('COMMIT');
+        return 'INACTIVE';
+      }
+      const status = offer.expires_at.getTime() <= Date.parse(input.at) ? 'EXPIRED' : 'REJECTED';
+      await client.query(
+        'UPDATE ride_offers SET status = $2, updated_at = $3 WHERE id = $1',
+        [offer.id, status, input.at],
+      );
+      await client.query(
+        `UPDATE driver_supply SET online = FALSE,
+          reserved_ride_id = CASE WHEN reserved_ride_id = $2 THEN NULL ELSE reserved_ride_id END,
+          reserved_until = CASE WHEN reserved_ride_id = $2 THEN NULL ELSE reserved_until END,
+          updated_at = $3 WHERE driver_id = $1`,
+        [offer.driver_id, offer.ride_id, input.at],
+      );
+      await client.query(
+        `UPDATE rides SET reserved_driver_id = NULL, driver_hold_expires_at = NULL, updated_at = $3
+         WHERE id = $1 AND reserved_driver_id = $2`,
+        [offer.ride_id, offer.driver_id, input.at],
+      );
+      await client.query('COMMIT');
+      return status;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async rejectOffer(
     input: RejectRideOfferInput,
   ): Promise<RideOfferRecord> {
