@@ -1,0 +1,6 @@
+# Opt-in: the helper reads the private file and injects only the validated secret.
+services:
+  core:
+    environment:
+      OTP_PROVIDER: entrar-whatsapp
+      ENTRAR_API_SECRET: ${ENTRAR_API_SECRET:?Validated Entrar secret is required}

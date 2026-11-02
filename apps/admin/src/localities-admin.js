@@ -1,0 +1,1828 @@
+import { parseLocalityCoordinates } from './locality-coordinates.js';
+import {
+  createPricingCoverageMap,
+  createPricingGeofenceMap,
+} from './pricing-geofence-map.js';
+
+const LOCAL_SCOPES = new Set(['prea', 'jijoca']);
+const PRICE_CATEGORIES = ['moto', 'delivery', 'car', 'buggy'];
+const DISTANCE_CATEGORIES = [
+  'moto',
+  'delivery',
+  'car',
+  'comfort_black',
+];
+const LOCALITY_CATEGORY_CONTROL_IDS = Object.freeze([
+  'locality-category-moto',
+  'locality-category-delivery',
+  'locality-category-car',
+  'locality-category-comfort',
+  'locality-category-buggy',
+]);
+const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
+  'locality-price-moto-kind',
+  'locality-price-moto-min',
+  'locality-price-moto-max',
+  'locality-price-delivery-kind',
+  'locality-price-delivery-min',
+  'locality-price-delivery-max',
+  'locality-price-car-kind',
+  'locality-price-car-min',
+  'locality-price-car-max',
+  'locality-price-buggy-kind',
+  'locality-price-buggy-min',
+  'locality-price-buggy-max',
+]);
+const DISTANCE_CONTROL_IDS = Object.freeze([
+  'locality-distance-moto-enabled',
+  'locality-distance-moto-minimum-fare',
+  'locality-distance-moto-per-km',
+  'locality-distance-moto-min-km',
+  'locality-distance-moto-max-km',
+  'locality-distance-delivery-enabled',
+  'locality-distance-delivery-minimum-fare',
+  'locality-distance-delivery-per-km',
+  'locality-distance-delivery-min-km',
+  'locality-distance-delivery-max-km',
+  'locality-distance-car-enabled',
+  'locality-distance-car-minimum-fare',
+  'locality-distance-car-per-km',
+  'locality-distance-car-min-km',
+  'locality-distance-car-max-km',
+  'locality-distance-comfort_black-enabled',
+  'locality-distance-comfort_black-minimum-fare',
+  'locality-distance-comfort_black-per-km',
+  'locality-distance-comfort_black-min-km',
+  'locality-distance-comfort_black-max-km',
+]);
+const CATEGORY_LABELS = Object.freeze({
+  moto: 'Moto',
+  delivery: 'Entrega',
+  car: 'Carro',
+  comfort_black: 'Comfort/Black',
+  buggy: 'Buggy',
+});
+
+function byId(id) {
+  return document.getElementById(id);
+}
+
+function categoryCheckbox(category) {
+  return byId(
+    category === 'comfort_black'
+      ? 'locality-category-comfort'
+      : `locality-category-${category}`,
+  );
+}
+
+
+function scopeLabel(scope) {
+  if (scope === 'prea') return 'Preá';
+  if (scope === 'jijoca') return 'Jijoca';
+  return 'Destino externo';
+}
+
+function scopeDefault(scope) {
+  if (scope === 'prea') {
+    return { latitude: -2.82017, longitude: -40.41467 };
+  }
+  if (scope === 'jijoca') {
+    return { latitude: -2.8986, longitude: -40.4506 };
+  }
+  return { latitude: -2.906425, longitude: -40.357338 };
+}
+
+function slugify(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function titleFromId(value) {
+  return String(value ?? '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function moneyToCents(value, label) {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\s/g, '')
+    .replace(',', '.');
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`${label} deve ser maior que zero.`);
+  }
+  return Math.round(amount * 100);
+}
+
+function centsToInput(cents) {
+  const value = Number(cents);
+  return Number.isFinite(value)
+    ? (value / 100).toFixed(2).replace('.', ',')
+    : '';
+}
+
+function priceLabel(price) {
+  const formatter = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+  if (price?.kind === 'exact') {
+    return formatter.format(Number(price.amountCents) / 100);
+  }
+  if (price?.kind === 'range') {
+    return (
+      formatter.format(Number(price.minCents) / 100) +
+      ' – ' +
+      formatter.format(Number(price.maxCents) / 100)
+    );
+  }
+  return '—';
+}
+
+function categoryList(policy) {
+  return Array.isArray(policy?.enabledCategories)
+    ? policy.enabledCategories
+    : [];
+}
+
+function errorMessage(error) {
+  return (
+    error?.message ||
+    'Não foi possível concluir esta operação de localidade.'
+  );
+}
+
+function element(tag, className, text) {
+  const item = document.createElement(tag);
+  if (className) item.className = className;
+  if (text != null) item.textContent = text;
+  return item;
+}
+
+function deepClone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+// Use the text fields as the source of truth even when a map marker was
+// selected earlier. Invalid inputs must stop the save instead of silently
+// persisting stale coordinates.
+export function localitySelectionFromInputs(mapSelection, latitude, longitude) {
+  return {
+    ...mapSelection,
+    ...parseLocalityCoordinates(latitude, longitude),
+  };
+}
+
+export function createLocalitiesAdmin(input) {
+  const api = input.api;
+  let catalog = null;
+  let draft = null;
+  let versionItems = [];
+  let effectiveVersionId = null;
+  let overviewMap = null;
+  let wizardMap = null;
+  let step = 1;
+  let mode = 'create';
+  let editing = null;
+  let initialForm = null;
+  let lastDeleted = null;
+  let mounted = true;
+  let saving = false;
+
+  function token() {
+    return input.getToken?.() ?? null;
+  }
+
+  function hasScope(scope) {
+    return input.hasScope?.(scope) === true;
+  }
+
+  function setMessage(message = '', tone = 'neutral') {
+    const target = byId('localities-message');
+    if (target == null) return;
+    target.textContent = message;
+    target.dataset.tone = tone;
+    target.hidden = !message;
+  }
+
+  function handleError(error) {
+    setMessage(errorMessage(error), 'danger');
+    input.onError?.(error);
+  }
+
+  function allEntries() {
+    if (catalog == null) return [];
+    const geofences = Array.isArray(catalog.localityGeofences)
+      ? catalog.localityGeofences
+      : [];
+    const distancePolicies = Array.isArray(
+      catalog.distanceFarePolicies,
+    )
+      ? catalog.distanceFarePolicies
+      : [];
+    const result = [];
+    for (const scope of ['prea', 'jijoca']) {
+      const values = Array.isArray(catalog.localities?.[scope])
+        ? catalog.localities[scope]
+        : [];
+      for (const item of values) {
+        result.push({
+          scope,
+          localityId: item.localityId,
+          label: catalog.localityDisplayNames?.[scope]?.[item.localityId] ??
+            titleFromId(item.localityId),
+          prices: item.prices ?? {},
+          municipality: item.municipality ?? null,
+          municipalityLabel: item.municipalityLabel ?? 'Município a confirmar',
+          policy: item.policy ?? {},
+          distancePolicies: distancePolicies.filter(
+            (rule) =>
+              rule.anchorZoneId === scope &&
+              rule.anchorLocalityId === item.localityId,
+          ),
+          geofence:
+            geofences.find(
+              (area) =>
+                area.zoneId === scope &&
+                area.localityId === item.localityId,
+            ) ?? null,
+        });
+      }
+    }
+    for (const localityId of catalog.externalLocalities ?? []) {
+      result.push({
+        scope: 'external',
+        localityId,
+        label: catalog.localityDisplayNames?.external?.[localityId] ??
+          titleFromId(localityId),
+        prices: {},
+        municipality: catalog.municipalityAssignments?.external?.[localityId] ?? null,
+        municipalityLabel: null,
+        distancePolicies: distancePolicies.filter(
+          (rule) =>
+            rule.anchorZoneId === 'external' &&
+            rule.anchorLocalityId === localityId,
+        ),
+        policy: {
+          enabledCategories: [
+            ...new Set(
+              distancePolicies
+                .filter(
+                  (rule) =>
+                    rule.anchorZoneId === 'external' &&
+                    rule.anchorLocalityId === localityId,
+                )
+                .map((rule) => rule.category),
+            ),
+          ],
+        },
+        geofence:
+          geofences.find(
+            (area) =>
+              area.zoneId === 'external' &&
+              area.localityId === localityId,
+          ) ?? null,
+      });
+    }
+    return result;
+  }
+
+  function entryKey(entry) {
+    return `${entry.scope}:${entry.localityId}`;
+  }
+
+  function findEntry(scope, localityId) {
+    return (
+      allEntries().find(
+        (entry) =>
+          entry.scope === scope &&
+          entry.localityId === localityId,
+      ) ?? null
+    );
+  }
+
+  function activeCategoriesFromForm() {
+    const scope = byId('locality-scope')?.value ?? 'prea';
+    const categories = [];
+    for (const category of PRICE_CATEGORIES) {
+      if (categoryCheckbox(category)?.checked) {
+        categories.push(category);
+      }
+    }
+    if (
+      categoryCheckbox('comfort_black')?.checked
+    ) {
+      categories.push('comfort_black');
+    }
+    return categories;
+  }
+
+  function syncPriceCard(category) {
+    const enabled = byId(`locality-category-${category}`)?.checked === true;
+    const card = byId(`locality-price-${category}-card`);
+    if (card != null) card.hidden = !enabled || (category === 'delivery' && catalog?.commercialPolicy != null);
+    const kind = byId(`locality-price-${category}-kind`)?.value ?? 'exact';
+    const maxField = byId(`locality-price-${category}-max-field`);
+    const minLabel = byId(`locality-price-${category}-min-label`);
+    if (maxField != null) maxField.hidden = kind !== 'range';
+    if (minLabel != null) {
+      minLabel.textContent = kind === 'range' ? 'Mínimo (R$)' : 'Preço (R$)';
+    }
+  }
+
+  function syncDistanceCard(category) {
+    const selected = categoryCheckbox(category)?.checked === true;
+    const card = byId(`locality-distance-${category}-card`);
+    const enabled =
+      byId(`locality-distance-${category}-enabled`)?.checked === true;
+    const fields = byId(`locality-distance-${category}-fields`);
+    if (card != null) card.hidden = !selected;
+    if (fields != null) fields.hidden = !selected || !enabled;
+  }
+
+  function syncScopeUi() {
+    const scope = byId('locality-scope')?.value ?? 'prea';
+    const local = LOCAL_SCOPES.has(scope);
+    const comfort = byId('locality-category-comfort-card');
+    const night = byId('locality-night-card');
+    if (comfort != null) comfort.hidden = !local;
+    if (night != null) night.hidden = !local;
+    const serviceNote = byId('locality-external-services-note');
+    const priceNote = byId('locality-external-price-note');
+    const priceGrid = byId('locality-price-grid');
+    const categoryGrid = byId('locality-category-grid');
+    if (serviceNote != null) serviceNote.hidden = local;
+    if (priceNote != null) priceNote.hidden = local;
+    if (priceGrid != null) priceGrid.hidden = !local;
+    if (categoryGrid != null) categoryGrid.hidden = false;
+
+    for (const category of PRICE_CATEGORIES) syncPriceCard(category);
+    for (const category of DISTANCE_CATEGORIES) {
+      syncDistanceCard(category);
+    }
+  }
+
+  function syncIdPreview() {
+    if (mode === 'edit' && editing != null) return;
+    const id = slugify(byId('locality-name')?.value);
+    const hidden = byId('locality-id');
+    const preview = byId('locality-id-preview');
+    if (hidden != null) hidden.value = id;
+    if (preview != null) preview.textContent = id || '—';
+  }
+
+  function setMapCoordinate(selection) {
+    const label = byId('locality-coordinate-label');
+    if (label == null) return;
+    const lat = Number(selection?.latitude);
+    const lon = Number(selection?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      label.textContent = '—';
+      return;
+    }
+    // Match the six-decimal precision persisted by the pricing catalog.
+    label.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    if (byId('locality-latitude')) byId('locality-latitude').value = String(lat);
+    if (byId('locality-longitude')) byId('locality-longitude').value = String(lon);
+  }
+
+  function ensureWizardMap() {
+    if (wizardMap != null) return wizardMap;
+    const root = byId('locality-wizard-map');
+    if (root == null) return null;
+    wizardMap = createPricingGeofenceMap({
+      root,
+      tiles: byId('locality-wizard-map-tiles'),
+      overlay: byId('locality-wizard-map-overlay'),
+      zoomIn: byId('locality-wizard-map-zoom-in'),
+      zoomOut: byId('locality-wizard-map-zoom-out'),
+      canSelect: () => mode !== 'view',
+      onChange(selection) {
+        setMapCoordinate(selection);
+      },
+    });
+    return wizardMap;
+  }
+
+  function ensureOverviewMap() {
+    if (overviewMap != null) return overviewMap;
+    const root = byId('localities-overview-map');
+    if (root == null) return null;
+    overviewMap = createPricingCoverageMap({
+      root,
+      tiles: byId('localities-overview-map-tiles'),
+      overlay: byId('localities-overview-map-overlay'),
+      zoomIn: byId('localities-overview-map-zoom-in'),
+      zoomOut: byId('localities-overview-map-zoom-out'),
+      onSelect(area) {
+        openEdit(area.zoneId, area.localityId);
+      },
+    });
+    return overviewMap;
+  }
+
+  function updateMapFromScope({ preserveSelection = false } = {}) {
+    const map = ensureWizardMap();
+    if (map == null) return;
+    const radius = Number(byId('locality-radius')?.value || 2);
+    if (!preserveSelection) {
+      map.setSelection({
+        ...scopeDefault(byId('locality-scope')?.value ?? 'prea'),
+        radiusKm: radius,
+      });
+    } else {
+      map.setRadiusKm(radius);
+    }
+    setMapCoordinate(map.getSelection());
+  }
+
+  function captureForm() {
+    const selection = localitySelectionFromInputs(
+      ensureWizardMap()?.getSelection() ?? {
+        ...scopeDefault(byId('locality-scope')?.value ?? 'prea'),
+        radiusKm: Number(byId('locality-radius')?.value || 2),
+      },
+      byId('locality-latitude')?.value,
+      byId('locality-longitude')?.value,
+    );
+    const prices = {};
+    for (const category of PRICE_CATEGORIES) {
+      prices[category] = {
+        kind: byId(`locality-price-${category}-kind`)?.value ?? 'exact',
+        min: byId(`locality-price-${category}-min`)?.value ?? '',
+        max: byId(`locality-price-${category}-max`)?.value ?? '',
+      };
+    }
+
+    const distancePricing = {};
+    for (const category of DISTANCE_CATEGORIES) {
+      distancePricing[category] = {
+        enabled:
+          byId(`locality-distance-${category}-enabled`)?.checked === true,
+        minimumFare:
+          byId(`locality-distance-${category}-minimum-fare`)?.value ?? '',
+        perKm:
+          byId(`locality-distance-${category}-per-km`)?.value ?? '',
+        minKm:
+          byId(`locality-distance-${category}-min-km`)?.value ?? '0',
+        maxKm:
+          byId(`locality-distance-${category}-max-km`)?.value ?? '',
+      };
+    }
+
+    return {
+      scope: byId('locality-scope')?.value ?? 'prea',
+      name: byId('locality-name')?.value ?? '',
+      localityId: byId('locality-id')?.value ?? '',
+      radius: Number(byId('locality-radius')?.value || 2),
+      selection,
+      categories: activeCategoriesFromForm(),
+      prices,
+      nightPrices: deepClone(editing?.prices?.after22 ?? {}),
+      distancePricing,
+      nightSurcharge: byId('locality-night-surcharge')?.checked === true,
+    };
+  }
+
+  function applyForm(model) {
+    const scope = model.scope ?? 'prea';
+    byId('locality-scope').value = scope;
+    byId('locality-name').value = model.name ?? titleFromId(model.localityId);
+    byId('locality-id').value = model.localityId ?? slugify(model.name);
+    byId('locality-id-preview').textContent =
+      byId('locality-id').value || '—';
+    byId('locality-radius').value = String(model.radius ?? 2);
+
+    const categories = new Set(model.categories ?? []);
+    for (const category of PRICE_CATEGORIES) {
+      byId(`locality-category-${category}`).checked =
+        categories.has(category);
+      const price = model.prices?.[category] ?? {};
+      byId(`locality-price-${category}-kind`).value =
+        price.kind ?? 'exact';
+      byId(`locality-price-${category}-min`).value =
+        price.min ?? '';
+      byId(`locality-price-${category}-max`).value =
+        price.max ?? '';
+    }
+    byId('locality-category-comfort').checked =
+      categories.has('comfort_black');
+
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category] ?? {};
+      byId(`locality-distance-${category}-enabled`).checked =
+        distance.enabled === true;
+      byId(`locality-distance-${category}-minimum-fare`).value =
+        distance.minimumFare ?? '';
+      byId(`locality-distance-${category}-per-km`).value =
+        distance.perKm ?? '';
+      byId(`locality-distance-${category}-min-km`).value =
+        distance.minKm ?? '0';
+      byId(`locality-distance-${category}-max-km`).value =
+        distance.maxKm ?? '';
+    }
+
+    byId('locality-night-surcharge').checked =
+      model.nightSurcharge === true;
+
+    syncScopeUi();
+    const map = ensureWizardMap();
+    map?.setSelection({
+      ...(model.selection ?? scopeDefault(scope)),
+      radiusKm: model.radius ?? model.selection?.radiusKm ?? 2,
+    });
+    setMapCoordinate(map?.getSelection());
+  }
+
+  function modelFromEntry(entry) {
+    const categories = [
+      ...new Set([
+        ...categoryList(entry.policy),
+        ...(entry.distancePolicies ?? []).map(
+          (policy) => policy.category,
+        ),
+      ]),
+    ];
+    const prices = {};
+    for (const category of PRICE_CATEGORIES) {
+      const price = entry.prices?.[category];
+      prices[category] = {
+        kind: price?.kind ?? 'exact',
+        min:
+          price?.kind === 'range'
+            ? centsToInput(price.minCents)
+            : centsToInput(price?.amountCents),
+        max:
+          price?.kind === 'range'
+            ? centsToInput(price.maxCents)
+            : '',
+      };
+    }
+
+    const distancePricing = {};
+    for (const category of DISTANCE_CATEGORIES) {
+      const rule = (entry.distancePolicies ?? []).find(
+        (candidate) => candidate.category === category,
+      );
+      distancePricing[category] = {
+        enabled: rule != null,
+        minimumFare: centsToInput(rule?.minimumFareCents),
+        perKm: centsToInput(rule?.pricePerKmCents),
+        minKm: rule == null ? '0' : String(rule.minKm),
+        maxKm: rule == null ? '' : String(rule.maxKm),
+      };
+    }
+
+    return {
+      scope: entry.scope,
+      name: entry.label,
+      localityId: entry.localityId,
+      hadGeofence: entry.geofence != null,
+      radius: Number(entry.geofence?.radiusKm ?? 2),
+      selection: entry.geofence
+        ? {
+            latitude: Number(entry.geofence.centerLatitude),
+            longitude: Number(entry.geofence.centerLongitude),
+            radiusKm: Number(entry.geofence.radiusKm),
+          }
+        : {
+            ...scopeDefault(entry.scope),
+            radiusKm: 2,
+          },
+      categories,
+      prices,
+      nightPrices: deepClone(entry.prices?.after22 ?? {}),
+      distancePricing,
+      nightSurcharge:
+        entry.policy?.applyNightSurcharge === true,
+    };
+  }
+
+  function renderReview() {
+    const target = byId('locality-review');
+    if (target == null) return;
+    target.replaceChildren();
+    const model = captureForm();
+    const rows = [
+      ['Localidade', model.name || titleFromId(model.localityId)],
+      ['Base / região', scopeLabel(model.scope)],
+      ['Identificador', model.localityId || '—'],
+      ['Raio', `${Number(model.radius).toLocaleString('pt-BR')} km`],
+      [
+        'Serviços',
+        model.categories.length > 0
+          ? model.categories
+              .map((category) => CATEGORY_LABELS[category] ?? category)
+              .join(' · ')
+          : model.scope === 'external'
+            ? 'Definidos pela rota'
+            : 'Nenhum',
+      ],
+    ];
+    if (LOCAL_SCOPES.has(model.scope)) {
+      for (const category of PRICE_CATEGORIES) {
+        if (!model.categories.includes(category)) continue;
+        if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
+        const price = model.prices[category];
+        let label = '—';
+        if (price.min) {
+          try {
+            label =
+              price.kind === 'range'
+                ? priceLabel({
+                    kind: 'range',
+                    minCents: moneyToCents(price.min, 'Preço mínimo'),
+                    maxCents: moneyToCents(price.max, 'Preço máximo'),
+                  })
+                : priceLabel({
+                    kind: 'exact',
+                    amountCents: moneyToCents(price.min, 'Preço'),
+                  });
+          } catch {
+            label = 'Preço incompleto';
+          }
+        }
+        rows.push([
+          `Preço · ${CATEGORY_LABELS[category]}`,
+          label,
+        ]);
+      }
+      if (model.scope === 'prea') {
+        rows.push([
+          'Adicional noturno',
+          model.nightSurcharge ? 'Aplicar' : 'Não aplicar',
+        ]);
+      }
+    }
+
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category];
+      if (distance?.enabled !== true) continue;
+      rows.push([
+        `Por distância · ${CATEGORY_LABELS[category]}`,
+        `${distance.perKm || '—'}/km · mínimo R$ ${distance.minimumFare || '—'} · ${distance.minKm || '0'} km mínimos · até ${distance.maxKm || '—'} km`,
+      ]);
+    }
+
+    for (const [label, value] of rows) {
+      const row = element('div', 'locality-review__row');
+      row.append(
+        element('span', null, label),
+        element('strong', null, value),
+      );
+      target.append(row);
+    }
+  }
+
+  function showStep(next) {
+    step = Math.max(1, Math.min(6, Number(next) || 1));
+    for (let index = 1; index <= 6; index += 1) {
+      const panel = byId(`locality-step-${index}`);
+      if (panel != null) panel.hidden = index !== step;
+      const marker = document.querySelector(
+        `[data-locality-step="${index}"]`,
+      );
+      if (marker != null) {
+        marker.classList.toggle('is-active', index === step);
+        marker.classList.toggle('is-complete', index < step);
+      }
+    }
+    byId('locality-wizard-back').hidden = step === 1;
+    byId('locality-wizard-next').hidden = step === 6;
+    byId('locality-wizard-save').hidden = step !== 6 || mode === 'view';
+    if (step === 2) {
+      requestAnimationFrame(() => ensureWizardMap()?.render());
+    }
+    if (step === 4) {
+      for (const category of PRICE_CATEGORIES) syncPriceCard(category);
+      for (const category of DISTANCE_CATEGORIES) {
+        syncDistanceCard(category);
+      }
+    }
+    if (step === 6) renderReview();
+  }
+
+  function validateStep(current) {
+    const scope = byId('locality-scope')?.value ?? 'prea';
+    if (current === 1) {
+      const localityId = byId('locality-id')?.value.trim();
+      if (!localityId || !byId('locality-name')?.value.trim()) {
+        throw new Error('Informe o nome da localidade.');
+      }
+      if (mode === 'create' && findEntry(scope, localityId) != null) {
+        throw new Error('Já existe uma localidade com este identificador.');
+      }
+    }
+    if (current === 2) {
+      const radius = Number(byId('locality-radius')?.value);
+      if (!Number.isFinite(radius) || radius < 0.05 || radius > 100) {
+        throw new Error('O raio deve ficar entre 0,05 km e 100 km.');
+      }
+      const coordinates = parseLocalityCoordinates(
+        byId('locality-latitude')?.value,
+        byId('locality-longitude')?.value,
+      );
+      const map = ensureWizardMap();
+      if (map != null) {
+        map.setSelection({ ...map.getSelection(), ...coordinates, radiusKm: radius });
+        setMapCoordinate(map.getSelection());
+      }
+    }
+    if (current === 3 && LOCAL_SCOPES.has(scope)) {
+      if (activeCategoriesFromForm().length === 0) {
+        throw new Error('Escolha pelo menos um serviço para esta localidade.');
+      }
+    }
+    if (current === 4) {
+      const categories = activeCategoriesFromForm();
+
+      if (LOCAL_SCOPES.has(scope)) {
+        for (const category of PRICE_CATEGORIES) {
+          if (!categories.includes(category)) continue;
+          if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
+          const kind = byId(`locality-price-${category}-kind`).value;
+          const min = moneyToCents(
+            byId(`locality-price-${category}-min`).value,
+            `Preço de ${CATEGORY_LABELS[category]}`,
+          );
+          if (kind === 'range') {
+            const max = moneyToCents(
+              byId(`locality-price-${category}-max`).value,
+              `Preço máximo de ${CATEGORY_LABELS[category]}`,
+            );
+            if (max < min) {
+              throw new Error(
+                `O máximo de ${CATEGORY_LABELS[category]} não pode ser menor que o mínimo.`,
+              );
+            }
+          }
+        }
+      }
+
+      for (const category of DISTANCE_CATEGORIES) {
+        if (!categories.includes(category)) continue;
+        const enabled =
+          byId(`locality-distance-${category}-enabled`)?.checked === true;
+        if (!enabled) continue;
+
+        moneyToCents(
+          byId(`locality-distance-${category}-minimum-fare`)?.value,
+          `Corrida mínima de ${CATEGORY_LABELS[category]}`,
+        );
+        moneyToCents(
+          byId(`locality-distance-${category}-per-km`)?.value,
+          `Preço por km de ${CATEGORY_LABELS[category]}`,
+        );
+
+        const minKm = Number(
+          byId(`locality-distance-${category}-min-km`)?.value,
+        );
+        const maxKm = Number(
+          byId(`locality-distance-${category}-max-km`)?.value,
+        );
+        if (!Number.isFinite(minKm) || minKm < 0 || minKm > 1000) {
+          throw new Error(
+            `Mínimo de km de ${CATEGORY_LABELS[category]} é inválido.`,
+          );
+        }
+        if (
+          !Number.isFinite(maxKm) ||
+          maxKm <= minKm ||
+          maxKm > 2000
+        ) {
+          throw new Error(
+            `Km máximo de ${CATEGORY_LABELS[category]} deve ser maior que o mínimo.`,
+          );
+        }
+      }
+    }
+  }
+
+  function openWizard(nextMode, entry = null) {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de abrir outra.', 'danger');
+      return;
+    }
+    if (nextMode !== 'view' && !hasScope('pricing:write')) return;
+    // Switching between new/edit or selecting a map location must not
+    // silently overwrite unsaved values in the currently open wizard.
+    if (
+      hasUnsavedWizardChanges() &&
+      !window.confirm('Descartar as alterações não salvas desta localidade?')
+    ) {
+      return;
+    }
+    mode = nextMode;
+    editing = entry;
+    setMessage();
+    const wizard = byId('locality-wizard');
+    if (wizard != null) wizard.hidden = false;
+    byId('locality-wizard-title').textContent =
+      nextMode === 'view'
+        ? 'Visualizar localidade'
+        : nextMode === 'edit'
+          ? 'Editar localidade'
+          : 'Nova localidade';
+    byId('locality-wizard-subtitle').textContent =
+      nextMode === 'view'
+        ? 'Consulta somente de leitura. Para alterar valores, solicite permissão.'
+        : nextMode === 'edit'
+          ? 'Altere somente o necessário e salve no rascunho.'
+          : 'Preencha uma etapa por vez. Nada é publicado automaticamente.';
+    byId('locality-scope').disabled = nextMode !== 'create';
+    // The display name is editable for writers; stable price keys never change.
+    byId('locality-name').disabled = nextMode === 'view';
+
+    const model =
+      entry != null
+        ? modelFromEntry(entry)
+        : {
+            scope: 'prea',
+            name: '',
+            localityId: '',
+            radius: 2,
+            selection: { ...scopeDefault('prea'), radiusKm: 2 },
+            categories: [],
+            prices: {},
+            distancePricing: {},
+            nightSurcharge: false,
+          };
+    applyForm(model);
+    const readOnly = nextMode === 'view';
+    for (const field of wizard?.querySelectorAll('.locality-wizard__body input, .locality-wizard__body select') ?? []) {
+      // Keep visible values readable, but never expose editable inputs
+      // to accounts that only have pricing:read.
+      field.disabled = readOnly || field.id === 'locality-scope' && nextMode === 'edit';
+    }
+    byId('locality-apply-coordinates').disabled = readOnly;
+    byId('locality-wizard-reset').hidden = readOnly;
+    initialForm = deepClone(captureForm());
+    showStep(1);
+    wizard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function hasUnsavedWizardChanges() {
+    if (byId('locality-wizard')?.hidden !== false || initialForm == null) {
+      return false;
+    }
+    try {
+      return JSON.stringify(captureForm()) !== JSON.stringify(initialForm);
+    } catch {
+      // A temporarily invalid field is still user input worth preserving.
+      return true;
+    }
+  }
+
+  function closeWizard(options = {}) {
+    if (saving && options?.force !== true) {
+      setMessage('Aguarde o salvamento da localidade antes de fechar.', 'danger');
+      return;
+    }
+    if (
+      options?.force !== true &&
+      hasUnsavedWizardChanges() &&
+      !window.confirm('Descartar as alterações não salvas desta localidade?')
+    ) {
+      return;
+    }
+    const wizard = byId('locality-wizard');
+    if (wizard != null) wizard.hidden = true;
+    editing = null;
+    initialForm = null;
+    mode = 'create';
+    setMessage();
+  }
+
+  function openEdit(scope, localityId) {
+    const entry = findEntry(scope, localityId);
+    if (entry == null) return;
+    openWizard(hasScope('pricing:write') ? 'edit' : 'view', entry);
+  }
+
+  async function ensureDraft() {
+    if (draft?.status === 'draft') return draft;
+    const currentToken = token();
+    if (!currentToken) throw new Error('Sessão administrativa expirada.');
+    const created = await api.createPricingVersion(currentToken);
+    const payload = await api.getPricingVersion(currentToken, created.id);
+    draft = payload.version;
+    catalog = payload.catalog;
+    return draft;
+  }
+
+  async function applyPatch(patch) {
+    const currentToken = token();
+    if (!currentToken) throw new Error('Sessão administrativa expirada.');
+    const version = await ensureDraft();
+    const payload = await api.updatePricingVersion(currentToken, {
+      versionId: version.id,
+      patch,
+      expectedUpdatedAt: version.updatedAt,
+    });
+    draft = payload.version;
+    catalog = payload.catalog;
+    return payload;
+  }
+
+  function buildPricePatch(scope, localityId, category, price) {
+    const min = moneyToCents(
+      price.min,
+      `Preço de ${CATEGORY_LABELS[category]}`,
+    );
+    return {
+      kind: 'locality_price',
+      hub: scope,
+      localityId,
+      category,
+      price:
+        price.kind === 'range'
+          ? {
+              kind: 'range',
+              minCents: min,
+              maxCents: moneyToCents(
+                price.max,
+                `Preço máximo de ${CATEGORY_LABELS[category]}`,
+              ),
+            }
+          : { kind: 'exact', amountCents: min },
+    };
+  }
+
+  function buildDistancePolicyPatch(
+    scope,
+    localityId,
+    category,
+    distance,
+    operation = 'upsert',
+  ) {
+    const base = {
+      kind: 'distance_fare_policy',
+      operation,
+      anchorZoneId: scope,
+      anchorLocalityId: localityId,
+      category,
+    };
+    if (operation === 'remove') return base;
+    return {
+      ...base,
+      minKm: Number(distance.minKm || 0),
+      maxKm: Number(distance.maxKm),
+      minimumFareCents: moneyToCents(
+        distance.minimumFare,
+        `Corrida mínima de ${CATEGORY_LABELS[category]}`,
+      ),
+      pricePerKmCents: moneyToCents(
+        distance.perKm,
+        `Preço por km de ${CATEGORY_LABELS[category]}`,
+      ),
+    };
+  }
+
+  async function saveWizard() {
+    if (saving) return;
+    saving = true;
+    const wizard = byId('locality-wizard');
+    const controls = [...(wizard?.querySelectorAll('input, select, button') ?? [])];
+    const previousDisabled = controls.map((field) => field.disabled);
+    for (const field of controls) field.disabled = true;
+    setMessage('Salvando localidade no rascunho…');
+    try {
+    if (!hasScope('pricing:write')) {
+      throw new Error('Sua conta não pode editar localidades.');
+    }
+    for (let current = 1; current <= 5; current += 1) {
+      validateStep(current);
+    }
+    const model = captureForm();
+    const localityId = model.localityId;
+    const existing = findEntry(model.scope, localityId);
+    const patches = [];
+
+    if (existing == null) {
+      patches.push({
+        kind: 'locality_structure',
+        operation: 'add',
+        scope: model.scope,
+        localityId,
+      });
+    }
+
+    if (existing == null || existing.label !== model.name.trim()) {
+      patches.push({
+        kind: 'locality_label',
+        scope: model.scope,
+        localityId,
+        label: model.name.trim(),
+      });
+    }
+
+    patches.push({
+      kind: 'locality_geofence',
+      operation: 'upsert',
+      zoneId: model.scope,
+      localityId,
+      centerLatitude: model.selection.latitude,
+      centerLongitude: model.selection.longitude,
+      radiusKm: model.radius,
+    });
+
+    if (LOCAL_SCOPES.has(model.scope)) {
+      for (const category of PRICE_CATEGORIES) {
+        if (!model.categories.includes(category)) continue;
+        if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
+        patches.push(
+          buildPricePatch(
+            model.scope,
+            localityId,
+            category,
+            model.prices[category],
+          ),
+        );
+      }
+      patches.push({
+        kind: 'locality_policy',
+        hub: model.scope,
+        localityId,
+        enabledCategories: model.categories,
+        applyNightSurcharge:
+          LOCAL_SCOPES.has(model.scope) && model.nightSurcharge,
+      });
+    }
+
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category];
+      const existingRule = existing?.distancePolicies?.some(
+        (rule) => rule.category === category,
+      ) === true;
+
+      if (
+        model.categories.includes(category) &&
+        distance?.enabled === true
+      ) {
+        patches.push(
+          buildDistancePolicyPatch(
+            model.scope,
+            localityId,
+            category,
+            distance,
+          ),
+        );
+      } else if (existingRule) {
+        patches.push(
+          buildDistancePolicyPatch(
+            model.scope,
+            localityId,
+            category,
+            distance ?? {},
+            'remove',
+          ),
+        );
+      }
+    }
+
+    // One backend compare-and-swap persists the entire locality.
+    // Invalid patches and concurrent writers cannot persist fragments.
+    await applyPatch({ kind: 'batch', patches });
+
+    const savedMode = mode;
+    await refresh({ announce: false });
+    closeWizard({ force: true });
+    setMessage(
+      savedMode === 'edit'
+        ? 'Localidade atualizada no rascunho. Nada foi publicado ainda.'
+        : 'Localidade adicionada ao rascunho. Nada foi publicado ainda.',
+      'success',
+    );
+    } catch (error) {
+      // A timeout may mean the atomic write succeeded without a response.
+      // Reload the draft before retrying; each batch is one CAS update, never
+      // a partially persisted locality. Keep field values in the wizard.
+      try {
+        await refresh({ announce: false });
+      } catch {
+        // Keep the original save error; reloading can be retried manually.
+      }
+      throw new Error(
+        'Não foi possível concluir o salvamento: ' + errorMessage(error) +
+        ' O lote é indivisível, mas o servidor pode ter concluído a gravação. ' +
+        'Confira o rascunho antes de tentar novamente ou publicar.',
+      );
+    } finally {
+      saving = false;
+      controls.forEach((field, index) => {
+        field.disabled = previousDisabled[index];
+      });
+    }
+  }
+
+  async function deleteEntry(entry) {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de excluir.', 'danger');
+      return;
+    }
+    if (!hasScope('pricing:write')) {
+      throw new Error('Sua conta não pode excluir localidades.');
+    }
+    const confirmed = window.confirm(
+      `Excluir "${entry.label}" do rascunho? A versão publicada não muda até você publicar o rascunho.`,
+    );
+    if (!confirmed) return;
+    lastDeleted = deepClone(modelFromEntry(entry));
+    await applyPatch({
+      kind: 'locality_structure',
+      operation: 'remove',
+      scope: entry.scope,
+      localityId: entry.localityId,
+    });
+    await refresh({ announce: false });
+    renderUndoDelete();
+    setMessage(
+      'Localidade removida somente do rascunho. Você pode desfazer antes de publicar.',
+      'success',
+    );
+  }
+
+  function renderUndoDelete() {
+    const existing = byId('localities-undo-delete');
+    existing?.remove();
+    if (lastDeleted == null) return;
+    const holder = byId('localities-message')?.parentElement;
+    if (holder == null) return;
+    const button = element(
+      'button',
+      'button button--ghost-dark localities-undo-delete',
+      'Desfazer última exclusão',
+    );
+    button.id = 'localities-undo-delete';
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      void undoDelete().catch(handleError);
+    });
+    holder.insertBefore(button, byId('localities-message')?.nextSibling ?? null);
+  }
+
+  function selectedMunicipalityEntry() {
+    return allEntries().find(x => entryKey(x) === byId('municipality-entry')?.value) ?? null;
+  }
+  function showMunicipalitySelection() {
+    const entry = selectedMunicipalityEntry();
+    const value = entry?.municipality;
+    if (byId('municipality-id')) byId('municipality-id').value = value?.municipalityId ?? '';
+    if (byId('municipality-source')) byId('municipality-source').value = value?.sourceUrl ?? '';
+    const status = byId('municipality-status');
+    if (status) status.textContent = value?.status === 'confirmed'
+      ? 'Município confirmado. Tarifas e regiões operacionais permanecem separadas.'
+      : 'Município pendente: confirme a localização com fonte pública.';
+  }
+  function renderMunicipalityPanel(entries) {
+    const select = byId('municipality-entry');
+    if (!select) return;
+    const previous = select.value;
+    select.replaceChildren();
+    for (const entry of entries) {
+      const option = document.createElement('option');
+      option.value = entryKey(entry);
+      option.textContent = entry.label + ' · ' + scopeLabel(entry.scope);
+      select.append(option);
+    }
+    if (entries.some(entry => entryKey(entry) === previous)) select.value = previous;
+    showMunicipalitySelection();
+    if (byId('municipality-save')) byId('municipality-save').disabled = !hasScope('pricing:write');
+  }
+  async function saveMunicipalityAssignment() {
+    if (saving || !hasScope('pricing:write')) return;
+    const entry = selectedMunicipalityEntry();
+    if (!entry) throw new Error('Selecione uma localidade.');
+    if (hasUnsavedWizardChanges()) throw new Error(
+      'Salve ou descarte primeiro as alterações abertas da localidade.');
+    const municipalityId = byId('municipality-id')?.value || null;
+    const sourceUrl = byId('municipality-source')?.value.trim() || null;
+    if (municipalityId && (!sourceUrl || !sourceUrl.startsWith('https://'))) {
+      throw new Error('Confirme o município com uma fonte pública HTTPS.');
+    }
+    saving = true;
+    try {
+      await applyPatch({kind:'municipality_assignment',scope:entry.scope,
+        localityId:entry.localityId,municipalityId,
+        status:municipalityId ? 'confirmed' : 'pending_review',
+        sourceUrl:municipalityId ? sourceUrl : null});
+      await refresh({announce:false});
+      setMessage('Município salvo no rascunho. Nenhuma tarifa foi publicada.','success');
+    } finally {saving = false;}
+  }
+  async function undoDelete() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de desfazer a exclusão.', 'danger');
+      return;
+    }
+    if (lastDeleted == null) return;
+    const model = lastDeleted;
+    if (!hasScope('pricing:write')) {
+      throw new Error('Sua conta não pode restaurar localidades.');
+    }
+    const patches = [];
+    patches.push({
+      kind: 'locality_structure',
+      operation: 'add',
+      scope: model.scope,
+      localityId: model.localityId,
+    });
+    // Restore the user-facing name separately from the stable pricing ID.
+    patches.push({
+      kind: 'locality_label',
+      scope: model.scope,
+      localityId: model.localityId,
+      label: model.name,
+    });
+    if (model.hadGeofence !== false) {
+      patches.push({
+        kind: 'locality_geofence',
+        operation: 'upsert',
+        zoneId: model.scope,
+        localityId: model.localityId,
+        centerLatitude: model.selection.latitude,
+        centerLongitude: model.selection.longitude,
+        radiusKm: model.radius,
+      });
+    }
+    if (LOCAL_SCOPES.has(model.scope)) {
+      for (const category of PRICE_CATEGORIES) {
+        if (!model.categories.includes(category)) continue;
+        if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
+        const price = model.prices?.[category];
+        if (!price?.min) continue;
+        patches.push(
+          buildPricePatch(
+            model.scope,
+            model.localityId,
+            category,
+            price,
+          ),
+        );
+      }
+      for (const [category,price] of Object.entries(model.nightPrices ?? {})) {
+        if (price != null) patches.push({kind:'locality_price',hub:model.scope,localityId:model.localityId,category,period:'after_22',price});
+      }
+      patches.push({
+        kind: 'locality_policy',
+        hub: model.scope,
+        localityId: model.localityId,
+        enabledCategories: model.categories,
+        applyNightSurcharge:
+          LOCAL_SCOPES.has(model.scope) && model.nightSurcharge,
+      });
+    }
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category];
+      if (distance?.enabled !== true) continue;
+      patches.push(
+        buildDistancePolicyPatch(
+          model.scope,
+          model.localityId,
+          category,
+          distance,
+        ),
+      );
+    }
+    await applyPatch({ kind: 'batch', patches });
+    lastDeleted = null;
+    await refresh({ announce: false });
+    renderUndoDelete();
+    setMessage('Exclusão desfeita no rascunho.', 'success');
+  }
+
+  function renderDirectory() {
+    const entries = allEntries();
+    byId('localities-total').textContent = String(entries.length);
+    byId('localities-geofenced').textContent = String(
+      entries.filter((entry) => entry.geofence != null).length,
+    );
+    byId('localities-prea').textContent = String(
+      entries.filter((entry) => entry.scope === 'prea').length,
+    );
+    byId('localities-jijoca').textContent = String(
+      entries.filter((entry) => entry.scope === 'jijoca').length,
+    );
+    byId('localities-list-count').textContent =
+      `${entries.length} cadastrada(s)`;
+
+    renderMunicipalityPanel(entries);
+    const list = byId('localities-list');
+    list.replaceChildren();
+
+    for (const entry of entries) {
+      const card = element('article', 'locality-directory-item');
+      card.dataset.key = entryKey(entry);
+
+      const top = element('div', 'locality-directory-item__top');
+      const name = element('div');
+      name.append(
+        element('strong', null, entry.label),
+        element(
+          'small',
+          null,
+          `${scopeLabel(entry.scope)} · ${entry.localityId} · ${entry.municipalityLabel ?? entry.municipality?.municipalityId ?? "Município a confirmar"}`,
+        ),
+      );
+      const radius = element(
+        'span',
+        'pill',
+        entry.geofence
+          ? `${Number(entry.geofence.radiusKm).toLocaleString('pt-BR')} km`
+          : 'Sem área',
+      );
+      top.append(name, radius);
+
+      const details = element('div', 'locality-directory-item__details');
+      if (LOCAL_SCOPES.has(entry.scope)) {
+        const categories = categoryList(entry.policy);
+        details.textContent =
+          categories.length > 0
+            ? categories
+                .map((category) => CATEGORY_LABELS[category] ?? category)
+                .join(' · ')
+            : 'Nenhum serviço habilitado';
+      } else {
+        const categories = [
+          ...new Set(
+            (entry.distancePolicies ?? []).map(
+              (rule) => CATEGORY_LABELS[rule.category] ?? rule.category,
+            ),
+          ),
+        ];
+        details.textContent =
+          categories.length > 0
+            ? `Preço fixo quando existir · por distância: ${categories.join(' · ')}`
+            : 'Preço definido por rota fixa';
+      }
+
+      const actions = element('div', 'locality-directory-item__actions');
+      const edit = element(
+        'button',
+        'button button--table',
+        hasScope('pricing:write') ? 'Editar' : 'Visualizar',
+      );
+      edit.type = 'button';
+      edit.addEventListener('click', () => openEdit(entry.scope, entry.localityId));
+      actions.append(edit);
+      if (hasScope('pricing:write')) {
+        const remove = element(
+          'button',
+          'button button--table button--danger-soft',
+          'Excluir',
+        );
+        remove.type = 'button';
+        remove.addEventListener('click', () => {
+          void deleteEntry(entry).catch(handleError);
+        });
+        actions.append(remove);
+      }
+
+      card.append(top, details, actions);
+      list.append(card);
+    }
+
+    byId('localities-empty').hidden = entries.length !== 0;
+
+    const areas = entries
+      .filter((entry) => entry.geofence != null)
+      .map((entry) => ({
+        ...entry.geofence,
+        label: entry.label,
+      }));
+    ensureOverviewMap()?.setAreas(areas);
+  }
+
+  function renderDraftStatus() {
+    const canWrite = hasScope('pricing:write');
+
+    const target = byId('localities-draft-status');
+    if (target != null) {
+      target.textContent =
+        draft?.status === 'draft'
+          ? `Rascunho #${draft.versionNumber} · ainda não publicado`
+          : 'Sem alterações pendentes';
+    }
+
+    const currentDraft = byId('localities-current-draft');
+    if (currentDraft != null) {
+      currentDraft.textContent =
+        draft?.status === 'draft'
+          ? `#${draft.versionNumber}`
+          : 'Nenhum';
+    }
+
+    const effectiveVersion = byId('localities-effective-version');
+    if (effectiveVersion != null) {
+      const effective = versionItems.find(
+        (version) => version.id === effectiveVersionId,
+      );
+      effectiveVersion.textContent =
+        effective == null
+          ? 'Catálogo padrão'
+          : `#${effective.versionNumber}`;
+    }
+
+    const publish = byId('localities-publish-draft-button');
+    const discard = byId('localities-discard-draft-button');
+    if (publish != null) {
+      publish.hidden = !canWrite || draft?.status !== 'draft';
+      publish.disabled = false;
+    }
+    if (discard != null) {
+      discard.hidden = !canWrite || draft?.status !== 'draft';
+      discard.disabled = false;
+    }
+
+    const create = byId('localities-new-button');
+    if (create != null) create.hidden = !canWrite;
+  }
+
+
+  function renderRegionalPricing() {
+    const zone = byId('regional-fare-zone')?.value ?? 'prea';
+    const category = byId('regional-fare-category')?.value ?? 'moto';
+    const published = (catalog?.distanceFarePolicies ?? []).find((rule) =>
+      rule.scope === 'intra_zone' &&
+      rule.anchorZoneId === zone && rule.category === category);
+    const field = (id, value) => {
+      const element = byId(id);
+      if (element != null) element.value = value == null ? '' : String(value);
+    };
+    field('regional-fare-day-min', published && centsToInput(published.minimumFareCents));
+    field('regional-fare-day-km', published && centsToInput(published.pricePerKmCents));
+    field('regional-fare-night-min', published && centsToInput(published.after22MinimumFareCents));
+    field('regional-fare-night-km', published && centsToInput(published.after22PricePerKmCents));
+    field('regional-fare-min-km', published?.minKm ?? 0);
+    field('regional-fare-max-km', published?.maxKm);
+    const choices = byId('regional-fare-localities');
+    choices?.replaceChildren();
+    const allow = new Set(published?.coveredLocalityIds ?? []);
+    const places = Array.isArray(catalog?.localities?.[zone])
+      ? catalog.localities[zone] : [];
+    for (const place of places) {
+      const label = element('label', 'locality-distance-choice');
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.value = place.localityId;
+      check.checked = allow.has(place.localityId);
+      label.append(check, document.createTextNode(' ' +
+        (catalog?.localityDisplayNames?.[zone]?.[place.localityId] ??
+          titleFromId(place.localityId))));
+      choices?.append(label);
+    }
+    const status = byId('regional-fare-status');
+    if (status != null) status.textContent = published
+      ? 'Regra configurada nesta versão do catálogo. Confira os valores e o rascunho antes de publicar.'
+      : 'Desativada: sem regra cadastrada para esta região e categoria.';
+    const editable = hasScope('pricing:write');
+    if (byId('regional-fare-save')) byId('regional-fare-save').disabled = !editable;
+    if (byId('regional-fare-remove')) {
+      byId('regional-fare-remove').hidden = published == null;
+      byId('regional-fare-remove').disabled = !editable;
+    }
+  }
+
+  function currentRegionalPatch(operation) {
+    const zone = byId('regional-fare-zone')?.value ?? 'prea';
+    const category = byId('regional-fare-category')?.value ?? 'moto';
+    const base = {
+      kind: 'distance_fare_policy', operation,
+      scope: 'intra_zone', anchorZoneId: zone,
+      anchorLocalityId: zone, category,
+    };
+    if (operation === 'remove') return base;
+    const chosen = [...(byId('regional-fare-localities')
+      ?.querySelectorAll('input[type="checkbox"]:checked') ?? [])]
+      .map(input => input.value);
+    if (chosen.length < 2) throw new Error(
+      'Escolha pelo menos duas localidades antes de salvar a regra regional.');
+    const decimal = (id, label, min, max) => {
+      const raw = byId(id)?.value.trim();
+      if (!raw) throw new Error('Informe ' + label + '.');
+      const number = Number(raw);
+      if (!Number.isFinite(number) || number < min || number > max) {
+        throw new Error('Valor inválido: ' + label + '.');
+      }
+      return number;
+    };
+    const minKm = decimal('regional-fare-min-km', 'km mínimo', 0, 1000);
+    const maxKm = decimal('regional-fare-max-km', 'km máximo', 0.05, 2000);
+    if (maxKm <= minKm) throw new Error('O km máximo deve ser maior que o mínimo.');
+    return {
+      ...base, coveredLocalityIds: chosen,
+      minKm, maxKm,
+      minimumFareCents: moneyToCents(byId('regional-fare-day-min').value, 'Mínimo diurno'),
+      pricePerKmCents: moneyToCents(byId('regional-fare-day-km').value, 'Km diurno'),
+      after22MinimumFareCents: moneyToCents(byId('regional-fare-night-min').value, 'Mínimo noturno'),
+      after22PricePerKmCents: moneyToCents(byId('regional-fare-night-km').value, 'Km noturno'),
+    };
+  }
+
+  async function saveRegionalPricing(operation = 'upsert') {
+    if (saving || !hasScope('pricing:write')) return;
+    if (hasUnsavedWizardChanges()) throw new Error(
+      'Salve ou descarte as alterações da localidade antes de editar regras regionais.');
+    const patch = currentRegionalPatch(operation);
+    saving = true;
+    try {
+      await applyPatch(patch);
+      await refresh({announce: false});
+      setMessage(
+        operation === 'remove'
+          ? 'Regra regional desativada no rascunho. Nenhum preço publicado foi alterado.'
+          : 'Regra regional salva no rascunho. Confira todas as localidades antes de publicar.',
+        'success',
+      );
+    } finally { saving = false; }
+  }
+
+  async function refresh({ announce = true } = {}) {
+    const currentToken = token();
+    if (!currentToken || !hasScope('pricing:read')) {
+      catalog = null;
+      draft = null;
+      versionItems = [];
+      effectiveVersionId = null;
+      renderDirectory();
+      renderDraftStatus();
+      renderRegionalPricing();
+      return;
+    }
+    const versionsPayload = await api.pricingVersions(currentToken);
+    const items = Array.isArray(versionsPayload?.items)
+      ? versionsPayload.items
+      : [];
+    versionItems = items;
+    effectiveVersionId =
+      typeof versionsPayload?.effectiveVersionId === 'string'
+        ? versionsPayload.effectiveVersionId
+        : null;
+    const draftVersion =
+      items.find((version) => version.status === 'draft') ?? null;
+    if (draftVersion != null) {
+      const payload = await api.getPricingVersion(
+        currentToken,
+        draftVersion.id,
+      );
+      draft = payload.version;
+      catalog = payload.catalog;
+    } else {
+      draft = null;
+      catalog = await api.pricingCatalog(currentToken);
+    }
+    if (!mounted) return;
+    renderDirectory();
+    renderDraftStatus();
+    renderRegionalPricing();
+    if (announce) setMessage('Localidades atualizadas.', 'success');
+  }
+
+  async function publishDraftNow() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de publicar.', 'danger');
+      return;
+    }
+    if (
+      draft?.status !== 'draft' ||
+      !hasScope('pricing:write')
+    ) {
+      return;
+    }
+
+    // Publishing updates the effective fare catalog, so never silently
+    // ignore a locality form that is still being edited on the screen.
+    if (hasUnsavedWizardChanges()) {
+      setMessage(
+        'Salve ou descarte as alterações da localidade antes de publicar o rascunho.',
+        'danger',
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Publicar agora o rascunho #${draft.versionNumber}? As localidades e tarifas deste rascunho passarão a valer no app.`,
+    );
+    if (!confirmed) return;
+
+    const button = byId('localities-publish-draft-button');
+    if (button != null) button.disabled = true;
+    try {
+      await api.publishPricingVersion(token(), {
+        versionId: draft.id,
+        expectedUpdatedAt: draft.updatedAt,
+      });
+      await refresh({ announce: false });
+      setMessage(
+        'Rascunho publicado. As alterações agora estão em vigor.',
+        'success',
+      );
+    } finally {
+      if (button != null) button.disabled = false;
+    }
+  }
+
+  async function discardDraft() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de descartar o rascunho.', 'danger');
+      return;
+    }
+    if (
+      draft?.status !== 'draft' ||
+      !hasScope('pricing:write')
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Excluir o rascunho #${draft.versionNumber}? Todas as alterações ainda não publicadas desse rascunho serão descartadas.`,
+    );
+    if (!confirmed) return;
+
+    const button = byId('localities-discard-draft-button');
+    if (button != null) button.disabled = true;
+    try {
+      await api.deletePricingVersion(token(), {
+        versionId: draft.id,
+        expectedUpdatedAt: draft.updatedAt,
+      });
+      closeWizard({ force: true });
+      lastDeleted = null;
+      renderUndoDelete();
+      await refresh({ announce: false });
+      setMessage(
+        'Rascunho excluído. O catálogo que já estava publicado não foi alterado.',
+        'success',
+      );
+    } finally {
+      if (button != null) button.disabled = false;
+    }
+  }
+
+  function bind() {
+    byId('municipality-entry')?.addEventListener('change',showMunicipalitySelection);
+    byId('municipality-save')?.addEventListener('click',()=>void saveMunicipalityAssignment().catch(handleError));
+    for (const id of ['regional-fare-zone', 'regional-fare-category']) {
+      byId(id)?.addEventListener('change', renderRegionalPricing);
+    }
+    byId('regional-fare-save')?.addEventListener('click', () =>
+      void saveRegionalPricing().catch(handleError));
+    byId('regional-fare-remove')?.addEventListener('click', () => {
+      if (!window.confirm('Desativar esta regra apenas no rascunho?')) return;
+      void saveRegionalPricing('remove').catch(handleError);
+    });
+    byId('localities-refresh-button')?.addEventListener('click', () => {
+      if (saving) {
+        setMessage('Aguarde o salvamento antes de atualizar a lista.', 'danger');
+        return;
+      }
+      void refresh().catch(handleError);
+    });
+    byId('localities-new-button')?.addEventListener('click', () => {
+      openWizard('create');
+    });
+    byId('localities-publish-draft-button')?.addEventListener(
+      'click',
+      () => {
+        void publishDraftNow().catch(handleError);
+      },
+    );
+    byId('localities-discard-draft-button')?.addEventListener(
+      'click',
+      () => {
+        void discardDraft().catch(handleError);
+      },
+    );
+    byId('locality-wizard-close')?.addEventListener('click', closeWizard);
+    byId('locality-wizard-cancel')?.addEventListener('click', closeWizard);
+    byId('locality-wizard-reset')?.addEventListener('click', () => {
+      if (initialForm != null) {
+        applyForm(deepClone(initialForm));
+        showStep(1);
+        setMessage('Alterações locais desfeitas.', 'success');
+      }
+    });
+    byId('locality-wizard-back')?.addEventListener('click', () => {
+      showStep(step - 1);
+    });
+    byId('locality-wizard-next')?.addEventListener('click', () => {
+      try {
+        validateStep(step);
+        showStep(step + 1);
+      } catch (error) {
+        setMessage(errorMessage(error), 'danger');
+      }
+    });
+    byId('locality-wizard-save')?.addEventListener('click', () => {
+      // A synthetic or queued click must not unlock the button while the
+      // original operation is still writing versioned draft patches.
+      if (saving) return;
+      const button = byId('locality-wizard-save');
+      button.disabled = true;
+      void saveWizard()
+        .catch(handleError)
+        .finally(() => {
+          button.disabled = false;
+        });
+    });
+
+    byId('locality-scope')?.addEventListener('change', () => {
+      syncScopeUi();
+      updateMapFromScope();
+    });
+    byId('locality-name')?.addEventListener('input', syncIdPreview);
+    byId('locality-apply-coordinates')?.addEventListener('click', () => {
+      try {
+        const coordinates = parseLocalityCoordinates(byId('locality-latitude')?.value, byId('locality-longitude')?.value);
+        const map = ensureWizardMap();
+        if (map == null) throw new Error('Não foi possível abrir o mapa.');
+        map.setSelection({ ...map.getSelection(), ...coordinates });
+        setMapCoordinate(map.getSelection());
+        setMessage('Alfinete atualizado pelas coordenadas.', 'success');
+      } catch (error) { handleError(error); }
+    });
+    byId('locality-radius')?.addEventListener('input', () => {
+      const radius = Number(byId('locality-radius')?.value);
+      if (Number.isFinite(radius) && radius >= 0.05) {
+        ensureWizardMap()?.setRadiusKm(radius);
+        const selection = ensureWizardMap()?.getSelection();
+        setMapCoordinate(selection);
+      }
+    });
+
+    for (const category of PRICE_CATEGORIES) {
+      byId(`locality-category-${category}`)?.addEventListener(
+        'change',
+        () => {
+          if (
+            category === 'car' &&
+            byId('locality-category-car')?.checked !== true
+          ) {
+            const comfort = byId('locality-category-comfort');
+            if (comfort != null) comfort.checked = false;
+          }
+          syncPriceCard(category);
+          syncDistanceCard(category);
+          if (category === 'car') {
+            syncDistanceCard('comfort_black');
+          }
+        },
+      );
+      byId(`locality-price-${category}-kind`)?.addEventListener(
+        'change',
+        () => syncPriceCard(category),
+      );
+    }
+
+    byId('locality-category-comfort')?.addEventListener('change', () => {
+      if (byId('locality-category-comfort')?.checked === true) {
+        const car = byId('locality-category-car');
+        if (car != null) car.checked = true;
+        syncPriceCard('car');
+        syncDistanceCard('car');
+      }
+      syncDistanceCard('comfort_black');
+    });
+
+    for (const category of DISTANCE_CATEGORIES) {
+      byId(`locality-distance-${category}-enabled`)?.addEventListener(
+        'change',
+        () => syncDistanceCard(category),
+      );
+    }
+  }
+
+  for (const id of [
+    ...LOCALITY_CATEGORY_CONTROL_IDS,
+    ...LOCALITY_PRICE_CONTROL_IDS,
+    ...DISTANCE_CONTROL_IDS,
+  ]) {
+    if (byId(id) == null) {
+      throw new Error(`Controle de localidade ausente: ${id}`);
+    }
+  }
+
+  bind();
+  renderDraftStatus();
+  void refresh({ announce: false }).catch(handleError);
+
+  return {
+    refresh,
+    destroy() {
+      mounted = false;
+      overviewMap?.destroy();
+      wizardMap?.destroy();
+      overviewMap = null;
+      wizardMap = null;
+    },
+  };
+}
