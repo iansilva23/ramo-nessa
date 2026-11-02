@@ -122,3 +122,31 @@ test('diagnostic: accepted prepayment hold is reserved before driver becomes bus
   assert.equal(after.reservedRideId,rideId);
  } finally {await pool.end();}
 });
+
+
+test('diagnostic: going offline before acceptance leaves offer pending', { skip: process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only' }, async () => {
+  const url = new URL(process.env.DATABASE_URL ?? '');
+  assert.equal(url.hostname, '127.0.0.1'); assert.equal(url.pathname, '/ramo_lock_test');
+  const pool = createPostgresPool(url.toString());
+  const rides = new PostgresRideRepository(pool), drivers = new PostgresDriverSupplyRepository(pool);
+  const matching = new PostgresRideMatchingRepository(pool);
+  const start = new Date('2026-10-01T12:00:00.000Z');
+  const rideId = randomUUID(), driverId = 'offline-diagnostic-' + randomUUID(), vehicleId = randomUUID();
+  try {
+    await rides.create({ id: rideId, passengerId: 'diagnostic-' + randomUUID(), state: 'PAID', paymentStatus: 'paid',
+      origin: {zoneId: 'prea'}, destination: {zoneId: 'jijoca'}, category: 'car', period: 'day', passengers: 1,
+      quote: {ruleId:'test', baseAmountCents:1000, pickupCompensationCents:0, totalAmountCents:1000, platformCommissionCents:100, driverNetCents:900},
+      createdAt:start.toISOString(), updatedAt:start.toISOString() });
+    const supply = {driverId, vehicleId, categories:['car'] as ('car')[], fourByFour:false, seatCapacity:4,
+      online:true, busy:false, latitude:-2.821, longitude:-40.414, locationUpdatedAt:start.toISOString(), updatedAt:start.toISOString()};
+    await drivers.upsert(supply);
+    const offer = await matching.createOffer({rideId, driverId, approximatePickupDistanceKm:1,
+      createdAt:start.toISOString(), expiresAt:new Date(start.getTime()+35000).toISOString()});
+    await drivers.upsert({...supply, online:false}, {preserveRideState:true});
+    await assert.rejects(() => matching.acceptOffer({offerId:offer.offer.id, driverId,
+      acceptedAt:new Date(start.getTime()+5000).toISOString()}), (error: unknown) =>
+        typeof error === 'object' && error !== null && 'code' in error && error.code === 'DRIVER_NOT_AVAILABLE');
+    assert.equal((await matching.findOfferById(offer.offer.id))?.status, 'OFFERED');
+    assert.equal((await rides.findById(rideId))?.state, 'SEARCHING_DRIVER');
+  } finally { await pool.end(); }
+});
