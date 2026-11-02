@@ -232,3 +232,29 @@ test('recovery invokes real dispatch and retry does not duplicate the offer', {s
     assert.equal((await rides.findById(rideId))?.paymentStatus,'paid');
   }finally{await pool.end();}
 });
+
+test('idle lock serializes with creation of a paid offer', {skip:process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only'}, async()=>{
+  const url=new URL(process.env.DATABASE_URL ?? ''); assert.equal(url.hostname,'127.0.0.1'); assert.equal(url.pathname,'/ramo_lock_test');
+  const pool=createPostgresPool(url.toString()),rides=new PostgresRideRepository(pool),drivers=new PostgresDriverSupplyRepository(pool),matching=new PostgresRideMatchingRepository(pool);
+  const now=new Date('2026-10-01T12:00:00.000Z'),at=now.toISOString();
+  try {
+    for(let i=0;i<20;i++) {
+      const driverId='idle-lock-'+randomUUID(),rideId=randomUUID();
+      await drivers.upsert({driverId,vehicleId:randomUUID(),categories:['car'],fourByFour:false,seatCapacity:4,online:true,busy:false,latitude:-2.821,longitude:-40.414,locationUpdatedAt:at,updatedAt:at});
+      await rides.create({id:rideId,passengerId:'test-'+randomUUID(),state:'PAID',paymentStatus:'paid',origin:{zoneId:'prea'},destination:{zoneId:'jijoca'},category:'car',period:'day',passengers:1,
+        quote:{ruleId:'test',baseAmountCents:1000,pickupCompensationCents:0,totalAmountCents:1000,platformCommissionCents:100,driverNetCents:900},createdAt:at,updatedAt:at});
+      const creation=matching.createOffer({rideId,driverId,approximatePickupDistanceKm:1,createdAt:at,expiresAt:new Date(now.getTime()+35000).toISOString()});
+      const locked=matching.lockDriverScreen({driverId,at});
+      const results=await Promise.allSettled([creation,locked]);
+      assert.equal(results[1].status,'fulfilled');
+      const outcome=await matching.lockDriverScreen({driverId,at});
+      if(outcome.outcome==='OFFER_PENDING') {
+        assert.ok(outcome.offerId);
+        await matching.lockScreenPendingOffer({driverId,offerId:outcome.offerId,at});
+      }
+      assert.equal((await matching.lockDriverScreen({driverId,at})).outcome,'OFFLINE');
+      assert.equal((await drivers.findByDriverId(driverId))?.online,false);
+      assert.equal((await matching.listOffersForRide(rideId)).filter(o=>o.status==='OFFERED').length,0);
+    }
+  }finally{await pool.end();}
+});
