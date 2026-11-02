@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -173,8 +175,26 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     );
   }
 
+  Future<void> _updateRideActivity(PassengerRideTrackingSnapshot snapshot) async {
+    if(kIsWeb || defaultTargetPlatform!=TargetPlatform.android) return;
+    final driver=snapshot.driver;
+    final route=[snapshot.pickupLabel,snapshot.dropoffLabel]
+        .whereType<String>().where((s)=>s.trim().isNotEmpty).join(' → ');
+    final identity=[driver?.displayName,driver?.vehicleModel,driver?.vehiclePlate]
+        .whereType<String>().where((s)=>s.trim().isNotEmpty).join(' • ');
+    try {
+      await const MethodChannel('br.com.ramonessa.passenger/ride-activity').invokeMethod<bool>('update',{
+        'rideId':snapshot.rideId,'state':snapshot.state,
+        'detail':[identity,route].where((s)=>s.isNotEmpty).join('\n'),
+      });
+    } catch(_) {
+      // Notification permission/rendering never changes the ride or its map.
+    }
+  }
+
   void _applySnapshot(PassengerRideTrackingSnapshot snapshot) {
     if (!mounted) return;
+    unawaited(_updateRideActivity(snapshot));
     _snapshotRevision++;
     final old = _snapshot;
     final previousStage = old == null ? null : _routeStage(old);
