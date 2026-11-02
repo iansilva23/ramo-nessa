@@ -5,6 +5,18 @@ import '../lib/src/features/home/data/http_driver_api.dart';
 import '../lib/src/features/home/data/driver_api.dart';
 
 void main() {
+  test('idle driver lock uses authenticated driver-wide endpoint', () async {
+    final api=HttpDriverApi(
+      baseUrl:Uri.parse('https://example.invalid'),accessToken:'test-token',
+      client:MockClient((request) async {
+        expect(request.method,'POST');
+        expect(request.url.path,'/v1/driver/me/screen-lock');
+        expect(request.headers['authorization'],'Bearer test-token');
+        return http.Response('{"outcome":"OFFLINE"}',200);
+      }),
+    );
+    expect(await api.lockScreen(),'OFFLINE');
+  });
   const offerId = '00000000-0000-4000-8000-000000000001';
   test('lock request carries session and preserves accepted outcome', () async {
     final api = HttpDriverApi(
