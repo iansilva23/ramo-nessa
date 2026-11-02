@@ -34,7 +34,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
         working-directory: apps/driver
       - name: Analyze event bridge
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/src/core/availability/driver_screen_lock_events.dart lib/src/features/home/data/http_driver_api.dart lib/src/features/home/presentation/driver_home_screen.dart test/driver_screen_lock_events_test.dart test/driver_screen_lock_api_test.dart
+        run: flutter analyze lib/src/core/availability/driver_screen_lock_events.dart lib/src/features/home/data/http_driver_api.dart lib/src/features/home/presentation/driver_home_screen.dart test/driver_screen_lock_events_test.dart test/driver_screen_lock_api_test.dart
         working-directory: apps/driver
       - name: Test event adapter
         run: flutter test test/driver_screen_lock_events_test.dart test/driver_screen_lock_api_test.dart
