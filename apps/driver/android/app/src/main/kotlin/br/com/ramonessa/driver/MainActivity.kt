@@ -17,6 +17,18 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val activityNotification=RideActivityNotification(applicationContext)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "br.com.ramonessa.driver/ride-activity")
+            .setMethodCallHandler { call, result ->
+                when(call.method) {
+                    "clear" -> {activityNotification.clear(); result.success(true)}
+                    "show" -> result.success(activityNotification.show(
+                        call.argument<String>("title") ?: "Ramo Nessa",
+                        call.argument<String>("detail") ?: "",
+                        call.argument<Int>("stage") ?: 0))
+                    else -> result.notImplemented()
+                }
+            }
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "br.com.ramonessa.driver/screen-lock")
             .setStreamHandler(ScreenLockEvents(applicationContext))
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "br.com.ramonessa.driver/ride-alerts")
