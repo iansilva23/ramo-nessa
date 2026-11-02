@@ -395,20 +395,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _updateActivityNotification() async {
-    if(!mounted || kIsWeb || defaultTargetPlatform!=TargetPlatform.android || _activityNotificationBusy) return;
+    if(!mounted || kIsWeb || defaultTargetPlatform!=TargetPlatform.android || _activityNotificationBusy) { return; }
     final ride=_activeRide;
     String? title,detail;
     int stage=0;
     if(ride!=null && const ['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].contains(ride.state)) {
       title=ride.state=='IN_PROGRESS'?'Corrida em andamento':ride.state=='DRIVER_ARRIVED'?'Aguardando embarque':'A caminho do passageiro';
-      detail=ride.originDisplayName+' → '+ride.destinationDisplayName;
+      detail='${ride.originDisplayName} → ${ride.destinationDisplayName}';
       stage=ride.state=='IN_PROGRESS'?3:ride.state=='DRIVER_ARRIVED'?2:1;
     } else if(_androidScreenLocked && _lockOfflineConfirmed) {
       title='Você está offline';
       detail='Desbloqueie o celular e toque em Ficar online para receber novas corridas.';
     }
     final payload=title==null?'clear':'$title|$detail|$stage';
-    if(payload==_activityNotificationPayload) return;
+    if(payload==_activityNotificationPayload) { return; }
     _activityNotificationBusy=true;
     try {
       const channel=MethodChannel('br.com.ramonessa.driver/ride-activity');
@@ -424,13 +424,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   Future<void> _syncAndroidScreenLock() async {
-    if(!mounted || _loading || _supplyLoadInFlight || !_androidLockPending || _androidLockInFlight) return;
+    if(!mounted || _loading || _supplyLoadInFlight || !_androidLockPending || _androidLockInFlight) { return; }
     final api=_api;
-    if(api == null || api is! DriverScreenLockApi) return;
+    if(api == null || api is! DriverScreenLockApi) { return; }
     _androidLockInFlight=true;
     try {
       final outcome=await (api as DriverScreenLockApi).lockScreen();
-      if(!mounted) return;
+      if(!mounted) { return; }
       if(outcome=='ACCEPTED') {
         await _restoreCurrentRide();
         _androidLockPending=false;
@@ -439,7 +439,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       }
       final supply=await api.getSupply();
       _lockOfflineConfirmed=!supply.online && !supply.busy;
-      if(!mounted) return;
+      if(!mounted) { return; }
       setState(() {
         _supply=supply;
         _offer=null;
