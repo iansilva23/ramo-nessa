@@ -1,3 +1,4 @@
+import { recoverLockedOfferDispatch } from '../src/matching/android-lock-dispatch-recovery.js';
 import { updateDriverSupplyFromApp } from '../src/drivers/driver-app-service.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -196,4 +197,25 @@ test('screen lock and acceptance serialize without abandoning an accepted paid r
       }
     }
   } finally { await pool.end(); }
+});
+
+test('dispatch recovery retains work after error and serializes retries', {skip:process.env.RAMO_LOCK_RACE_TEST !== 'isolated-ci-only'}, async () => {
+  const url=new URL(process.env.DATABASE_URL ?? '');
+  assert.equal(url.hostname,'127.0.0.1'); assert.equal(url.pathname,'/ramo_lock_test');
+  const pool=createPostgresPool(url.toString()), offerId=randomUUID(), rideId=randomUUID();
+  try {
+    await pool.query('INSERT INTO android_lock_dispatch_pending (offer_id,ride_id,created_at) VALUES ($1,$2,now())',[offerId,rideId]);
+    await assert.rejects(()=>recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>{throw new Error('simulated failure')}}));
+    assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>false}),'RETRY');
+    let release!: ()=>void, started!: ()=>void;
+    const startedPromise=new Promise<void>(r=>started=r), barrier=new Promise<void>(r=>release=r);
+    const first=recoverLockedOfferDispatch({pool,offerId,continueSearch:async id=>{
+      assert.equal(id,rideId); started(); await barrier; return true;
+    }});
+    await startedPromise;
+    assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>{throw new Error('must not run concurrently')}}),'BUSY');
+    release();
+    assert.equal(await first,'COMPLETE');
+    assert.equal(await recoverLockedOfferDispatch({pool,offerId,continueSearch:async()=>true}),'NOT_PENDING');
+  } finally {await pool.end();}
 });
