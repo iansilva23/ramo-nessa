@@ -77,3 +77,26 @@ export async function resumeLockedRideSearch(input: {
     },
   });
 }
+
+/** Bounded scan; failures remain queued for a future scan. */
+export async function scanLockedRideSearches(input: {
+  pool: Pool;
+  dispatch: Omit<Parameters<typeof dispatchNextDriver>[0], 'rideId' | 'pickup'>;
+  limit?: number;
+}): Promise<{ attempted: number; failed: number }> {
+  const limit = input.limit ?? 25;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid recovery batch size');
+  const pending = await input.pool.query<{ offer_id: string }>(
+    'SELECT offer_id FROM android_lock_dispatch_pending ORDER BY created_at, offer_id LIMIT $1', [limit],
+  );
+  let failed = 0;
+  for (const row of pending.rows) {
+    try {
+      const result = await resumeLockedRideSearch({pool:input.pool, offerId:row.offer_id, dispatch:input.dispatch});
+      if (result === 'RETRY') failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return {attempted:pending.rows.length, failed};
+}
