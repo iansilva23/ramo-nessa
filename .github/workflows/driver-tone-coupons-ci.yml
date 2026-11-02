@@ -1,6 +1,8 @@
 name: Motorista cupons - validar toque integrado
 
 on:
+  pull_request:
+    branches: [ops/driver-tone-coupons-base-20261102]
   push:
     branches: [feature/driver-tone-coupons-20261102]
   workflow_dispatch:
