@@ -1,0 +1,11 @@
+# Local WhatsApp login controls
+
+User-authorized scope: WhatsApp OTP for driver and passenger. Passenger password login, admin login, OTP delivery provider, credentials, account eligibility, code verification, expiry, single-use semantics, sessions, rides and payments remain unchanged.
+
+Setting `WHATSAPP_OTP_ABUSE_CONTROLS=disabled` skips local request limits by phone/IP/device, sets WhatsApp resend cooldown to zero, and raises the local external-code attempt ceiling to the PostgreSQL integer maximum. The supplier's own limits still apply. Five-minute expiry and atomic verification leases remain enforced. The default preserves current controls. This is a new explicit configuration option, not a claim that these controls changed in recent deployments.
+
+The installer derives a candidate from the exact active `449ead609890...` image and edits only the compiled phone OTP service. It requires the previous activation helper with an exact SHA-256. It does not rebuild the application from this branch. Compose config, mounts, integration files, other containers, and environment are verified; only the new flag and candidate image may differ. A private anchor and previous image/config are retained. No database migration, restore, or real OTP request is performed by installation.
+
+Before activation it runs seven in-memory policy tests in a read-only, network-disabled Docker container, rejects a changed active deployment, and checks for active rides/payments. It recreates only Core and attempts verified automatic rollback on failure. It prints a manual rollback command. A brief API interruption occurs during a successful switch. Rollback refuses unrelated subsequent releases and checks for activity.
+
+Local validation: 28 authentication/policy tests passed using Node 24 TypeScript transformation (not a full TypeScript typecheck); seven activation contract tests passed. Twelve inherited activation contract tests passed; the real Docker Compose test was skipped because Docker is unavailable locally. Actual image import and Docker Compose verification occur on the VPS before switching. Delivery to a physical WhatsApp account remains unresolved and is not guaranteed by disabling these controls.
