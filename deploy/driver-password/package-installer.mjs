@@ -2,7 +2,7 @@ import {readFile,writeFile,mkdir,copyFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import ts from '../../backend/core/node_modules/typescript/lib/typescript.js';
 const root=process.argv[2];if(!root)throw Error('package directory required');
-for(const name of ['activate.py','patch_runtime.py','web_release.py','isolated.py','migrate-one.mjs','test-migrations.mjs','candidate-http.test.mjs'])await copyFile('deploy/driver-password/'+name,root+'/'+name);
+for(const name of ['activate.py','otp_controls.py','patch_runtime.py','web_release.py','isolated.py','migrate-one.mjs','test-migrations.mjs','candidate-http.test.mjs'])await copyFile('deploy/driver-password/'+name,root+'/'+name);
 for(const name of ['driver_password_auth','driver_password_postgres']){
  const source=await readFile('backend/core/test/'+name+'.test.ts','utf8');
  const js=ts.transpileModule(source,{fileName:name+'.test.ts',compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText.replaceAll("from '../src/","from '/app/dist/src/");

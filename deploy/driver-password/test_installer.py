@@ -10,6 +10,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import activate as a
 import web_release as w
+import otp_controls as otp
 
 class WebContract(unittest.TestCase):
     def setUp(self):
@@ -52,6 +53,12 @@ class RollbackContract(unittest.TestCase):
     def plan(self):
         def c(name,img):return {'Name':'/'+name,'Image':img,'State':{'Running':True},'Config':{'Env':['A=literal$dollar']},'HostConfig':{'Binds':['/old:/srv/web:ro']},'Mounts':[{'Destination':'/srv/web','Source':'/old'}]}
         return {'core':{'container':c('core','old-core')},'gateway':{'container':c('gateway','gateway-img')},'candidateId':'new-core','oldWebRoot':'/old','newWebRoot':'/new'}
+    def test_otp_toggle_changes_only_one_environment_value(self):
+        p=self.plan();before=p['core']['container'];enabled=otp.with_flag(before,'enabled')
+        self.assertIn('WHATSAPP_OTP_ABUSE_CONTROLS=enabled',enabled['Config']['Env'])
+        self.assertIn('A=literal$dollar',enabled['Config']['Env'])
+        restored=copy.deepcopy(enabled);restored['Config']['Env']=[v for v in restored['Config']['Env'] if not v.startswith('WHATSAPP_OTP_ABUSE_CONTROLS=')]
+        self.assertEqual(before,restored)
     def test_exact_runtime_delta(self):
         p=self.plan();expected=a.expected_runtime(p,'core',True)
         self.assertIn('WHATSAPP_OTP_ABUSE_CONTROLS=disabled',expected['Config']['Env'])

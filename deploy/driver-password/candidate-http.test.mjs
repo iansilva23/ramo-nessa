@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
+import {request as httpRequest} from 'node:http';
 import {randomUUID} from 'node:crypto';
 import {openSync,closeSync,readFileSync} from 'node:fs';
 import {createPostgresPool} from '/app/dist/src/db/postgres.js';
@@ -26,7 +27,10 @@ test('exact candidate HTTP: native login, Web cookie, role isolation, enrollment
    await new Promise(r=>setTimeout(r,100));
   }throw Error('HTTP candidate not ready');
  }
- async function request(path,body,headers={}){return fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(5000)});}
+ async function request(path,body,headers={}){
+  // node:http preserves the reverse proxy Host header; Fetch rewrites it.
+  return new Promise((resolve,reject)=>{const req=httpRequest(base+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},signal:AbortSignal.timeout(5000)},res=>{const parts=[];res.on('data',c=>parts.push(c));res.on('end',()=>resolve(new Response(Buffer.concat(parts),{status:res.statusCode,headers:Object.fromEntries(Object.entries(res.headers).map(([k,v])=>[k,Array.isArray(v)?v.join(', '):String(v)]))})));res.on('error',reject);});req.on('error',reject);req.end(body===undefined?undefined:JSON.stringify(body));});
+ }
  try{
   await start();
   let r=await request('/v1/driver/me/login-credentials');assert.equal(r.status,401);await r.body?.cancel();

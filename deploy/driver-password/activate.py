@@ -230,12 +230,12 @@ def activate(h):
         else:
             [m for m in expected['services'][service]['volumes'] if m['target']=='/srv/web'][0]['source']=str(newroot)
         require(resolve(h,directory/(service+'-after.compose.private.json'),info['workdir'])==expected,'Plano altera opções fora do escopo.')
-    for name in ['activate.py','patch_runtime.py','isolated.py','web_release.py']:h.save(name,(PACKAGE/name).read_bytes())
+    for name in ['activate.py','otp_controls.py','patch_runtime.py','isolated.py','web_release.py']:h.save(name,(PACKAGE/name).read_bytes())
     bindings={}
     for info in [core,gateway]:
         for m in info['container']['Mounts']:
             if m['Type']=='bind' and m['Destination']!='/srv/web':bindings[m['Source']]=h.bound_hash(Path(m['Source']))
-    files=['core-before.compose.private.json','core-after.compose.private.json','gateway-before.compose.private.json','gateway-after.compose.private.json','activate.py','patch_runtime.py','isolated.py','web_release.py']
+    files=['core-before.compose.private.json','core-after.compose.private.json','gateway-before.compose.private.json','gateway-after.compose.private.json','activate.py','otp_controls.py','patch_runtime.py','isolated.py','web_release.py']
     p={'source':release['source'],'core':core,'gateway':gateway,'originalHashes':{**BASE_CODE,**originals},'candidateHashes':candidate_hashes,
        'candidateId':candidate['Id'],'oldWebRoot':str(oldroot),'newWebRoot':str(newroot),'webHashes':hashes,'bindHashes':bindings,
        'otherContainers':others,'anchorFiles':{f:digest(h.private_file(directory/f)) for f in files},'isolatedTests':test_result}
@@ -259,6 +259,7 @@ def activate(h):
         except BaseException:h.journal('requires-review')
         raise
     h.journal('completed')
+    print('REATIVAR CONTROLES EXTRAS WHATSAPP: sudo python3 '+str(directory/'otp_controls.py')+' enabled '+str(directory),flush=True)
     print(json.dumps({'status':'DRIVER_PASSWORD_LOGIN_ACTIVATED','source':p['source'],'anchor':str(directory),
                      'driverWebUpdated':True,'passengerWebUnchanged':True,'passwordSecurity':'same-as-passenger',
                      'extraWhatsAppControls':'disabled','normalPasswordLoginSendsOTP':False,'isolatedTests':test_result,
