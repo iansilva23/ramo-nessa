@@ -121,7 +121,7 @@ test('Docker composes FCM only into Core and retains staging safeguards',
       await writeFile(envFile, [
         'APP_DOMAIN=staging.ramonessa.test', 'ACME_EMAIL=ops@ramonessa.test',
         'POSTGRES_PASSWORD=fixture-password-only', 'DATABASE_URL=postgresql://ramonessa:fixture@postgres/ramonessa',
-        ...['OTP_HASH_SECRET','AUTH_PASSWORD_RATE_LIMIT_SECRET','ADMIN_MFA_ENCRYPTION_KEY','ADMIN_LOGIN_RATE_LIMIT_SECRET',
+        ...['AUTH_PASSWORD_RATE_LIMIT_SECRET','ADMIN_MFA_ENCRYPTION_KEY','ADMIN_LOGIN_RATE_LIMIT_SECRET',
           'PLACE_PROOF_SECRET','DOCUMENT_INSPECTION_ENCRYPTION_KEY'].map(k => `${k}=fixture-only`),
         'FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/private/fixture-service-account.json',
       ].join('\n'));

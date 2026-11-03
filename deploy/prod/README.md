@@ -3,7 +3,7 @@
 Este diretório prepara a infraestrutura de produção sem publicar nada por conta própria.
 O desenho inicial é para um VPS Linux único, com PostgreSQL, Core e Admin/gateway no mesmo host.
 
-> Não execute o deploy agora. O Core recusa iniciar em produção enquanto Google Maps, OTP e Mercado Pago reais não estiverem configurados. Essa trava é intencional.
+> Não execute o deploy agora. O Core recusa iniciar em produção enquanto Google Maps, proteção de senha e Mercado Pago reais não estiverem configurados. Essa trava é intencional.
 
 ## Arquitetura
 
@@ -40,7 +40,7 @@ Depois edite somente os campos CHANGE_ME:
 
 - APP_DOMAIN;
 - ACME_EMAIL;
-- OTP_WEBHOOK_URL e OTP_WEBHOOK_TOKEN;
+- AUTH_PASSWORD_RATE_LIMIT_SECRET;
 - GOOGLE_MAPS_SERVER_API_KEY;
 - MERCADO_PAGO_ACCESS_TOKEN;
 - MERCADO_PAGO_WEBHOOK_SECRET.
@@ -79,11 +79,11 @@ Payouts permanece desativado.
     node deploy/prod/validate-env.mjs
     docker compose --env-file deploy/prod/.env -f deploy/prod/compose.yml config > /dev/null
 
-A validação rejeita domínio de exemplo, placeholders, URL OTP sem HTTPS, segredos curtos, banco apontando para host diferente do PostgreSQL interno e configuração parcial de repasse.
+A validação rejeita domínio de exemplo, placeholders, segredos curtos, banco apontando para host diferente do PostgreSQL interno e configuração parcial de repasse.
 
 ## 4. Quando os próximos passos estiverem homologados
 
-Somente depois de Google Maps, OTP e Mercado Pago estarem configurados e validados, o stack poderá ser iniciado:
+Somente depois de Google Maps, proteção de senha e Mercado Pago estarem configurados e validados, o stack poderá ser iniciado:
 
     docker compose --env-file deploy/prod/.env -f deploy/prod/compose.yml up -d --build
 
@@ -188,13 +188,11 @@ Ficam para os próximos passos:
 - implantação real e teste de recuperação em VPS isolado;
 - monitoramento/alertas externos e retenção off-site de backup;
 - chaves e billing de Google Maps;
-- provider OTP real;
 - credenciais reais e homologação Firebase/FCM/APNs;
 - homologação externa Mercado Pago;
 - homologação de repasse Pix;
 - testes físicos, carga/segurança, piloto e lojas.
 
-OTP também aceita `OTP_PROVIDER=entrar-whatsapp`, com `ENTRAR_API_SECRET` privado
-no ambiente do Core; nesse modo `OTP_WEBHOOK_URL` e `OTP_WEBHOOK_TOKEN` não são
-necessários. O padrão continua webhook. Ver `docs/OTP_PRODUCTION.md` para limites,
-contrato externo e homologação em aparelho físico antes de liberar a operação.
+O acesso por senha exige `AUTH_PASSWORD_RATE_LIMIT_SECRET`. Para atualizar um
+ambiente existente, siga `docs/PASSWORD_ONLY_PARTNER_ACCESS_20261103.md` e use
+uma aplicação compatível com a versão instalada.

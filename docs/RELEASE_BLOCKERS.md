@@ -19,7 +19,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 1. **Core ainda não está pronto para produção**
    - PostgreSQL, máquina de estados, matching, ledger/carteira, realtime e sessão Bearer já existem;
-   - autenticação por telefone/OTP já existe; produção exige webhook HTTPS autenticado ou entrar-whatsapp, possui contrato versionado, idempotency-key, retry limitado para falhas transitórias e invalida a challenge quando a entrega falha; adapter entrar.api.br por WhatsApp implementado; ainda faltam credencial privada, ativação e homologação real;
+   - login e cadastro por senha nos dois apps; recuperação retirada nesta revisão. Conferir `docs/PASSWORD_ONLY_PARTNER_ACCESS_20261103.md`;
    - Push FCM já existe no Core e nos dois apps, com registro de token, renovação, invalidação e status seguro no Admin; o perfil `deploy/prod` exige `PUSH_PROVIDER=fcm`, Service Account privada montada somente no Core e valida o JSON/permissões antes do deploy; o `Mobile Build Audit` exige App IDs específicos/coerentes por app-plataforma e o Preflight protege os entitlements iOS; o fechamento operacional está em `docs/FIREBASE_PUSH_PRODUCTION.md`; ainda faltam credenciais reais, configuração APNs/Apple Developer e homologação em aparelhos físicos;
    - na auditoria de 27/09/2026, Preview Android e iOS compilaram com sucesso, mas os logs confirmaram ausência dos Secrets `RAMO_FIREBASE_*`, portanto esses binários foram gerados com Push desativado; o `Mobile Build Audit` final bloqueia release enquanto a configuração obrigatória estiver ausente;
    - Pix/cartão para corridas e recarga de carteira já possuem integração estrutural com o gateway; ainda faltam homologação externa da confirmação de recarga, conciliação operacional completa, validação externa dos estornos e repasse Pix, conforme o item financeiro abaixo;
@@ -32,9 +32,9 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - ainda faltam executar/validar a operação no VPS real e configurar alertas/APM externos.
 
 2. **Fluxo Passageiro ↔ Motorista já usa sessão real, mas precisa validação operacional**
-   - Passageiro e Motorista suportam login OTP, sessão Bearer, restauração segura e logout com revogação;
+   - Passageiro e Motorista suportam login por senha, sessão Bearer, restauração segura e logout com revogação;
    - headers `x-dev-*` permanecem apenas como fallback explícito fora de produção;
-   - motorista não é criado automaticamente: precisa ser provisionado/aprovado antes do OTP;
+   - motorista pode criar seu acesso, mas precisa concluir cadastro profissional e aprovação antes de operar;
    - antes do beta público, validar login, corrida e realtime em dois aparelhos físicos.
 
 3. **Preço v1 existe, mas a operação ainda precisa de infraestrutura**
@@ -84,9 +84,6 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 8. **Privacidade, LGPD e operação da autenticação**
    - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem; sessões expiradas/revogadas fora da retenção são limpas automaticamente;
-   - código OTP fica armazenado somente como HMAC no Core, tem expiração/limite de tentativas e desafios antigos são removidos automaticamente;
-   - o contrato do adapter OTP está documentado em `docs/OTP_PRODUCTION.md`; WhatsApp via entrar.api.br implementado; ainda faltam credencial privada, ativação e homologação em números/aparelhos físicos;
-   - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; falhas transitórias de entrega reutilizam a mesma challenge/idempotency-key antes de cancelar o desafio, e o provider/edge deve manter proteção adicional contra abuso;
    - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria, além de login humano com senha + TOTP + sessão curta conectado às operações administrativas;
 - o ADM agora possui gestão de funcionários exclusiva do proprietário: criação de contas humanas individuais, permissões granulares por módulo, separação própria de Suporte, suspensão/reativação, revogação imediata de sessões quando permissões são reduzidas e exclusão lógica preservando auditoria; a conta proprietária não pode ser alterada nem excluída por essa tela; para operação é necessário configurar `ADMIN_OWNER_USER_ID` (com fallback compatível para o proprietário já definido em `ADMIN_PAYOUT_APPROVER_USER_ID`);
    - o frontend inicial cobre login, diretórios paginados de acesso de motoristas e passageiros, indicadores de aprovação/suspensão e auditoria, e já possui stack same-origin de teste;

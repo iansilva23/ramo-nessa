@@ -405,26 +405,13 @@ try {
     throw new Error('Sessão Admin não foi validada por /me.');
   }
 
-  const passengerOtp = await jsonRequest(
-    '/v1/auth/otp/request',
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-client-instance-id': 'ci-smoke-passenger',
-      },
-      body: JSON.stringify({
-        subjectType: 'passenger',
-        phone: '88999991278',
-        email: 'ci-passenger@ramonessa.local',
-      }),
-    },
-  );
-  if (passengerOtp.response.status !== 202) {
-    throw new Error(
-      `Criação OTP do passageiro falhou: HTTP ${passengerOtp.response.status}.`,
-    );
-  }
+  const passengerPassword = 'SyntheticSmokePassenger123';
+  const passengerEmail = 'ci-passenger@ramonessa.local';
+  const passengerVerify = await jsonRequest('/v1/auth/passenger/password/register', {
+    method:'POST',headers:{'content-type':'application/json','x-client-instance-id':'ci-smoke-passenger'},
+    body:JSON.stringify({phone:'88999991278',email:passengerEmail,fullName:'Passageiro Smoke',password:passengerPassword}),
+  });
+  if(passengerVerify.response.status!==201)throw new Error('Cadastro com senha do passageiro falhou: HTTP '+passengerVerify.response.status);
 
   const passengerDirectory = await jsonRequest(
     '/v1/admin/passengers?limit=20&query=91278',
@@ -476,26 +463,6 @@ try {
     );
   }
 
-  if (
-    typeof passengerOtp.payload?.challengeId !== 'string' ||
-    !/^\d{6}$/.test(String(passengerOtp.payload?.devCode ?? ''))
-  ) {
-    throw new Error(
-      'OTP de desenvolvimento do passageiro não retornou challenge/código válidos.',
-    );
-  }
-
-  const passengerVerify = await jsonRequest(
-    '/v1/auth/otp/verify',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        challengeId: passengerOtp.payload.challengeId,
-        code: passengerOtp.payload.devCode,
-      }),
-    },
-  );
   if (
     passengerVerify.response.status !== 201 ||
     passengerVerify.payload?.subjectId !== smokePassenger.passengerId ||
@@ -654,44 +621,10 @@ try {
     );
   }
 
-  const passengerOtpAfterUnblock = await jsonRequest(
-    '/v1/auth/otp/request',
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-client-instance-id': 'ci-smoke-passenger-unblocked',
-      },
-      body: JSON.stringify({
-        subjectType: 'passenger',
-        phone: '88999991278',
-        email: 'ci-passenger@ramonessa.local',
-      }),
-    },
-  );
-  if (
-    passengerOtpAfterUnblock.response.status !== 202 ||
-    typeof passengerOtpAfterUnblock.payload?.challengeId !== 'string' ||
-    !/^\d{6}$/.test(
-      String(passengerOtpAfterUnblock.payload?.devCode ?? ''),
-    )
-  ) {
-    throw new Error(
-      'Novo OTP do passageiro após desbloqueio falhou.',
-    );
-  }
-
-  const passengerVerifyAfterUnblock = await jsonRequest(
-    '/v1/auth/otp/verify',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        challengeId: passengerOtpAfterUnblock.payload.challengeId,
-        code: passengerOtpAfterUnblock.payload.devCode,
-      }),
-    },
-  );
+  const passengerVerifyAfterUnblock = await jsonRequest('/v1/auth/passenger/password/login', {
+    method:'POST',headers:{'content-type':'application/json','x-client-instance-id':'ci-smoke-passenger-unblocked'},
+    body:JSON.stringify({email:passengerEmail,password:passengerPassword}),
+  });
   if (
     passengerVerifyAfterUnblock.response.status !== 201 ||
     passengerVerifyAfterUnblock.payload?.subjectId !==
@@ -1002,50 +935,27 @@ try {
     );
   }
 
-  const driverOtp = await jsonRequest(
-    '/v1/auth/otp/request',
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-client-instance-id': 'ci-smoke-driver-fleet',
-      },
-      body: JSON.stringify({
-        subjectType: 'driver',
-        phone: '88999991279',
-        email: 'ci-driver@ramonessa.local',
-      }),
-    },
-  );
-  if (
-    driverOtp.response.status !== 202 ||
-    typeof driverOtp.payload?.challengeId !== 'string' ||
-    !/^\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))
-  ) {
-    throw new Error(
-      'OTP real do motorista para frota falhou. ' +
-      `HTTP ${driverOtp.response.status}; ` +
-      `challenge=${typeof driverOtp.payload?.challengeId === 'string'}; ` +
-      `devCode=${/^\\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))}; ` +
-      `error=${String(driverOtp.payload?.error ?? '—')}; ` +
-      `message=${String(driverOtp.payload?.message ?? '—')}; ` +
-      `adminStatus=${String(driver.payload?.status ?? '—')}.`,
-    );
-  }
-
-  const driverVerify = await jsonRequest(
-    '/v1/auth/otp/verify',
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        challengeId: driverOtp.payload.challengeId,
-        code: driverOtp.payload.devCode,
-      }),
-    },
-  );
+  // This is a disposable smoke project. Provision an authenticated fixture for
+  // the existing administrative driver, then configure credentials through Core.
+  const driverPassword='SyntheticSmokeDriver123',driverUsername='driver.smoke';
+  const fixture = compose(['exec','-T','core','node','--input-type=module','-e', `
+    import {createRepositories} from '/app/dist/src/db/repositories.js';
+    import {issueAuthSession} from '/app/dist/src/auth/auth-service.js';
+    const r=createRepositories();try{
+      const s=await issueAuthSession({repository:r.authSessionRepository,subjectType:'driver',subjectId:${JSON.stringify(driverId)}});
+      process.stdout.write(s.token);
+    }finally{await r.close();}
+  `]);
+  requireOk(fixture,'Sessão sintética para configurar a credencial');
+  const configured=await jsonRequest('/v1/driver/me/login-credentials',{
+    method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+fixture.stdout.trim()},
+    body:JSON.stringify({username:driverUsername,email:'ci-driver@ramonessa.local',password:driverPassword}),
+  });
+  if(configured.response.status!==201)throw new Error('Configuração de senha do motorista falhou: HTTP '+configured.response.status);
+  const driverVerify=await jsonRequest('/v1/auth/driver/password/login',{
+    method:'POST',headers:{'content-type':'application/json','x-client-instance-id':'ci-smoke-driver-fleet'},
+    body:JSON.stringify({identifier:driverUsername,password:driverPassword}),
+  });
   if (
     driverVerify.response.status !== 201 ||
     driverVerify.payload?.subjectId !== driverId ||

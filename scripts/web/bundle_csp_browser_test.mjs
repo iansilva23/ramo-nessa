@@ -32,11 +32,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
       response.setHeader('content-type', 'application/json'); response.setHeader('cache-control', 'no-store');
       try {
         const authenticatedRole = prepareBrowserSessionRequest(request, { cookieBootstrap: path === '/v1/auth/web/session' && request.method === 'GET' });
-        if (path === '/v1/auth/otp/request') {
-          response.writeHead(202); response.end(JSON.stringify({ challengeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-            expiresAt: new Date(Date.now() + 60000).toISOString(), retryAfterSeconds: 0 })); return;
-        }
-        if (path === '/v1/auth/otp/verify' || path === '/v1/auth/passenger/password/login') {
+        if (path === `/v1/auth/${role}/password/login`) {
           session = { accessToken: privateCredential, subjectType: role, subjectId: 'compiled-session-' + role,
             expiresAt: new Date(Date.now() + 600000).toISOString(), tokenType: 'Bearer' };
           const body = browserAuthResponse(request, response, session); publicHandle = body.accessToken; loginCalls++;
@@ -112,19 +108,13 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   // Flutter's offscreen accessibility placeholder handles a DOM click.
   // Activate semantics without requiring viewport geometry from the test runner.
   await semantics.dispatchEvent('click');
-  await page.getByRole('button', { name: role === 'passenger' ? 'Entrar' : 'Continuar', exact: true }).waitFor({ timeout: 30000 });
-  if (role === 'passenger') {
-    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-    await page.getByLabel('E-mail', { exact: true }).click(); await page.keyboard.insertText('fixture@example.test');
-    await page.getByLabel('Senha', { exact: true }).click(); await page.keyboard.insertText('fixture-password-only');
-    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  } else {
-    await page.getByRole('textbox').first().click(); await page.keyboard.insertText('88999991234');
-    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-    await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).waitFor();
-    await page.getByRole('textbox').first().click(); await page.keyboard.insertText('123456');
-    await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
-  }
+  await page.getByRole('button', { name: 'Entrar', exact: true }).waitFor({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await page.getByLabel(role === 'passenger' ? 'E-mail' : 'Usuário ou e-mail', { exact: true }).click();
+  await page.keyboard.insertText('fixture@example.test');
+  await page.getByLabel('Senha', { exact: true }).click();
+  await page.keyboard.insertText('fixture-password-only');
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   const banner = page.getByText('Adicionar app à Tela de Início', { exact: true });
   await banner.waitFor({ timeout: 30000 });
   assert.equal(await page.getByText('Ative sua localização', { exact: true }).count(), 0);
@@ -174,7 +164,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   assert.equal(logout, 204);
   await page.reload();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
-  await page.getByRole('button', { name: role === 'passenger' ? 'Entrar' : 'Continuar', exact: true }).waitFor({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Entrar', exact: true }).waitFor({ timeout: 30000 });
   const violations = await page.evaluate(() => bundleViolations);
   assert.deepEqual(violations.filter(item => /script-src|worker-src|connect-src/.test(item.directive)), []);
   assert.deepEqual(errors, []);

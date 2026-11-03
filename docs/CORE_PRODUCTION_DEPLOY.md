@@ -64,7 +64,7 @@ Logs do Core são JSON por linha. Requests HTTP incluem:
 - status HTTP;
 - duração em milissegundos.
 
-Corpos de request, header Authorization, token OTP, telefone e credenciais não são
+Corpos de request, header Authorization, senha, telefone e credenciais não são
 registrados.
 
 O Core aceita `x-request-id` somente quando ele possui formato simples e tamanho
@@ -76,9 +76,7 @@ Nunca colocar no Git:
 
 - `DATABASE_URL`;
 - `DB_SSL_CA`;
-- `OTP_HASH_SECRET`;
-- `OTP_RATE_LIMIT_SECRET`;
-- `OTP_WEBHOOK_TOKEN`;
+- `AUTH_PASSWORD_RATE_LIMIT_SECRET`;
 - tokens administrativos;
 - chaves de gateway/pagamento;
 - `GOOGLE_MAPS_SERVER_API_KEY`;

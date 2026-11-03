@@ -11,7 +11,7 @@ Objetivos:
 ## Segurança inicial
 
 Use apenas dados fictícios. O ambiente começa com identidade de desenvolvimento
-desabilitada, OTP sem entrega, Push desabilitado, Mercado Pago sem token,
+desabilitada, Push desabilitado, Mercado Pago sem token,
 Google Routes/Places em mock interno e Payouts desabilitado.
 
 ## Infraestrutura alvo
@@ -129,22 +129,11 @@ do servidor não certifica entrega: ainda são necessários configuração Fireb
 nos binários, registro de token após login e teste em Android físico; iPhone
 também depende de APNs e assinatura Apple.
 
-### OTP pelo WhatsApp (entrar.api.br)
+### Cadastro e entrada por senha
 
-Opt-in: criar no painel do fornecedor um app Ramo Nessa e obter seu API Secret.
-Salvar esse segredo em arquivo privado no VPS (sem colocá-lo no repositório):
-`/home/ubuntu/.config/ramo-nessa/staging/entrar-api-secret`, modo 0600.
-Configurar no `.env` apenas `OTP_PROVIDER=entrar-whatsapp` e
-`ENTRAR_API_SECRET_HOST_FILE` com esse caminho. `start.mjs` valida o arquivo e
-seleciona `compose.otp.yml`, mantendo Firebase e Google Maps já configurados.
-
-Antes de alterar o ambiente, fazer backup verificado. A migration 072 adiciona
-referência externa e reserva de verificação; não altera desafios antigos.
-A inicialização aplica migrations pelo fluxo existente. Verificar `/ready` e o
-status OTP no Admin, depois solicitar e verificar um código em aparelho físico.
-Não imprimir `docker compose config` nem `docker inspect` com a chave ativada.
-Código aceito para envio não comprova entrega. Configuração padrão existente
-continua sem OTP real até esse opt-in. Ver `docs/OTP_PRODUCTION.md`.
+Use o fluxo compartilhado dos dois apps. Configure `AUTH_PASSWORD_RATE_LIMIT_SECRET`
+no arquivo privado de ambiente. A recuperação não está disponível nesta revisão.
+Veja `docs/PASSWORD_ONLY_PARTNER_ACCESS_20261103.md` antes de atualizar uma VPS existente.
 
 ### Endereços pelo alfinete
 
