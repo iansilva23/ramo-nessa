@@ -1,0 +1,106 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+test('saving a locality never reads an undefined entry variable', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const capture = source.match(/function captureForm\(\) \{[\s\S]*?\n  function applyForm\(/)?.[0];
+  assert.ok(capture, 'captureForm must be available');
+  assert.doesNotMatch(capture, /\bentry\.prices\b/);
+  assert.match(capture, /editing\?\.prices/);
+  assert.match(capture, /localitySelectionFromInputs\(/);
+});
+
+test('failed locality writes reload the draft and leave the edit wizard open for safe retry', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const save = source.match(/async function saveWizard\(\) \{[\s\S]*?\n  async function deleteEntry\(/)?.[0];
+  assert.ok(save, 'saveWizard must exist');
+  assert.match(save, /await refresh\(\{ announce: false \}\)/);
+  assert.match(save, /O lote é indivisível/);
+  assert.match(save, /Confira o rascunho antes de tentar novamente ou publicar/);
+  assert.match(save, /await applyPatch\(\{ kind: 'batch', patches \}\)/);
+  assert.match(save, /catch \(error\)/);
+  // Closing the form is success-only and is not permitted in the catch block.
+  assert.doesNotMatch(save.split('} catch (error) {').pop(), /closeWizard\(/);
+});
+
+test('editing a locality protects unsaved form values on cancel/close', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  assert.match(source, /function hasUnsavedWizardChanges\(\)/);
+  assert.match(source, /JSON\.stringify\(captureForm\(\)\) !== JSON\.stringify\(initialForm\)/);
+  assert.match(source, /Descartar as alterações não salvas desta localidade/);
+  assert.match(source, /closeWizard\(\{ force: true \}\)/);
+});
+
+test('undo deletion restores the locality display name, not only its stable ID', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const undo = source.match(/async function undoDelete\(\) \{[\s\S]*?\n  function renderDirectory\(/)?.[0];
+  assert.ok(undo, 'undoDelete must exist');
+  assert.match(
+    undo,
+    /kind: 'locality_structure'[\s\S]*?operation: 'add'[\s\S]*?kind: 'locality_label'[\s\S]*?label: model\.name/,
+  );
+  assert.match(undo, /kind: 'locality_geofence'/);
+  assert.match(undo, /buildPricePatch\(/);
+});
+
+test('pricing draft cannot be published while unsaved locality edits are visible', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const publish = source.match(/async function publishDraftNow\(\) \{[\s\S]*?\n  async function discardDraft\(/)?.[0];
+  assert.ok(publish, 'publishDraftNow must exist');
+  const unsavedCheck = publish.indexOf('hasUnsavedWizardChanges()');
+  const apiCall = publish.indexOf('api.publishPricingVersion(');
+  assert.ok(unsavedCheck >= 0 && unsavedCheck < apiCall);
+  assert.match(publish, /Salve ou descarte as alterações da localidade antes de publicar/);
+});
+
+test('switching between localities cannot erase an unsaved wizard without confirmation', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const open = source.match(/function openWizard\(nextMode, entry = null\) \{[\s\S]*?\n  function hasUnsavedWizardChanges\(/)?.[0];
+  assert.ok(open, 'openWizard must exist');
+  const guard = open.indexOf('hasUnsavedWizardChanges()');
+  const confirm = open.indexOf("window.confirm('Descartar as alterações não salvas desta localidade?')");
+  const overwrite = open.indexOf('mode = nextMode;');
+  assert.ok(guard >= 0 && confirm > guard && overwrite > confirm);
+});
+
+test('coordinate summary keeps six decimal places like the saved pricing geofence', () => {
+  const code = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  assert.match(code, /lat\.toFixed\(6\).*lon\.toFixed\(6\)/);
+});
+
+test('read-only locality mode does not show the wizard save action and does not place map markers', () => {
+  const code = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const map = readFileSync(new URL('../src/pricing-geofence-map.js', import.meta.url), 'utf8');
+  assert.match(code, /step !== 6 \|\| mode === 'view'/);
+  assert.match(code, /hasScope\('pricing:write'\) \? 'edit' : 'view'/);
+  assert.match(code, /hasScope\('pricing:write'\) \? 'Editar' : 'Visualizar'/);
+  assert.match(code, /canSelect: \(\) => mode !== 'view'/);
+  assert.match(map, /if \(moved \|\| !canSelect\(\)\) return/);
+});
+
+test('in-flight locality saves block duplicate requests and dangerous draft actions', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  assert.match(source, /let saving = false/);
+  assert.match(source, /async function saveWizard\(\) \{\s*if \(saving\) return/);
+  assert.match(source, /const previousDisabled = controls\.map/);
+  assert.match(source, /saving = false;\s*controls\.forEach/);
+  const pub = source.match(/async function publishDraftNow\(\) \{[\s\S]*?\n  async function discardDraft/)?.[0];
+  assert.ok(pub);
+  assert.match(pub, /if \(saving\)/);
+  const discard = source.match(/async function discardDraft\(\) \{[\s\S]*?\n  function bind\(/)?.[0];
+  assert.ok(discard);
+  assert.match(discard, /if \(saving\)/);
+});
+
+test('locality save and undo each send only one atomic batch to the Core', () => {
+  const src = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const save = src.match(/async function saveWizard\(\) \{[\s\S]*?\n  async function deleteEntry\(/)?.[0];
+  const undo = src.match(/async function undoDelete\(\) \{[\s\S]*?\n  function renderDirectory\(/)?.[0];
+  assert.ok(save);
+  assert.ok(undo);
+  for (const operation of [save, undo]) {
+    assert.equal((operation.match(/await applyPatch\(/g) ?? []).length, 1);
+    assert.match(operation, /await applyPatch\(\{ kind: 'batch', patches \}\)/);
+  }
+});

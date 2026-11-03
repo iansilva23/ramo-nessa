@@ -1,0 +1,51 @@
+name: Consolidated Staging Review
+on:
+  push:
+    branches: [release/staging-consolidated-20261011]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ramonessa -d ramonessa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Install dependencies
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck, migrations, database tests and production build
+        working-directory: backend/core
+        run: |
+          npm run typecheck
+          npm run db:migrate
+          npm run db:migrate
+          npm test
+          npm run build
+      - name: Validate Admin
+        working-directory: apps/admin
+        run: |
+          npm run check
+          npm test
+      - name: Validate staging scripts
+        run: |
+          for script in deploy/staging/*.mjs; do node --check "$script"; done

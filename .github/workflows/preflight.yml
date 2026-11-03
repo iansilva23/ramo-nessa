@@ -1,0 +1,411 @@
+name: Preflight
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/core/**"
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - "apps/admin/**"
+      - "deploy/test/**"
+      - "deploy/prod/**"
+      - "deploy/staging/**"
+      - ".github/workflows/test-stack-audit.yml"
+      - "packages/design_system/**"
+      - "tooling/validate-google-maps-key.mjs"
+      - "tooling/validate-firebase-mobile-config.mjs"
+      - "tooling/validate-ios-push-config.mjs"
+      - ".github/workflows/preflight.yml"
+      - ".github/workflows/mobile-build-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/core/**"
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - "apps/admin/**"
+      - "deploy/test/**"
+      - "deploy/prod/**"
+      - "deploy/staging/**"
+      - ".github/workflows/test-stack-audit.yml"
+      - "packages/design_system/**"
+      - "tooling/validate-google-maps-key.mjs"
+      - "tooling/validate-firebase-mobile-config.mjs"
+      - "tooling/validate-ios-push-config.mjs"
+      - ".github/workflows/preflight.yml"
+      - ".github/workflows/mobile-build-audit.yml"
+
+concurrency:
+  # github.workflow is the caller name for reusable workflows. This keeps
+  # standalone PR Preflight and Mobile Build Audit Preflight from cancelling
+  # each other while still cancelling obsolete runs of the same workflow.
+  group: preflight-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: "false"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ramonessa -d ramonessa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+
+      - name: Install Core dependencies from lockfile
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+
+      - name: Core typecheck
+        working-directory: backend/core
+        run: npm run typecheck
+
+      - name: Apply PostgreSQL migrations
+        working-directory: backend/core
+        run: npm run db:migrate
+
+      - name: Verify migrations are idempotent
+        working-directory: backend/core
+        run: npm run db:migrate
+
+      - name: Core tests
+        working-directory: backend/core
+        run: npm test
+
+      - name: Build Core production output
+        working-directory: backend/core
+        run: npm run build
+
+      - name: Check Admin web syntax
+        working-directory: apps/admin
+        run: npm run check
+
+      - name: Test Admin web
+        working-directory: apps/admin
+        run: npm test
+
+      - name: Check deployment scripts
+        run: |
+          node --check deploy/test/env.mjs
+          node --check deploy/test/generate-env.mjs
+          node --check deploy/test/start.mjs
+          node --check deploy/test/create-admin.mjs
+          node --check deploy/test/smoke.mjs
+          node --check deploy/staging/env.mjs
+          node --check deploy/staging/generate-env.mjs
+          node --check deploy/staging/validate-env.mjs
+          node --check deploy/staging/start.mjs
+          node --check deploy/staging/firebase.mjs
+          node --check deploy/staging/google-maps.mjs
+          node --check deploy/staging/create-admin.mjs
+          node --check deploy/staging/set-owner.mjs
+          node --check deploy/staging/backup.mjs
+          node --check deploy/staging/verify-backup.mjs
+          node --check deploy/staging/restore-drill.mjs
+          node --check deploy/staging/health-check.mjs
+          node --check deploy/prod/env.mjs
+          node --check deploy/prod/generate-env.mjs
+          node --check deploy/prod/validate-env.mjs
+          node --check deploy/prod/backup.mjs
+          node --check deploy/prod/verify-backup.mjs
+          node --check deploy/prod/backup-retention.mjs
+          node --check deploy/prod/restore-drill.mjs
+          node --check deploy/prod/health-check.mjs
+          node --check deploy/prod/check-document-storage.mjs
+
+          STORAGE_PROBE_DIR="$(mktemp -d)"
+          chmod 700 "$STORAGE_PROBE_DIR"
+          DOCUMENT_STORAGE_LOCAL_DIR="$STORAGE_PROBE_DIR" \
+            node deploy/prod/check-document-storage.mjs
+          test -z "$(find "$STORAGE_PROBE_DIR" -mindepth 1 -maxdepth 1 -print -quit)"
+          rm -rf "$STORAGE_PROBE_DIR"
+
+          node --check tooling/validate-google-maps-key.mjs
+          node --check tooling/validate-firebase-mobile-config.mjs
+          node --check tooling/validate-ios-push-config.mjs
+
+          node tooling/validate-ios-push-config.mjs \
+            --app-dir=apps/passenger/ios \
+            --surface="Passenger iOS"
+
+          node tooling/validate-ios-push-config.mjs \
+            --app-dir=apps/driver/ios \
+            --surface="Driver iOS"
+
+          RAMO_FIREBASE_API_KEY=AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+          RAMO_FIREBASE_APP_ID=1:123456789012:android:abc123def456 \
+          RAMO_FIREBASE_MESSAGING_SENDER_ID=123456789012 \
+          RAMO_FIREBASE_PROJECT_ID=ramo-nessa-ci \
+            node tooling/validate-firebase-mobile-config.mjs \
+            --platform=android \
+            --surface="CI Firebase"
+
+          if RAMO_FIREBASE_API_KEY=AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+            RAMO_FIREBASE_APP_ID=1:999999999999:android:abc123def456 \
+            RAMO_FIREBASE_MESSAGING_SENDER_ID=123456789012 \
+            RAMO_FIREBASE_PROJECT_ID=ramo-nessa-ci \
+            node tooling/validate-firebase-mobile-config.mjs \
+            --platform=android \
+            --surface="CI Firebase mismatch"; then
+            echo "::error::O validador Firebase aceitou App ID de outro Sender ID."
+            exit 1
+          fi
+
+          RAMO_MAPS_TEST_KEY=55555555555555555555555555555555 \
+            node tooling/validate-google-maps-key.mjs \
+            --env=RAMO_MAPS_TEST_KEY \
+            --surface="CI Google Maps"
+
+          if RAMO_MAPS_TEST_KEY=CHANGE_ME \
+            node tooling/validate-google-maps-key.mjs \
+            --env=RAMO_MAPS_TEST_KEY \
+            --surface="CI placeholder"; then
+            echo "::error::O validador Google Maps aceitou um placeholder."
+            exit 1
+          fi
+
+      - name: Validate test-stack Compose
+        env:
+          POSTGRES_PASSWORD: ci-compose-only
+          DATABASE_URL: postgresql://ramonessa:ci-compose-only@postgres:5432/ramonessa
+          OTP_HASH_SECRET: 1111111111111111111111111111111111111111111111111111111111111111
+          OTP_RATE_LIMIT_SECRET: 2222222222222222222222222222222222222222222222222222222222222222
+          ADMIN_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ADMIN_LOGIN_RATE_LIMIT_SECRET: 3333333333333333333333333333333333333333333333333333333333333333
+        run: docker compose -f deploy/test/compose.yml config > /dev/null
+
+      - name: Validate staging deployment config
+        run: |
+          cat > /tmp/ramo-staging.env <<'EOF'
+          APP_DOMAIN=staging.ramonessa.test
+          ACME_EMAIL=ops@ramonessa.test
+          POSTGRES_USER=ramonessa
+          POSTGRES_DB=ramonessa
+          POSTGRES_PASSWORD=cccccccccccccccccccccccccccccccc
+          DATABASE_URL=postgresql://ramonessa:cccccccccccccccccccccccccccccccc@postgres:5432/ramonessa
+          DB_POOL_MAX=20
+          SHUTDOWN_TIMEOUT_MS=10000
+          OTP_HASH_SECRET=1111111111111111111111111111111111111111111111111111111111111111
+          OTP_RATE_LIMIT_SECRET=2222222222222222222222222222222222222222222222222222222222222222
+          ADMIN_MFA_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ADMIN_LOGIN_RATE_LIMIT_SECRET=3333333333333333333333333333333333333333333333333333333333333333
+          ADMIN_OWNER_USER_ID=
+          ADMIN_PAYOUT_APPROVER_USER_ID=
+          ROUTING_TIMEOUT_MS=5000
+          PLACE_PROOF_SECRET=4444444444444444444444444444444444444444444444444444444444444444
+          PLACE_PROOF_TTL_SECONDS=1800
+          DOCUMENT_INSPECTION_ENCRYPTION_KEY=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
+          DOCUMENT_INSPECTION_TTL_SECONDS=60
+          MERCADO_PAGO_ACCESS_TOKEN_TEST=
+          MERCADO_PAGO_WEBHOOK_SECRET=
+          EOF
+
+          node deploy/staging/validate-env.mjs --env-file=/tmp/ramo-staging.env
+          docker compose --env-file /tmp/ramo-staging.env -f deploy/staging/compose.yml config > /tmp/ramo-staging-compose.yml
+          grep -F "http://127.0.0.1:8091/health" /tmp/ramo-staging-compose.yml > /dev/null
+          docker run --rm \
+            -e APP_DOMAIN=staging.ramonessa.test \
+            -e ACME_EMAIL=ops@ramonessa.test \
+            -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
+      - name: Validate production deployment config
+        run: |
+          cat > /tmp/ramo-firebase-service-account.json <<'EOF'
+          {
+            "type": "service_account",
+            "project_id": "ramo-nessa-ci",
+            "private_key_id": "ci-fixture",
+            "private_key": "-----BEGIN PRIVATE KEY-----\\nfixture-only\\n-----END PRIVATE KEY-----\\n",
+            "client_email": "firebase-adminsdk@ramo-nessa-ci.iam.gserviceaccount.com"
+          }
+          EOF
+          chmod 600 /tmp/ramo-firebase-service-account.json
+
+          cat > /tmp/ramo-prod.env <<'EOF'
+          APP_DOMAIN=ci.ramonessa.test
+          ACME_EMAIL=ops@ramonessa.test
+          POSTGRES_USER=ramonessa
+          POSTGRES_DB=ramonessa
+          POSTGRES_PASSWORD=cccccccccccccccccccccccccccccccc
+          DATABASE_URL=postgresql://ramonessa:cccccccccccccccccccccccccccccccc@postgres:5432/ramonessa
+          DB_POOL_MAX=20
+          DB_SSL=false
+          DB_SSL_CA=
+          SHUTDOWN_TIMEOUT_MS=10000
+          OTP_HASH_SECRET=1111111111111111111111111111111111111111111111111111111111111111
+          OTP_RATE_LIMIT_SECRET=2222222222222222222222222222222222222222222222222222222222222222
+          OTP_WEBHOOK_URL=https://otp.ramonessa.test/send
+          OTP_WEBHOOK_TOKEN=33333333333333333333333333333333
+          ADMIN_MFA_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ADMIN_LOGIN_RATE_LIMIT_SECRET=4444444444444444444444444444444444444444444444444444444444444444
+          ADMIN_OWNER_USER_ID=
+          ADMIN_PAYOUT_APPROVER_USER_ID=
+          ROUTING_TIMEOUT_MS=5000
+          GOOGLE_MAPS_SERVER_API_KEY=55555555555555555555555555555555
+          PLACE_PROOF_SECRET=6666666666666666666666666666666666666666666666666666666666666666
+          PLACE_PROOF_TTL_SECONDS=1800
+          PUSH_PROVIDER=fcm
+          FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/tmp/ramo-firebase-service-account.json
+          DOCUMENT_INSPECTION_ENCRYPTION_KEY=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
+          DOCUMENT_INSPECTION_TTL_SECONDS=60
+          MERCADO_PAGO_ACCESS_TOKEN=7777777777777777777777777777777777777777
+          MERCADO_PAGO_WEBHOOK_SECRET=88888888888888888888888888888888
+          DRIVER_PAYOUT_PROVIDER_NAME=
+          DRIVER_PAYOUT_PROVIDER_URL=
+          DRIVER_PAYOUT_PROVIDER_TOKEN=
+          DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS=60
+          EOF
+
+          node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod.env
+
+          cp /tmp/ramo-prod.env /tmp/ramo-prod-push-disabled.env
+          sed -i 's/^PUSH_PROVIDER=fcm$/PUSH_PROVIDER=disabled/' /tmp/ramo-prod-push-disabled.env
+          if node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod-push-disabled.env; then
+            echo "::error::O deploy de produção aceitou PUSH_PROVIDER=disabled."
+            exit 1
+          fi
+
+          cat > /tmp/ramo-firebase-invalid.json <<'EOF'
+          {"type":"service_account","project_id":"ramo-nessa-ci"}
+          EOF
+          chmod 600 /tmp/ramo-firebase-invalid.json
+          cp /tmp/ramo-prod.env /tmp/ramo-prod-invalid-firebase.env
+          sed -i 's#^FIREBASE_SERVICE_ACCOUNT_HOST_FILE=.*$#FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/tmp/ramo-firebase-invalid.json#' /tmp/ramo-prod-invalid-firebase.env
+          if node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod-invalid-firebase.env; then
+            echo "::error::O deploy de produção aceitou Service Account Firebase incompleta."
+            exit 1
+          fi
+
+          docker compose \
+            --env-file /tmp/ramo-prod.env \
+            -f deploy/prod/compose.yml \
+            config > /dev/null
+
+          docker run --rm \
+            -e APP_DOMAIN=ci.ramonessa.test \
+            -e ACME_EMAIL=ops@ramonessa.test \
+            -v "$PWD/deploy/prod/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine \
+            caddy validate --config /etc/caddy/Caddyfile
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Resolve design system dependencies
+        working-directory: packages/design_system
+        run: flutter pub get
+
+      - name: Analyze design system
+        working-directory: packages/design_system
+        run: flutter analyze
+
+      - name: Test design system
+        working-directory: packages/design_system
+        run: flutter test
+
+      - name: Resolve Passenger dependencies
+        working-directory: apps/passenger
+        run: |
+          flutter pub get
+          echo "=== PASSENGER_PUBSPEC_LOCK_BEGIN ==="
+          cat pubspec.lock
+          echo "=== PASSENGER_PUBSPEC_LOCK_END ==="
+
+      - name: Format ride experience source for review
+        run: |
+          dart format packages/design_system/lib/src/motion/ramo_ride_motion.dart packages/design_system/test/ride_motion_test.dart apps/passenger/lib/src/features/payments/data/card_tokenization_service.dart apps/passenger/lib/src/features/payments/data/saved_card_service.dart apps/passenger/lib/src/features/payments/data/http_passenger_payment_service.dart apps/passenger/lib/src/features/payments/presentation/card_checkout_screen.dart apps/passenger/lib/src/features/payments/presentation/ride_payment_screen.dart apps/passenger/test/card_checkout_test.dart apps/driver/lib/src/features/home/presentation/driver_home_screen.dart apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart
+          mkdir -p "$RUNNER_TEMP/ride-experience-source"
+          cp --parents packages/design_system/lib/src/motion/ramo_ride_motion.dart packages/design_system/test/ride_motion_test.dart apps/passenger/lib/src/features/payments/data/card_tokenization_service.dart apps/passenger/lib/src/features/payments/data/saved_card_service.dart apps/passenger/lib/src/features/payments/data/http_passenger_payment_service.dart apps/passenger/lib/src/features/payments/presentation/card_checkout_screen.dart apps/passenger/lib/src/features/payments/presentation/ride_payment_screen.dart apps/passenger/test/card_checkout_test.dart apps/driver/lib/src/features/home/presentation/driver_home_screen.dart apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart "$RUNNER_TEMP/ride-experience-source/"
+
+      - name: Preserve formatted ride experience source
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ride-experience-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/ride-experience-source
+          retention-days: 3
+
+      - name: Analyze Passenger
+        working-directory: apps/passenger
+        run: flutter analyze
+
+      - name: Test Passenger
+        working-directory: apps/passenger
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee "$RUNNER_TEMP/passenger-tests.log"
+
+      - name: Preserve Passenger test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: passenger-test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+          path: ${{ runner.temp }}/passenger-tests.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Resolve Driver dependencies
+        working-directory: apps/driver
+        run: |
+          flutter pub get
+          echo "=== DRIVER_PUBSPEC_LOCK_BEGIN ==="
+          cat pubspec.lock
+          echo "=== DRIVER_PUBSPEC_LOCK_END ==="
+
+      - name: Analyze Driver
+        working-directory: apps/driver
+        run: flutter analyze
+
+      - name: Test Driver
+        working-directory: apps/driver
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee "$RUNNER_TEMP/driver-tests.log"
+
+      - name: Preserve Driver ranking visual checks
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: driver-benefits-visuals-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/driver-benefits-visuals
+            ${{ runner.temp }}/driver-tests.log
+          if-no-files-found: ignore
+          retention-days: 3

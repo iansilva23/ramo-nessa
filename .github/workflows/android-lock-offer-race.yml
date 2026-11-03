@@ -1,0 +1,40 @@
+name: Android lock offer race isolation
+on:
+  push:
+    branches: [feature/android-lock-offer-safety-20261031]
+    paths: ['backend/core/test/postgres_android_lock_offer_race.test.ts', 'backend/core/src/matching/**', 'backend/core/src/server.ts', 'deploy/android-lock/lock-candidate.test.mjs', '.github/workflows/android-lock-offer-race.yml']
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated
+          POSTGRES_DB: ramo_lock_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:isolated@127.0.0.1:5432/ramo_lock_test
+      DB_SSL: 'false'
+      RAMO_LOCK_RACE_TEST: isolated-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --no-audit --no-fund
+        working-directory: backend/core
+      - run: npm run build
+        working-directory: backend/core
+      - run: npm run db:migrate
+        working-directory: backend/core
+      - run: node --import tsx --test test/postgres_android_lock_offer_race.test.ts
+        working-directory: backend/core
+      - run: node --test --test-concurrency=1 ../../deploy/android-lock/lock-candidate.test.mjs
+        working-directory: backend/core
+        env:
+          RAMO_LOCK_CORE_DIST: ${{ github.workspace }}/backend/core/dist
