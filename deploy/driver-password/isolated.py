@@ -40,6 +40,8 @@ def test_candidate(h, candidate, postgres_image, payload):
                    '-e','DATABASE_URL=postgresql://driver_test:synthetic-test-only@test-pg:5432/driver_test',
                    '--entrypoint','node',candidate]
         h.run(command+['/release/test-migrations.mjs'], timeout=100)
+        h.run(command+['/release/migrate-one.mjs'], timeout=45)
+        h.run(command+['/release/migrate-one.mjs'], timeout=45)
         report=h.run(command+['--test','--test-concurrency=1','--test-reporter=tap',
                               '/release/driver_password_auth.test.mjs','/release/driver_password_postgres.test.mjs','/release/candidate-http.test.mjs'], timeout=100)
         h.save('candidate-tests.private.log', report)

@@ -30,7 +30,7 @@ test('exact candidate HTTP: native login, Web cookie, role isolation, enrollment
  try{
   await start();
   let r=await request('/v1/driver/me/login-credentials');assert.equal(r.status,401);await r.body?.cancel();
-  r=await request('/v1/driver/me/login-credentials',undefined,{authorization:'Bearer '+passenger.token});assert.equal(r.status,403);await r.body?.cancel();
+  r=await request('/v1/driver/me/login-credentials',undefined,{authorization:'Bearer '+passenger.token});assert.equal(r.status,401);assert.equal((await r.json()).error,'AUTH_ROLE_MISMATCH');
   r=await request('/v1/driver/me/login-credentials',{username,email,password},{authorization:'Bearer '+verified.token});assert.equal(r.status,201);assert.equal((await r.json()).configured,true);
   for(const identifier of [username,email.toUpperCase()]){r=await request('/v1/auth/driver/password/login',{identifier,password});assert.equal(r.status,201);const data=await r.json();assert.equal(data.subjectId,subject);assert.ok(data.accessToken);}
   r=await request('/v1/auth/driver/password/login',{identifier:username,password:'WrongPassword123'});assert.equal(r.status,401);assert.equal((await r.json()).error,'DRIVER_LOGIN_INVALID');
