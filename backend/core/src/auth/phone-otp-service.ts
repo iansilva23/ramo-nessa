@@ -294,6 +294,8 @@ export async function requestPhoneOtp(input: {
   }
 
   const now = input.now ?? new Date();
+  const whatsappControlsDisabled = input.delivery.externalProvider === 'entrar-whatsapp' &&
+    process.env.WHATSAPP_OTP_ABUSE_CONTROLS === 'disabled';
   const phoneE164 = normalizeBrazilMobilePhone(input.phone);
   const rawEmail = input.email?.trim();
   const emailNormalized =
@@ -301,7 +303,7 @@ export async function requestPhoneOtp(input: {
       ? undefined
       : normalizeRegistrationEmail(rawEmail);
 
-  await enforceOtpRequestRateLimits({
+  if (!whatsappControlsDisabled) await enforceOtpRequestRateLimits({
     repository: input.repository,
     subjectType: input.subjectType,
     phoneE164,
@@ -323,7 +325,7 @@ export async function requestPhoneOtp(input: {
     return {
       challengeId: randomUUID(),
       expiresAt: new Date(now.getTime() + OTP_TTL_MS).toISOString(),
-      retryAfterSeconds: Math.ceil(OTP_COOLDOWN_MS / 1000),
+      retryAfterSeconds: Math.ceil((whatsappControlsDisabled ? 0 : OTP_COOLDOWN_MS) / 1000),
     };
   }
 
@@ -345,7 +347,7 @@ export async function requestPhoneOtp(input: {
   const creation = await input.repository.createChallengeWithCooldown({
     challenge,
     now: now.toISOString(),
-    cooldownMs: OTP_COOLDOWN_MS,
+    cooldownMs: whatsappControlsDisabled ? 0 : OTP_COOLDOWN_MS,
   });
   if (!creation.created) {
     throw new PhoneOtpError(
@@ -382,7 +384,7 @@ export async function requestPhoneOtp(input: {
   return {
     challengeId,
     expiresAt: challenge.expiresAt,
-    retryAfterSeconds: Math.ceil(OTP_COOLDOWN_MS / 1000),
+    retryAfterSeconds: Math.ceil((whatsappControlsDisabled ? 0 : OTP_COOLDOWN_MS) / 1000),
     ...(input.delivery.exposesCodeForDevelopment === true &&
     process.env.NODE_ENV !== 'production'
       ? { devCode: code }
@@ -430,7 +432,8 @@ export async function verifyPhoneOtp(input: {
     const nonce = randomUUID();
     const reserved = await input.repository.beginExternalVerification({
       challengeId, nonce, attemptedAt: now.toISOString(),
-      leaseUntil: new Date(now.getTime() + 15000).toISOString(), maxAttempts: OTP_MAX_ATTEMPTS,
+      leaseUntil: new Date(now.getTime() + 15000).toISOString(),
+      maxAttempts: process.env.WHATSAPP_OTP_ABUSE_CONTROLS === 'disabled' ? 2147483647 : OTP_MAX_ATTEMPTS,
     });
     if (reserved?.externalReference != null) {
       const started = Date.now();

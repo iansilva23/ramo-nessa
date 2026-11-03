@@ -1,3 +1,4 @@
+import {handleDriverPasswordAuthRoute} from './auth/driver-password-auth-routes.js';
 import {NavigationControlError} from './routing/driver-navigation-control.js';
 import {driverNavigationRoutes,genericNavigationRouteAllowed} from './routing/driver-navigation-routes.js';
 import {OccurrenceError} from './rides/ride-occurrence-store.js';
@@ -553,6 +554,7 @@ const {
   asaasPayoutStore,
   authSessionRepository,
   authOtpRepository,
+  driverPasswordAuthStore,
   adminRepository,
   adminHumanAuthRepository,
   rideRepository,
@@ -2763,6 +2765,11 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
+
+    if (await handleDriverPasswordAuthRoute({request,response,pathname:requestUrl.pathname,
+      dependencies:{identities:authOtpRepository,sessions:authSessionRepository,store:driverPasswordAuthStore,rateLimitSecret:authRateLimitSecret},
+      delivery:otpDeliveryProvider,readJson,json,
+      clientIp:requestClientIp(request),clientInstanceId:headerValue(request,'x-client-instance-id')})) return;
 
     if (
       request.method === 'POST' &&

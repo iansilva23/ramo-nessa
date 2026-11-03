@@ -1,3 +1,4 @@
+import {InMemoryDriverPasswordAuthStore, PostgresDriverPasswordAuthStore, type DriverPasswordAuthStore} from '../auth/driver-password-auth-store.js';
 import {DriverNavigationControlStore} from '../routing/driver-navigation-control.js';
 import {RideOccurrenceStore} from '../rides/ride-occurrence-store.js';
 import {MemoryGuideStore,PostgresGuideStore,type GuideStore} from '../guide/guide-store.js';
@@ -81,6 +82,7 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  driverPasswordAuthStore: DriverPasswordAuthStore;
   driverNavigationControlStore: DriverNavigationControlStore|null;
   boardingStore: PostgresBoardingStore|null;
   occurrenceStore: RideOccurrenceStore|null;
@@ -132,6 +134,7 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      driverPasswordAuthStore: new PostgresDriverPasswordAuthStore(pool),
       driverNavigationControlStore: new DriverNavigationControlStore(pool),
       boardingStore: new PostgresBoardingStore(pool),
       occurrenceStore: new RideOccurrenceStore(pool),
@@ -195,6 +198,7 @@ export function createRepositories(): RepositoryBundle {
     );
   }
 
+  const driverAuthIdentities = new InMemoryAuthOtpRepository();
   const financeRepository = new InMemoryFinanceRepository();
   const adminRepository = new InMemoryAdminRepository();
   const promotionRepository = new InMemoryPromotionRepository();
@@ -202,6 +206,7 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
+    driverPasswordAuthStore: new InMemoryDriverPasswordAuthStore(driverAuthIdentities),
     driverNavigationControlStore: null,
     boardingStore: null,
     occurrenceStore: null,
@@ -209,7 +214,7 @@ export function createRepositories(): RepositoryBundle {
     manualCancellationStore: null,
     asaasPayoutStore: new InMemoryAsaasPayoutStore(),
     authSessionRepository: new InMemoryAuthSessionRepository(),
-    authOtpRepository: new InMemoryAuthOtpRepository(),
+    authOtpRepository: driverAuthIdentities,
     adminRepository,
     adminHumanAuthRepository:
       new InMemoryAdminHumanAuthRepository(),

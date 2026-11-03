@@ -137,10 +137,57 @@ function loginBucket(
   secret: string,
   kind: string,
   value: string,
+  namespace = 'password-login',
 ): string {
   return createHmac('sha256', secret)
-    .update(`password-login:${kind}:${value}`, 'utf8')
+    .update(`${namespace}:${kind}:${value}`, 'utf8')
     .digest('hex');
+}
+
+export async function consumePasswordLoginLimits(input: {
+  identities: AuthOtpRepository;
+  account: string;
+  rateLimitSecret: string;
+  namespace?: string;
+  clientIp?: string;
+  clientInstanceId?: string;
+  now: Date;
+}) {
+  const now = input.now;
+  return input.identities.consumeRateLimits({
+    rules: [
+      {
+        key: loginBucket(input.rateLimitSecret, 'email', input.account, input.namespace),
+        limit: 6,
+        windowMs: PASSWORD_LOGIN_WINDOW_MS,
+      },
+      ...(input.clientIp
+        ? [{
+            key: loginBucket(
+              input.rateLimitSecret,
+              'ip',
+              input.clientIp,
+              input.namespace,
+            ),
+            limit: 30,
+            windowMs: PASSWORD_LOGIN_WINDOW_MS,
+          }]
+        : []),
+      ...(input.clientInstanceId
+        ? [{
+            key: loginBucket(
+              input.rateLimitSecret,
+              'client',
+              input.clientInstanceId,
+              input.namespace,
+            ),
+            limit: 20,
+            windowMs: PASSWORD_LOGIN_WINDOW_MS,
+          }]
+        : []),
+    ],
+    now: now.toISOString(),
+  });
 }
 
 export async function loginPassengerWithPassword(input: {
@@ -161,38 +208,7 @@ export async function loginPassengerWithPassword(input: {
     emailNormalized = input.email.trim().toLowerCase().slice(0, 254);
   }
 
-  const limited = await input.identities.consumeRateLimits({
-    rules: [
-      {
-        key: loginBucket(input.rateLimitSecret, 'email', emailNormalized),
-        limit: 6,
-        windowMs: PASSWORD_LOGIN_WINDOW_MS,
-      },
-      ...(input.clientIp
-        ? [{
-            key: loginBucket(
-              input.rateLimitSecret,
-              'ip',
-              input.clientIp,
-            ),
-            limit: 30,
-            windowMs: PASSWORD_LOGIN_WINDOW_MS,
-          }]
-        : []),
-      ...(input.clientInstanceId
-        ? [{
-            key: loginBucket(
-              input.rateLimitSecret,
-              'client',
-              input.clientInstanceId,
-            ),
-            limit: 20,
-            windowMs: PASSWORD_LOGIN_WINDOW_MS,
-          }]
-        : []),
-    ],
-    now: now.toISOString(),
-  });
+  const limited = await consumePasswordLoginLimits({...input,account:emailNormalized,now});
 
   if (!limited.allowed) {
     throw new PassengerPasswordAuthError(

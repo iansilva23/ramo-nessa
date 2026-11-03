@@ -9,10 +9,12 @@ class DriverSecurityScreen extends StatefulWidget {
     super.key,
     required this.api,
     this.profile,
+    this.configureLogin,
   });
 
   final DriverApi api;
   final DriverProfileSnapshot? profile;
+  final VoidCallback? configureLogin;
 
   @override
   State<DriverSecurityScreen> createState() => _DriverSecurityScreenState();
@@ -159,7 +161,7 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
                   SizedBox(width: RamoSpacing.md),
                   Expanded(
                     child: Text(
-                      'Sua sessão usa autenticação por telefone e token seguro armazenado no aparelho.',
+                      'Sua conta usa uma sessão segura. Você pode configurar usuário e senha e recuperar o acesso pelo WhatsApp.',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -169,13 +171,19 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
                 ],
               ),
             ),
+            if (widget.configureLogin != null)
+              ListTile(
+                leading: const Icon(Icons.password_rounded),
+                title: const Text('Usuário e senha'),
+                subtitle: const Text(
+                  'Configure seu acesso sem código no dia a dia',
+                ),
+                onTap: widget.configureLogin,
+              ),
             const SizedBox(height: RamoSpacing.xl),
             const Text(
               'Conta',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 17,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
             ),
             const SizedBox(height: RamoSpacing.sm),
             ListTile(
@@ -195,10 +203,7 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
             const SizedBox(height: RamoSpacing.md),
             const Text(
               'Sessão atual',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 17,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
             ),
             const SizedBox(height: RamoSpacing.sm),
             if (_loading && security == null)
@@ -221,9 +226,7 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
               const SizedBox(height: RamoSpacing.sm),
               Text(
                 _error!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
             const SizedBox(height: RamoSpacing.xl),

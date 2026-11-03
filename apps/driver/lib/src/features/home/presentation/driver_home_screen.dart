@@ -1,3 +1,5 @@
+import '../../../core/auth/http_phone_auth_service.dart';
+import '../../../core/auth/driver_password_setup_screen.dart';
 import '../../../core/availability/driver_screen_lock_events.dart';
 import 'package:ramo_push/ramo_push.dart';
 import '../data/passenger_rating_api.dart';
@@ -3533,6 +3535,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           builder: (_) => DriverSecurityScreen(
                             api: _api,
                             profile: _profile,
+                            configureLogin: DriverCoreConfig.baseUri == null || _accessToken.length < 20 ? null : () {
+                              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DriverPasswordSetupScreen(
+                                service: HttpPhoneAuthService(baseUrl: DriverCoreConfig.baseUri!, subjectType: 'driver'),
+                                accessToken: _accessToken,
+                              )));
+                            },
                           ),
                         ),
                       );
