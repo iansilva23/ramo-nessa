@@ -15,6 +15,15 @@ s=importlib.util.spec_from_file_location('helper',ROOT/'deploy/android-lock/acti
 h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
 with tempfile.TemporaryDirectory(prefix='driver-login-ci-') as temp:
     root=Path(temp);h.DIRECTORY=root
+    private_run=h.run
+    def ci_run(*args,**kwargs):
+        try:return private_run(*args,**kwargs)
+        except RuntimeError:
+            # CI rehearsal contains synthetic data only. Production keeps logs private.
+            log=root/'command.private.log'
+            if log.exists():print(log.read_text(errors='replace')[-20000:],flush=True)
+            raise
+    h.run=ci_run
     package=Path(sys.argv[1]).resolve();nonce=root.name
     context=root/'baseline';context.mkdir()
     archive=subprocess.Popen(['git','archive','5fa387e563074522a68adf3b3df9e7e18a4d0be6','backend/core'],cwd=ROOT,stdout=subprocess.PIPE)
