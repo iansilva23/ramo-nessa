@@ -5,7 +5,7 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 
-import type { AuthOtpRepository } from './auth-otp-repository.js';
+import type { AuthIdentityRepository } from './auth-identity-repository.js';
 import type { AuthSessionRepository } from './auth-session-repository.js';
 import { issueAuthSession } from './auth-service.js';
 
@@ -145,7 +145,7 @@ function loginBucket(
 }
 
 export async function consumePasswordLoginLimits(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   account: string;
   rateLimitSecret: string;
   namespace?: string;
@@ -191,7 +191,7 @@ export async function consumePasswordLoginLimits(input: {
 }
 
 export async function loginPassengerWithPassword(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   sessions: AuthSessionRepository;
   email: string;
   password: string;
@@ -262,7 +262,7 @@ export async function loginPassengerWithPassword(input: {
 }
 
 export async function updatePassengerAccount(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   subjectId: string;
   fullName?: string;
   email?: string;

@@ -179,16 +179,7 @@ export function validateProductionEnvironment(env) {
   }
   requireInteger(env, 'SHUTDOWN_TIMEOUT_MS', 1000, 60000);
 
-  requireValue(env, 'OTP_HASH_SECRET', 32);
-  requireValue(env, 'OTP_RATE_LIMIT_SECRET', 32);
-  const otpProvider = env.get('OTP_PROVIDER') || 'webhook';
-  if (otpProvider === 'webhook') {
-    assertHttps(requireValue(env, 'OTP_WEBHOOK_URL', 12), 'OTP_WEBHOOK_URL');
-    requireValue(env, 'OTP_WEBHOOK_TOKEN', 20);
-  } else if (otpProvider === 'entrar-whatsapp') {
-    const secret = requireValue(env, 'ENTRAR_API_SECRET');
-    if (/[\s\x00-\x1f]/.test(secret)) throw new Error('ENTRAR_API_SECRET inválido.');
-  } else throw new Error('OTP_PROVIDER deve ser webhook ou entrar-whatsapp.');
+  requireValue(env, 'AUTH_PASSWORD_RATE_LIMIT_SECRET', 32);
 
   const mfaKey = requireValue(env, 'ADMIN_MFA_ENCRYPTION_KEY', 32);
   assertBase64Bytes(mfaKey, 32, 'ADMIN_MFA_ENCRYPTION_KEY');

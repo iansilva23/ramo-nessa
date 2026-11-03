@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/core/auth/auth_token_store.dart';
-import 'package:ramo_nessa_driver/src/core/auth/phone_auth_service.dart';
-import 'package:ramo_nessa_driver/src/core/auth/driver_password_auth_service.dart';
+import 'package:ramo_nessa_driver/src/core/auth/password_auth_service.dart';
 import 'package:ramo_nessa_driver/src/core/auth/driver_password_login_screen.dart';
-import 'package:ramo_nessa_driver/src/core/auth/driver_password_setup_screen.dart';
+import 'package:ramo_nessa_driver/src/core/auth/driver_password_auth_service.dart';
 
 class Store implements AuthTokenStore {
   String? token;
@@ -21,9 +20,9 @@ class Store implements AuthTokenStore {
   }
 }
 
-class Service implements PhoneAuthService, DriverPasswordAuthService {
-  int otpCalls = 0, passwordCalls = 0, resetCalls = 0, enrollCalls = 0;
-  bool fail = false, configured = false;
+class Service implements PasswordAuthService, DriverPasswordAuthService {
+  int loginCalls = 0, registerCalls = 0;
+  bool fail = false;
   String? identifier;
   AuthSession get session => AuthSession(
     accessToken: 'abcdefghijklmnopqrstuvwxyz123456',
@@ -36,75 +35,41 @@ class Service implements PhoneAuthService, DriverPasswordAuthService {
     required String identifier,
     required String password,
   }) async {
-    passwordCalls++;
+    loginCalls++;
     this.identifier = identifier;
-    if (fail) throw Exception('Usuário, e-mail ou senha inválidos.');
+    if (fail) {
+      throw Exception('Acesso inválido.');
+    }
     return session;
   }
 
   @override
-  Future<RequestedOtp> requestOtp({required String phone}) async {
-    otpCalls++;
-    return RequestedOtp(
-      challengeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-      retryAfterSeconds: 0,
-    );
+  Future<AuthSession> registerWithPassword({
+    required String fullName,
+    required String phone,
+    required String email,
+    required String password,
+    String? username,
+  }) async {
+    registerCalls++;
+    return session;
   }
 
   @override
-  Future<AuthSession> verifyOtp({
-    required String challengeId,
-    required String code,
-  }) async => session;
-  @override
-  Future<AuthSessionInfo?> currentSession(String token) async =>
-      AuthSessionInfo(
-        expiresAt: session.expiresAt,
-        subjectId: session.subjectId,
-        subjectType: 'driver',
-      );
+  Future<AuthSessionInfo?> currentSession(String token) async => null;
   @override
   Future<void> logout(String token) async {}
+
   @override
   Future<DriverLoginCredentials> loginCredentials(String token) async =>
-      DriverLoginCredentials(
-        configured: configured,
-        username: configured ? 'driver.name' : null,
-        email: configured ? 'driver@example.com' : null,
-      );
+      const DriverLoginCredentials(configured: false);
   @override
   Future<void> createLoginCredentials({
     required String accessToken,
     required String username,
     required String email,
     required String password,
-  }) async {
-    enrollCalls++;
-    configured = true;
-  }
-
-  @override
-  Future<RequestedOtp> requestPasswordReset({
-    required String identifier,
-  }) async {
-    resetCalls++;
-    return RequestedOtp(
-      challengeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-      retryAfterSeconds: 0,
-    );
-  }
-
-  @override
-  Future<AuthSession> completePasswordReset({
-    required String challengeId,
-    required String code,
-    required String password,
-  }) async {
-    if (fail) throw Exception('Código inválido ou expirado.');
-    return session;
-  }
+  }) async {}
 }
 
 Future<void> tap(WidgetTester t, String key) async {
@@ -115,154 +80,67 @@ Future<void> tap(WidgetTester t, String key) async {
 }
 
 void main() {
-  for (final id in ['driver.name', 'driver@example.com']) {
-    testWidgets('login with $id uses password and no WhatsApp', (t) async {
-      final service = Service(), store = Store();
-      String? token;
-      await t.pumpWidget(
-        MaterialApp(
-          home: DriverPasswordLoginScreen(
-            phoneService: service,
-            passwordService: service,
-            tokenStore: store,
-            onAuthenticated: (value) => token = value,
-          ),
-        ),
-      );
-      await t.enterText(find.byKey(const Key('driver-login-identifier')), id);
-      await t.enterText(
-        find.byKey(const Key('driver-login-password')),
-        'Example12345',
-      );
-      await tap(t, 'driver-login-submit');
-      expect(service.identifier, id);
-      expect(service.passwordCalls, 1);
-      expect(service.otpCalls, 0);
-      expect(service.resetCalls, 0);
-      expect(token, store.token);
-      expect(token, isNotNull);
-    });
-  }
-  testWidgets('failed password does not store a session', (t) async {
-    final service = Service()..fail = true, store = Store();
-    await t.pumpWidget(
-      MaterialApp(
-        home: DriverPasswordLoginScreen(
-          phoneService: service,
-          passwordService: service,
-          tokenStore: store,
-          onAuthenticated: (_) => fail('Unexpected login'),
-        ),
-      ),
-    );
-    await t.enterText(
-      find.byKey(const Key('driver-login-identifier')),
-      'driver.name',
-    );
-    await t.enterText(
-      find.byKey(const Key('driver-login-password')),
-      'WrongPassword123',
-    );
-    await tap(t, 'driver-login-submit');
-    expect(store.token, isNull);
-    expect(find.byKey(const Key('driver-login-error')), findsOneWidget);
-  });
-  testWidgets(
-    'recovery requests OTP only after explicit request and checks password confirmation',
-    (t) async {
-      final service = Service(), store = Store();
-      String? token;
-      await t.pumpWidget(
-        MaterialApp(
-          home: DriverPasswordLoginScreen(
-            phoneService: service,
-            passwordService: service,
-            tokenStore: store,
-            onAuthenticated: (value) => token = value,
-          ),
-        ),
-      );
-      await t.enterText(
-        find.byKey(const Key('driver-login-identifier')),
-        'driver.name',
-      );
-      await tap(t, 'driver-forgot-password');
-      expect(service.resetCalls, 0);
-      await tap(t, 'driver-login-submit');
-      expect(service.resetCalls, 1);
-      expect(store.token, isNull);
-      await t.enterText(find.byKey(const Key('driver-reset-code')), '654321');
-      await t.enterText(
-        find.byKey(const Key('driver-login-password')),
-        'NewPassword123',
-      );
-      await t.enterText(
-        find.byKey(const Key('driver-reset-confirm')),
-        'Different12345',
-      );
-      await tap(t, 'driver-login-submit');
-      expect(token, isNull);
-      expect(find.text('As senhas não são iguais.'), findsOneWidget);
-      await t.enterText(
-        find.byKey(const Key('driver-reset-confirm')),
-        'NewPassword123',
-      );
-      await tap(t, 'driver-login-submit');
-      expect(token, isNotNull);
-    },
+  Widget app(Service s, Store store) => MaterialApp(
+    home: DriverPasswordLoginScreen(
+      phoneService: s,
+      passwordService: s,
+      tokenStore: store,
+      onAuthenticated: (_) {},
+    ),
   );
-  testWidgets(
-    'authenticated existing driver creates credentials without another OTP',
-    (t) async {
-      final service = Service();
-      var finished = false;
-      await t.pumpWidget(
-        MaterialApp(
-          home: DriverPasswordSetupScreen(
-            service: service,
-            accessToken: service.session.accessToken,
-            onConfigured: () => finished = true,
-          ),
-        ),
-      );
-      await t.pumpAndSettle();
-      await t.enterText(
-        find.byKey(const Key('driver-setup-username')),
-        'driver.name',
-      );
-      await t.enterText(
-        find.byKey(const Key('driver-setup-email')),
-        'driver@example.com',
-      );
-      await t.enterText(
-        find.byKey(const Key('driver-setup-password')),
-        'Example12345',
-      );
-      await t.enterText(
-        find.byKey(const Key('driver-setup-confirm')),
-        'Example12345',
-      );
-      await tap(t, 'driver-setup-save');
-      expect(finished, true);
-      expect(service.enrollCalls, 1);
-      expect(service.otpCalls, 0);
-    },
-  );
-  testWidgets('configured credentials cannot be overwritten by enrollment UI', (
+  testWidgets('landing, login, back and registration share one coherent flow', (
     t,
   ) async {
-    final service = Service()..configured = true;
-    await t.pumpWidget(
-      MaterialApp(
-        home: DriverPasswordSetupScreen(
-          service: service,
-          accessToken: service.session.accessToken,
-        ),
-      ),
+    final s = Service(), store = Store();
+    await t.pumpWidget(app(s, store));
+    expect(find.text('Seja um motorista parceiro'), findsOneWidget);
+    expect(find.text('Esqueci minha senha'), findsNothing);
+    expect(find.byKey(const Key('auth-code-field')), findsNothing);
+    await tap(t, 'auth-login-button');
+    await t.enterText(find.byKey(const Key('auth-email-field')), 'driver.name');
+    await t.enterText(
+      find.byKey(const Key('auth-password-field')),
+      'Example12345',
     );
-    await t.pumpAndSettle();
-    expect(find.text('Seu acesso está configurado'), findsOneWidget);
-    expect(find.byKey(const Key('driver-setup-save')), findsNothing);
-    expect(service.enrollCalls, 0);
+    await tap(t, 'auth-primary-button');
+    expect(s.loginCalls, 1);
+    expect(store.token, isNotNull);
+    await tap(t, 'auth-back-button');
+    await tap(t, 'auth-create-account-button');
+    await t.enterText(find.byKey(const Key('auth-name-field')), 'Conta Teste');
+    await t.enterText(
+      find.byKey(const Key("auth-username-field")),
+      "driver.name",
+    );
+    await t.enterText(find.byKey(const Key('auth-phone-field')), '88999994321');
+    await t.enterText(
+      find.byKey(const Key('auth-email-field')),
+      'account@example.test',
+    );
+    await t.enterText(
+      find.byKey(const Key('auth-password-field')),
+      'Example12345',
+    );
+    await tap(t, 'auth-primary-button');
+    expect(s.registerCalls, 1);
+    expect(find.byKey(const Key('auth-code-field')), findsNothing);
+  });
+  testWidgets('wrong password keeps the form and does not save a session', (
+    t,
+  ) async {
+    final s = Service()..fail = true, store = Store();
+    await t.pumpWidget(app(s, store));
+    await tap(t, 'auth-login-button');
+    await t.enterText(
+      find.byKey(const Key('auth-email-field')),
+      'account@example.test',
+    );
+    await t.enterText(
+      find.byKey(const Key('auth-password-field')),
+      'WrongPassword123',
+    );
+    await tap(t, 'auth-primary-button');
+    expect(store.token, isNull);
+    expect(find.byKey(const Key('auth-error')), findsOneWidget);
   });
 }

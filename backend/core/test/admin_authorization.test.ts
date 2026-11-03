@@ -18,9 +18,9 @@ import { InMemoryAdminHumanAuthRepository } from '../src/admin/repositories/in-m
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { PostgresAdminHumanAuthRepository } from '../src/admin/repositories/postgres-admin-human-auth-repository.js';
 import { PostgresAdminRepository } from '../src/admin/repositories/postgres-admin-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
-import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import { PostgresAuthIdentityRepository } from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
@@ -92,7 +92,7 @@ test('autorizador Admin aceita API key e sessão humana sem confundir prefixos',
 test('ação feita por sessão humana registra ator humano na auditoria', async () => {
   const apiKeys = new InMemoryAdminRepository();
   const humanAuth = new InMemoryAdminHumanAuthRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const registry = new InMemoryDriverRegistryRepository();
 
@@ -154,7 +154,7 @@ test(
     const pool = createPostgresPool(databaseUrl!);
     const apiKeys = new PostgresAdminRepository(pool);
     const humanAuth = new PostgresAdminHumanAuthRepository(pool);
-    const identities = new PostgresAuthOtpRepository(pool);
+    const identities = new PostgresAuthIdentityRepository(pool);
     const sessions = new PostgresAuthSessionRepository(pool);
     const registry = new InMemoryDriverRegistryRepository();
     const nonce = randomInt(10_000_000, 99_999_999);

@@ -10,7 +10,7 @@ import '../../map/domain/ramo_place.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../../core/auth/phone_auth_service.dart';
+import '../../../core/auth/password_auth_service.dart';
 import '../../../core/communications/social_links_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../../map/data/place_search_service.dart';
@@ -54,7 +54,7 @@ class PassengerMainShell extends StatefulWidget {
   onResumeRide;
   final Future<void> Function(BuildContext context, String rideId)? onOpenRideChat;
   final PassengerActivityService? activityService;
-  final PhoneAuthService? authService;
+  final PasswordAuthService? authService;
   final PassengerPaymentService? paymentService;
   final PassengerSavedPlaceService? savedPlaceService;
   final PlaceSearchService? placeSearchService;

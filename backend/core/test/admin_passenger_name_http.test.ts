@@ -7,7 +7,7 @@ import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {createPostgresPool} from '../src/db/postgres.js';
 import {PostgresAdminRepository} from '../src/admin/repositories/postgres-admin-repository.js';
-import {PostgresAuthOtpRepository} from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import {PostgresAuthIdentityRepository} from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import {issueAdminApiKey} from '../src/admin/admin-auth.js';
 
 const database='postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa';
@@ -23,7 +23,7 @@ test('actual passenger HTTP search returns registered names and retains scope, I
  try{
   await root.query('CREATE SCHEMA '+schema);
   for(const table of ['auth_identities','admin_api_keys','admin_audit_log'])await root.query('CREATE TABLE '+schema+'.'+table+' (LIKE public.'+table+' INCLUDING ALL)');
-  const repo=new PostgresAuthOtpRepository(pool),admin=new PostgresAdminRepository(pool);
+  const repo=new PostgresAuthIdentityRepository(pool),admin=new PostgresAdminRepository(pool);
   const key=await issueAdminApiKey({repository:admin,name:'Synthetic passenger reader',scopes:['passengers:auth:read']});
   const denied=await issueAdminApiKey({repository:admin,name:'Synthetic unrelated reader',scopes:['drivers:auth:read']});
   const time='2026-10-23T00:00:00.000Z';

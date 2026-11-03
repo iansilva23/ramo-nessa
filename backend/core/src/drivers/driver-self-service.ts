@@ -1,4 +1,4 @@
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { DriverRegistryRepository } from './driver-registry-repository.js';
@@ -26,7 +26,7 @@ function activityRideView(
 }
 
 export async function driverProfileForApp(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   registry: DriverRegistryRepository;
   driverId: string;
 }) {

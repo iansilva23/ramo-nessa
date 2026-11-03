@@ -4,8 +4,8 @@ import test from 'node:test';
 import { issueAdminApiKey } from '../src/admin/admin-auth.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { PostgresAdminRepository } from '../src/admin/repositories/postgres-admin-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
-import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
+import { PostgresAuthIdentityRepository } from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import {
   DriverRegistryError,
   getDriverRegistryForAdmin,
@@ -55,7 +55,7 @@ test('placa brasileira é normalizada sem alterar formato válido', () => {
 });
 
 test('cadastro motorista + veículo nasce pendente e aprovação é explícita', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
@@ -141,7 +141,7 @@ test('cadastro motorista + veículo nasce pendente e aprovação é explícita',
 });
 
 test('suspender cadastro tira motorista da operação sem apagar a corrida/supply', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
@@ -210,7 +210,7 @@ test('suspender cadastro tira motorista da operação sem apagar a corrida/suppl
 });
 
 test('uma placa não pode ser vinculada a dois motoristas', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
@@ -258,7 +258,7 @@ test('uma placa não pode ser vinculada a dois motoristas', async () => {
 });
 
 test('cadastro exige identidade de motorista previamente provisionada', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
@@ -287,7 +287,7 @@ test(
   { skip: !databaseUrl },
   async () => {
     const pool = createPostgresPool(databaseUrl!);
-    const identities = new PostgresAuthOtpRepository(pool);
+    const identities = new PostgresAuthIdentityRepository(pool);
     const registry = new PostgresDriverRegistryRepository(pool);
     const drivers = new PostgresDriverSupplyRepository(pool);
     const admin = new PostgresAdminRepository(pool);

@@ -3,14 +3,14 @@ import test from 'node:test';
 import type { IncomingMessage } from 'node:http';
 import { issueAuthSession } from '../src/auth/auth-service.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { BrowserRealtimeTicketStore, browserRealtimeOrigin, validateBrowserRealtimeSession } from '../src/realtime/browser-realtime-ticket.js';
 
 const origin = 'https://app.example.com';
 const now = Date.now();
 async function fixture(role: 'driver' | 'passenger' = 'passenger') {
   const sessions = new InMemoryAuthSessionRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const issued = await issueAuthSession({ repository: sessions, subjectId: role + '-ticket',
     subjectType: role, now: new Date(now), ttlMs: 60_000 });
   return { sessions, identities, issued, store: new BrowserRealtimeTicketStore() };

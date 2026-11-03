@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
-import { normalizeBrazilMobilePhone } from '../auth/phone-otp-service.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
+import { normalizeBrazilMobilePhone } from '../auth/auth-input.js';
 import type { RideChatMessageRecord, RideRepository } from './ride-repository.js';
 
 const activeStates = new Set(['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'IN_PROGRESS']);
@@ -18,7 +18,7 @@ export async function rideChatRoutes(input: {
   response: ServerResponse;
   url: URL;
   rides: RideRepository;
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   authenticate: (role: 'driver' | 'passenger') => Promise<string>;
   readJson: (request: IncomingMessage) => Promise<unknown>;
   json: (response: ServerResponse, status: number, body: unknown) => void;

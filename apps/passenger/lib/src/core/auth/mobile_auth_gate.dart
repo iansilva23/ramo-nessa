@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_token_store.dart';
-import 'phone_auth_service.dart';
+import 'password_auth_service.dart';
 import 'passenger_auth_screen.dart';
 
 class MobileAuthGate extends StatefulWidget {
@@ -24,16 +24,14 @@ class MobileAuthGate extends StatefulWidget {
   });
 
   final String subjectType;
-  final PhoneAuthService service;
+  final PasswordAuthService service;
   final AuthTokenStore tokenStore;
   final String? initialAccessToken;
   final bool devBypass;
   final String loginTitle;
   final String loginSubtitle;
-  final Widget Function(
-    String? accessToken,
-    Future<bool> Function() logout,
-  ) authenticatedBuilder;
+  final Widget Function(String? accessToken, Future<bool> Function() logout)
+  authenticatedBuilder;
   final Future<void> Function(String accessToken)? onSessionReady;
   final Future<void> Function()? onSessionEnded;
   // Browser tabs may remain open without another lifecycle resume event.
@@ -44,7 +42,8 @@ class MobileAuthGate extends StatefulWidget {
   State<MobileAuthGate> createState() => _MobileAuthGateState();
 }
 
-class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObserver {
+class _MobileAuthGateState extends State<MobileAuthGate>
+    with WidgetsBindingObserver {
   bool _refreshing = false;
   bool _loggingOut = false;
   String? _accessToken;
@@ -86,8 +85,13 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
   void _startSessionValidation() {
     final interval = widget.sessionValidationInterval;
     final token = _accessToken;
-    if (!mounted || !_foreground || _loggingOut || interval == null ||
-        interval <= Duration.zero || token == null || token.length < 20 ||
+    if (!mounted ||
+        !_foreground ||
+        _loggingOut ||
+        interval == null ||
+        interval <= Duration.zero ||
+        token == null ||
+        token.length < 20 ||
         _sessionValidationTimer != null) {
       return;
     }
@@ -111,16 +115,20 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
     bool invalidated = false;
     try {
       final session = await widget.service.currentSession(token);
-      if (!mounted || _accessToken != token || _loggingOut) { _refreshing = false; return; }
-      if (
-        session == null ||
-        session.subjectType != widget.subjectType ||
-        !session.expiresAt.isAfter(DateTime.now())
-      ) {
+      if (!mounted || _accessToken != token || _loggingOut) {
+        _refreshing = false;
+        return;
+      }
+      if (session == null ||
+          session.subjectType != widget.subjectType ||
+          !session.expiresAt.isAfter(DateTime.now())) {
         try {
           await widget.tokenStore.clearAccessToken();
         } catch (_) {}
-        if (!mounted || _accessToken != token) { _refreshing = false; return; }
+        if (!mounted || _accessToken != token) {
+          _refreshing = false;
+          return;
+        }
         _accessToken = null;
         invalidated = true;
         _stopSessionValidation();
@@ -141,7 +149,9 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
     if (notifyReady && readyToken != null && readyToken.length >= 20) {
       final callback = widget.onSessionReady;
       if (callback != null) {
-        unawaited(Future<void>.sync(() => callback(readyToken)).catchError((_) {}));
+        unawaited(
+          Future<void>.sync(() => callback(readyToken)).catchError((_) {}),
+        );
       }
     }
 
@@ -208,9 +218,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     if (_checking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final token = _accessToken;

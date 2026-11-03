@@ -7,7 +7,7 @@ import {
   resolvePassengerId,
 } from '../auth/dev-identity.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import {
   currentDriverRide,
   driverRideView,
@@ -43,7 +43,7 @@ interface AttachRealtimeServerInput {
   registry: DriverRegistryRepository;
   matching: RideMatchingRepository;
   sessions: AuthSessionRepository;
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   browserTickets?: BrowserRealtimeTicketStore;
 }
 

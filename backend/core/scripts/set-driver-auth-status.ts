@@ -1,8 +1,8 @@
 import { requireRegistrationDocuments } from '../src/admin/admin-driver-auth-service.js';
 import { PostgresDriverDocumentRepository } from '../src/drivers/repositories/postgres-driver-document-repository.js';
-import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import { PostgresAuthIdentityRepository } from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
-import type { AuthIdentityStatus } from '../src/auth/auth-otp-repository.js';
+import type { AuthIdentityStatus } from '../src/auth/auth-identity-repository.js';
 import { PostgresDriverRegistryRepository } from '../src/drivers/repositories/postgres-driver-registry-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 
@@ -37,7 +37,7 @@ if (rawStatus !== 'active' && rawStatus !== 'suspended') {
 const status: AuthIdentityStatus = rawStatus;
 
 const pool = createPostgresPool(databaseUrl);
-const repository = new PostgresAuthOtpRepository(pool);
+const repository = new PostgresAuthIdentityRepository(pool);
 const sessions = new PostgresAuthSessionRepository(pool);
 const registry = new PostgresDriverRegistryRepository(pool);
 

@@ -1,4 +1,4 @@
-import 'phone_auth_service.dart';
+import 'password_auth_service.dart';
 
 class DriverLoginCredentials {
   const DriverLoginCredentials({
@@ -21,12 +21,6 @@ abstract interface class DriverPasswordAuthService {
     required String accessToken,
     required String username,
     required String email,
-    required String password,
-  });
-  Future<RequestedOtp> requestPasswordReset({required String identifier});
-  Future<AuthSession> completePasswordReset({
-    required String challengeId,
-    required String code,
     required String password,
   });
 }

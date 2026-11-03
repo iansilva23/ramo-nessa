@@ -1,4 +1,4 @@
-import type { AuthIdentityRecord } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRecord } from '../auth/auth-identity-repository.js';
 import type { FinanceRepository } from './finance-repository.js';
 import {
   mercadoPagoOrderRefundState,

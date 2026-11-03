@@ -1,17 +1,3 @@
-class RequestedOtp {
-  const RequestedOtp({
-    required this.challengeId,
-    required this.expiresAt,
-    required this.retryAfterSeconds,
-    this.devCode,
-  });
-
-  final String challengeId;
-  final DateTime expiresAt;
-  final int retryAfterSeconds;
-  final String? devCode;
-}
-
 class AuthSession {
   const AuthSession({
     required this.accessToken,
@@ -38,16 +24,15 @@ class AuthSessionInfo {
   final String subjectType;
 }
 
-abstract interface class PhoneAuthService {
-  Future<RequestedOtp> requestOtp({required String phone});
-  Future<AuthSession> verifyOtp({
-    required String challengeId,
-    required String code,
+abstract interface class PasswordAuthService {
+  Future<AuthSession> registerWithPassword({
+    required String fullName,
+    required String phone,
+    required String email,
+    required String password,
+    String? username,
   });
+
   Future<AuthSessionInfo?> currentSession(String accessToken);
   Future<void> logout(String accessToken);
-}
-
-abstract interface class DriverRegistrationAuthService {
-  Future<RequestedOtp> requestRegistrationOtp({required String phone});
 }

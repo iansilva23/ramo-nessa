@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { AuthSessionRecord, AuthSessionRepository } from '../auth/auth-session-repository.js';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import { AuthenticationError, hashBearerToken } from '../auth/auth-service.js';
 
 export const BROWSER_REALTIME_PROTOCOL = 'ramo.realtime.v1';
@@ -70,7 +70,7 @@ export class BrowserRealtimeTicketStore {
 export async function validateBrowserRealtimeSession(input: {
   grant: BrowserRealtimeGrant;
   sessions: AuthSessionRepository;
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   now?: number;
 }): Promise<void> {
   const session = await input.sessions.findByTokenHash(input.grant.session.tokenHash);

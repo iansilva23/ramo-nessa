@@ -4,11 +4,11 @@ import { randomUUID } from 'node:crypto';
 import type {
   AuthIdentityRecord,
   AuthIdentityStatus,
-  AuthOtpRepository,
-} from '../auth/auth-otp-repository.js';
+  AuthIdentityRepository,
+} from '../auth/auth-identity-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
 import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
-import { normalizeBrazilMobilePhone } from '../auth/phone-otp-service.js';
+import { normalizeBrazilMobilePhone } from '../auth/auth-input.js';
 import type { AdminActor, AdminRepository } from './admin-repository.js';
 
 export class AdminDriverAuthError extends Error {
@@ -67,7 +67,7 @@ async function requireApprovedDriverRegistry(input: {
   ) {
     throw new AdminDriverAuthError(
       'DRIVER_REGISTRY_NOT_APPROVED',
-      'Aprove o perfil e o veículo do motorista antes de liberar o acesso OTP.',
+      'Aprove o perfil e o veículo do motorista antes de liberar a operação do motorista.',
     );
   }
 }
@@ -104,7 +104,7 @@ async function audit(input: {
 }
 
 export async function getDriverAuthForAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   driverId: string;
 }) {
   const driverId = normalizeDriverId(input.driverId);
@@ -122,7 +122,7 @@ export async function getDriverAuthForAdmin(input: {
 }
 
 export async function provisionDriverAuthFromAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   sessions: AuthSessionRepository;
   registry: DriverRegistryRepository;
   documents?: DriverDocumentRepository;
@@ -241,7 +241,7 @@ export async function provisionDriverAuthFromAdmin(input: {
 }
 
 export async function setDriverAuthStatusFromAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   sessions: AuthSessionRepository;
   registry: DriverRegistryRepository;
   documents?: DriverDocumentRepository;

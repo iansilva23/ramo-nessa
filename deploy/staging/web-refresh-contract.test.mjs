@@ -8,7 +8,7 @@ test('global deferred removal is separated without modifying PWA/ADM/site rules'
   assert.throws(()=>fixWebPolicyHeader('unknown'));
 });
 function fixture() {
-  const baseline={services:{core:{image:'core',environment:{OTP_PROVIDER:'real',MERCADO_PAGO_MODE:'test'},volumes:[{target:'/documents',source:'existing'}]},postgres:{image:'pg'},gateway:{image:'gateway:staging',environment:{APP_DOMAIN:'existing'},ports:[443],volumes:[{type:'bind',source:'/old/bundles',target:'/srv/web',read_only:true},{type:'bind',source:'/Caddyfile',target:'/etc/caddy/Caddyfile',read_only:true}]}}};
+  const baseline={services:{core:{image:'core',environment:{MERCADO_PAGO_MODE:'test'},volumes:[{target:'/documents',source:'existing'}]},postgres:{image:'pg'},gateway:{image:'gateway:staging',environment:{APP_DOMAIN:'existing'},ports:[443],volumes:[{type:'bind',source:'/old/bundles',target:'/srv/web',read_only:true},{type:'bind',source:'/Caddyfile',target:'/etc/caddy/Caddyfile',read_only:true}]}}};
   const preview=structuredClone(baseline);preview.services.gateway.image='sha256:existing';preview.services.gateway.volumes[0].source='/new/bundles';
   return {baseline,preview};
 }

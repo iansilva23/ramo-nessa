@@ -3,7 +3,6 @@ import { readFileSync,writeFileSync,openSync,writeSync,ftruncateSync,fsyncSync,c
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { stagingGoogleMapsConfiguration } from '/opt/ramo-nessa/deploy/staging/google-maps.mjs';
-import { stagingOtpConfiguration } from '/opt/ramo-nessa/deploy/staging/otp.mjs';
 import { stagingComposeArguments,stagingComposeEnvironment } from '/opt/ramo-nessa/deploy/staging/firebase.mjs';
 const repo='/opt/ramo-nessa',revision=process.argv[2];
 if(process.getuid?.()!==0||!/^[a-f0-9]{40}$/.test(revision??''))throw new Error('Execute com sudo e informe a revisão exata.');
@@ -17,8 +16,8 @@ if(checksum(readFileSync(activePath))!==report.activeSha||checksum(prior)!==repo
 for(const [name,id]of [['ramo-nessa-staging-core-1',report.coreId],['ramo-nessa-staging-postgres-1',report.postgresId]])if(inspect(name).Id!==id)throw new Error('Serviço alterado desde a preparação.');
 if(inspect('ramo-nessa-staging-gateway-1').Image!==report.gatewayBefore||inspect('ramo-nessa-site-institutional-site-1').Image!==report.siteBefore)throw new Error('Imagem ativa mudou.');
 for(const f of report.files){const current=existsSync(join(repo,f))?readFileSync(join(repo,f),'utf8'):null;if(current!==report.sourceBefore[f])throw new Error('Arquivo local mudou: '+f);}
-const envFile=repo+'/deploy/staging/.env';const maps=await stagingGoogleMapsConfiguration(envFile),otp=await stagingOtpConfiguration(envFile);
-const args=await stagingComposeArguments(envFile);args.splice(1,0,'--project-name','ramo-nessa-staging');const env=stagingComposeEnvironment(maps,otp);
+const envFile=repo+'/deploy/staging/.env';const maps=await stagingGoogleMapsConfiguration(envFile);
+const args=await stagingComposeArguments(envFile);args.splice(1,0,'--project-name','ramo-nessa-staging');const env=stagingComposeEnvironment(maps);
 const compose=tail=>run('docker',[...args,...tail],{env,stdio:'inherit'});
 const siteCompose=tail=>run('docker',['compose','--project-name','ramo-nessa-site','-f','/opt/ramo-nessa-site/compose.yml',...tail],{stdio:'inherit'});
 compose(['config','--quiet']);siteCompose(['config','--quiet']);

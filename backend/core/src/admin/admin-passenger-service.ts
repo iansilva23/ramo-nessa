@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   AuthIdentityStatus,
-  AuthOtpRepository,
-} from '../auth/auth-otp-repository.js';
+  AuthIdentityRepository,
+} from '../auth/auth-identity-repository.js';
 import {
   normalizePassengerEmail,
   normalizePassengerName,
@@ -31,7 +31,7 @@ export class AdminPassengerError extends Error {
 }
 
 export async function adminPassengerProfile(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   rides: RideRepository;
   savedPlaces: Pick<PassengerSavedPlaceRepository, 'listByPassenger'>;
   passengerId: string;
@@ -102,7 +102,7 @@ export async function adminPassengerProfile(input: {
 }
 
 async function requirePassenger(
-  identities: AuthOtpRepository,
+  identities: AuthIdentityRepository,
   passengerId: string,
 ) {
   const normalizedPassengerId = passengerId.trim();
@@ -120,7 +120,7 @@ async function requirePassenger(
 }
 
 export async function adminPassengerWalletView(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   finance: Pick<FinanceRepository, 'getAccountBalanceCents'>;
   passengerId: string;
 }) {
@@ -136,7 +136,7 @@ export async function adminPassengerWalletView(input: {
 }
 
 export async function adminPassengerNotificationsView(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   devices: Pick<PushDeviceRepository, 'listEnabledForSubject'>;
   passengerId: string;
 }) {
@@ -167,7 +167,7 @@ export async function adminPassengerNotificationsView(input: {
 
 
 export async function updatePassengerProfileFromAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   admin: AdminRepository;
   actor: AdminActor;
   passengerId: string;
@@ -325,7 +325,7 @@ function normalizePassengerStatus(value: string): AuthIdentityStatus {
 }
 
 export async function setPassengerAuthStatusFromAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   sessions: AuthSessionRepository;
   admin: AdminRepository;
   actor: AdminActor;

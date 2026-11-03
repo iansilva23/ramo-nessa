@@ -7,7 +7,7 @@ import {
   listAdminDriverDocumentComplianceAlerts,
 } from '../src/admin/admin-driver-document-compliance-service.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryOperationalSettingsRepository } from '../src/config/in-memory-operational-settings-repository.js';
 import {
   DriverAppError,
@@ -314,7 +314,7 @@ test('bloqueio manual impede ficar online quando não há corrida ativa', async 
 
 
 test('lista do ADM respeita decisão de manter ativo até a pendência mudar', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const documents = new InMemoryDriverDocumentRepository();
   const controls = new InMemoryDriverDocumentComplianceRepository();
   const settings = new InMemoryOperationalSettingsRepository();

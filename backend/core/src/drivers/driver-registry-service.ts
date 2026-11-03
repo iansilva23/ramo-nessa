@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { AdminActor, AdminRepository } from '../admin/admin-repository.js';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import type {
   DriverProfileRecord,
   DriverRegistryRepository,
@@ -56,7 +56,7 @@ export class DriverRegistryError extends Error {
 }
 
 export async function getDriverRegistryForAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   registry: DriverRegistryRepository;
   driverId: string;
 }) {
@@ -93,7 +93,7 @@ export async function getDriverRegistryForAdmin(input: {
 }
 
 export async function upsertDriverRegistryFromAdmin(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   registry: DriverRegistryRepository;
   drivers: DriverSupplyRepository;
   admin: AdminRepository;

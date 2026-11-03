@@ -51,15 +51,6 @@ export interface AdminIntegrationSetupView {
       | 'MERCADO_PAGO_ACCESS_TOKEN_TEST';
     webhookSecretEnvironmentVariable: 'MERCADO_PAGO_WEBHOOK_SECRET';
   };
-  otp: {
-    provider: 'entrar-whatsapp' | 'webhook' | 'dev' | 'missing' | 'invalid';
-    endpointConfigured: boolean;
-    tokenConfigured: boolean;
-    productionReady: boolean;
-    providerEnvironmentVariable: 'OTP_PROVIDER';
-    endpointEnvironmentVariable: 'OTP_WEBHOOK_URL' | null;
-    tokenEnvironmentVariable: 'OTP_WEBHOOK_TOKEN' | 'ENTRAR_API_SECRET';
-  };
   push: {
     provider: 'fcm' | 'webhook' | 'disabled' | 'invalid';
     firebaseCredentialConfigured: boolean;
@@ -102,30 +93,6 @@ export function adminIntegrationSetupView(
     env[mercadoPagoAccessTokenVariable]?.trim() ?? '';
   const mercadoPagoWebhookSecret =
     env.MERCADO_PAGO_WEBHOOK_SECRET?.trim() ?? '';
-
-  const rawOtpProvider = env.OTP_PROVIDER?.trim().toLowerCase();
-  const production = env.NODE_ENV === 'production';
-  const otpProvider:
-    | 'entrar-whatsapp'
-    | 'webhook'
-    | 'dev'
-    | 'missing'
-    | 'invalid' =
-    rawOtpProvider === 'entrar-whatsapp'
-      ? 'entrar-whatsapp'
-      : rawOtpProvider === 'webhook'
-      ? 'webhook'
-      : rawOtpProvider === 'dev'
-        ? 'dev'
-        : rawOtpProvider == null || rawOtpProvider === ''
-          ? production
-            ? 'missing'
-            : 'dev'
-          : 'invalid';
-  const otpEndpoint = otpProvider === 'entrar-whatsapp' ? 'https://cpf.entrar.api.br/api/otp/send' : env.OTP_WEBHOOK_URL?.trim() ?? '';
-  const otpToken = (otpProvider === 'entrar-whatsapp' ? env.ENTRAR_API_SECRET : env.OTP_WEBHOOK_TOKEN)?.trim() ?? '';
-  const otpEndpointConfigured = validHttpsUrl(otpEndpoint);
-  const otpTokenConfigured = otpProvider === 'entrar-whatsapp' ? otpToken.length > 0 && !/[\s\x00-\x1f]/.test(otpToken) : otpToken.length >= 20;
 
   const rawPushProvider = env.PUSH_PROVIDER?.trim().toLowerCase() ?? '';
   const pushProvider: 'fcm' | 'webhook' | 'disabled' | 'invalid' =
@@ -217,18 +184,6 @@ export function adminIntegrationSetupView(
         mercadoPagoAccessTokenVariable,
       webhookSecretEnvironmentVariable:
         'MERCADO_PAGO_WEBHOOK_SECRET',
-    },
-    otp: {
-      provider: otpProvider,
-      endpointConfigured: otpEndpointConfigured,
-      tokenConfigured: otpTokenConfigured,
-      productionReady:
-        (otpProvider === 'webhook' || otpProvider === 'entrar-whatsapp') &&
-        otpEndpointConfigured &&
-        otpTokenConfigured,
-      providerEnvironmentVariable: 'OTP_PROVIDER',
-      endpointEnvironmentVariable: otpProvider === 'entrar-whatsapp' ? null : 'OTP_WEBHOOK_URL',
-      tokenEnvironmentVariable: otpProvider === 'entrar-whatsapp' ? 'ENTRAR_API_SECRET' : 'OTP_WEBHOOK_TOKEN',
     },
     push: {
       provider: pushProvider,

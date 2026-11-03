@@ -1,5 +1,6 @@
 import 'features/rides/presentation/passenger_ride_chat_screen.dart';
 import 'features/guide/data/local_guide_service.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
@@ -7,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_push/ramo_push.dart';
 
-import 'core/auth/http_phone_auth_service.dart';
+import 'core/auth/http_password_auth_service.dart';
 import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
 import 'core/communications/firebase_push_registration_service.dart';
@@ -86,7 +87,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
     final authService = coreUri == null
         ? null
-        : HttpPhoneAuthService(
+        : HttpPasswordAuthService(
             baseUrl: coreUri,
             subjectType: 'passenger',
             clientInstanceId: clientInstanceId,
@@ -140,11 +141,18 @@ class RamoNessaPassengerApp extends StatelessWidget {
         authService: authService,
         paymentService: services.payments,
         activityService: services.activity,
-        onOpenRideChat: resolvedTracking == null ? null : (context, rideId) async {
-          await Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => PassengerRideChatScreen(service: resolvedTracking, rideId: rideId),
-          ));
-        },
+        onOpenRideChat: resolvedTracking == null
+            ? null
+            : (context, rideId) async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PassengerRideChatScreen(
+                      service: resolvedTracking,
+                      rideId: rideId,
+                    ),
+                  ),
+                );
+              },
         onResumeRide: resolvedTracking is! PassengerSelectedRideResumeService
             ? null
             : (context, ride) async {
@@ -157,7 +165,9 @@ class RamoNessaPassengerApp extends StatelessWidget {
                   MaterialPageRoute<void>(
                     builder: (routeContext) => ResumedRideScreen(
                       data: data,
-                      support: services.support is RamoRideSupportApi ? services.support as RamoRideSupportApi : null,
+                      support: services.support is RamoRideSupportApi
+                          ? services.support as RamoRideSupportApi
+                          : null,
                       onClose: () => Navigator.of(routeContext).pop(),
                       tracking: resolvedTracking!,
                       payments: services.payments,
@@ -264,13 +274,12 @@ class RamoNessaPassengerApp extends StatelessWidget {
     if (RamoCoreConfig.previewMode) {
       homeWidget = MobileAuthGate(
         subjectType: 'passenger',
-        service: PreviewPhoneAuthService(subjectType: 'passenger'),
+        service: PreviewPasswordAuthService(subjectType: 'passenger'),
         tokenStore: PreviewAuthTokenStore(),
         initialAccessToken: initialToken,
         devBypass: false,
         loginTitle: 'Entre no Ramo Nessa',
-        loginSubtitle:
-            'Entre para testar o app. No Preview, o código é exibido na própria tela.',
+        loginSubtitle: 'Entre para testar o app. No Preview, o código é exibido na própria tela.',
         authenticatedBuilder: (token, logout) =>
             permissions(token, shell(token, logout)),
       );
@@ -286,8 +295,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         initialAccessToken: initialToken,
         devBypass: RamoCoreConfig.devPassengerIdentityEnabled,
         loginTitle: 'Entre no Ramo Nessa',
-        loginSubtitle:
-            'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
+        loginSubtitle: 'Entre com e-mail e senha ou crie sua conta.',
         authenticatedBuilder: (token, logout) =>
             permissions(token, shell(token, logout)),
         onSessionReady: (token) => FirebasePushRegistrationService.instance

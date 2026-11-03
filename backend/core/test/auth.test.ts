@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import {
   authenticateBearer,
   AuthenticationError,
@@ -135,7 +135,7 @@ test('header ausente não autentica', async () => {
 
 test('sessão ainda válida é recusada quando a identidade está suspensa', async () => {
   const sessions = new InMemoryAuthSessionRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const now = new Date('2026-09-23T11:20:00.000Z');
 
   await identities.createIdentity({
@@ -191,7 +191,7 @@ test('sessão ainda válida é recusada quando a identidade está suspensa', asy
 
 test('logout revoga token mesmo depois de a identidade ser suspensa', async () => {
   const sessions = new InMemoryAuthSessionRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const now = new Date('2026-09-23T12:00:00.000Z');
 
   await identities.createIdentity({

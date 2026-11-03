@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import { normalizeBrazilMobilePhone } from '../src/auth/phone-otp-service.js';
-import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import { normalizeBrazilMobilePhone } from '../src/auth/auth-input.js';
+import { PostgresAuthIdentityRepository } from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 
 const [driverIdRaw, phoneRaw] = process.argv.slice(2);
@@ -21,7 +21,7 @@ if (!databaseUrl) {
 
 const phoneE164 = normalizeBrazilMobilePhone(phoneRaw);
 const pool = createPostgresPool(databaseUrl);
-const repository = new PostgresAuthOtpRepository(pool);
+const repository = new PostgresAuthIdentityRepository(pool);
 
 try {
   const [byPhone, bySubject] = await Promise.all([

@@ -6,11 +6,11 @@ import {
   setPassengerAuthStatusFromAdmin,
 } from '../src/admin/admin-passenger-service.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
 
 test('bloqueio de passageiro revoga sessão e desbloqueio preserva histórico', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const admin = new InMemoryAdminRepository();
 
@@ -86,7 +86,7 @@ test('bloqueio de passageiro revoga sessão e desbloqueio preserva histórico', 
 });
 
 test('status inválido de passageiro é rejeitado', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const admin = new InMemoryAdminRepository();
 

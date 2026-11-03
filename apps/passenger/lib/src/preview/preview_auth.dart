@@ -3,7 +3,7 @@
 import 'dart:typed_data';
 
 import '../core/auth/auth_token_store.dart';
-import '../core/auth/phone_auth_service.dart';
+import '../core/auth/password_auth_service.dart';
 
 class PreviewAuthTokenStore implements AuthTokenStore {
   String? _token;
@@ -22,12 +22,10 @@ class PreviewAuthTokenStore implements AuthTokenStore {
   }
 }
 
-class PreviewPhoneAuthService implements PhoneAuthService {
-  PreviewPhoneAuthService({required this.subjectType});
+class PreviewPasswordAuthService implements PasswordAuthService {
+  PreviewPasswordAuthService({required this.subjectType});
 
   final String subjectType;
-
-  static const previewCode = '123456';
 
   PassengerAccount _account = const PassengerAccount(
     subjectId: 'preview-passenger',
@@ -36,50 +34,13 @@ class PreviewPhoneAuthService implements PhoneAuthService {
     fullName: 'Passageiro Preview',
   );
 
-  String get _challengeId => 'preview-' + subjectType + '-challenge';
-
   AuthSession _session() => AuthSession(
-        accessToken:
-            'preview_' + subjectType + '_access_token_12345678901234567890',
-        expiresAt: DateTime.now().add(const Duration(days: 7)),
-        subjectId: 'preview-' + subjectType,
-        subjectType: subjectType,
-      );
-
-  @override
-  Future<RequestedOtp> requestOtp({
-    required String phone,
-    String? email,
-  }) async {
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    if (digits.length < 10 || digits.length > 13) {
-      throw Exception('Digite um celular válido.');
-    }
-
-    return RequestedOtp(
-      challengeId: _challengeId,
-      expiresAt: DateTime.now().add(const Duration(minutes: 10)),
-      retryAfterSeconds: 1,
-      devCode: previewCode,
-    );
-  }
-
-  @override
-  Future<RequestedOtp> requestPasswordResetOtp({
-    required String phone,
-  }) =>
-      requestOtp(phone: phone);
-
-  @override
-  Future<AuthSession> verifyOtp({
-    required String challengeId,
-    required String code,
-  }) async {
-    if (challengeId != _challengeId || code != previewCode) {
-      throw Exception('Código inválido. No Preview, use 123456.');
-    }
-    return _session();
-  }
+    accessToken:
+        'preview_' + subjectType + '_access_token_12345678901234567890',
+    expiresAt: DateTime.now().add(const Duration(days: 7)),
+    subjectId: 'preview-' + subjectType,
+    subjectType: subjectType,
+  );
 
   @override
   Future<AuthSession> loginWithPassword({
@@ -130,10 +91,22 @@ class PreviewPhoneAuthService implements PhoneAuthService {
   }
 
   @override
+  Future<AuthSession> registerWithPassword({
+    required String fullName,
+    required String phone,
+    required String email,
+    required String password,
+    String? username,
+  }) async => AuthSession(
+    accessToken:
+        'preview_' + subjectType + '_access_token_12345678901234567890',
+    expiresAt: DateTime.now().add(const Duration(days: 7)),
+    subjectId: 'preview-' + subjectType,
+    subjectType: subjectType,
+  );
+  @override
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
-    if (!accessToken.startsWith(
-      'preview_' + subjectType + '_access_token_',
-    )) {
+    if (!accessToken.startsWith('preview_' + subjectType + '_access_token_')) {
       return null;
     }
     return AuthSessionInfo(
@@ -146,9 +119,7 @@ class PreviewPhoneAuthService implements PhoneAuthService {
   }
 
   @override
-  Future<AuthSecuritySession> securitySession(
-    String accessToken,
-  ) async =>
+  Future<AuthSecuritySession> securitySession(String accessToken) async =>
       AuthSecuritySession(
         id: 'preview-security-session',
         subjectType: subjectType,
@@ -160,10 +131,7 @@ class PreviewPhoneAuthService implements PhoneAuthService {
   Future<RevokeOtherSessionsResult> revokeOtherSessions(
     String accessToken,
   ) async =>
-      const RevokeOtherSessionsResult(
-        revokedSessions: 0,
-        disabledDevices: 0,
-      );
+      const RevokeOtherSessionsResult(revokedSessions: 0, disabledDevices: 0);
 
   @override
   Future<void> logout(String accessToken) async {}

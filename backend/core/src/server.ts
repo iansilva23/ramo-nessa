@@ -1,3 +1,4 @@
+import {registerPasswordAccount,PasswordRegistrationError} from './auth/password-registration.js';
 import {handleDriverPasswordAuthRoute} from './auth/driver-password-auth-routes.js';
 import {NavigationControlError} from './routing/driver-navigation-control.js';
 import {driverNavigationRoutes,genericNavigationRouteAllowed} from './routing/driver-navigation-routes.js';
@@ -140,14 +141,7 @@ import {
   BrowserSessionTransportError, prepareBrowserSessionRequest,
   browserAuthResponse, clearBrowserSessionCookie,
 } from './auth/browser-session-transport.js';
-import {
-  normalizeBrazilMobilePhone,
-  PhoneOtpError,
-  requestPhoneOtp,
-  resolveOtpHashSecret,
-  resolveOtpRateLimitSecret,
-  verifyPhoneOtp,
-} from './auth/phone-otp-service.js';
+import {normalizeBrazilMobilePhone,AuthInputError,resolvePasswordRateLimitSecret} from './auth/auth-input.js';
 import {
   loginPassengerWithPassword,
   PassengerPasswordAuthError,
@@ -160,7 +154,6 @@ import {
   readPassengerProfilePhoto,
   updatePassengerProfilePhoto,
 } from './auth/passenger-profile-photo-service.js';
-import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
   AdminAuthenticationError,
   authenticateAdminBearer,
@@ -553,8 +546,9 @@ const {
   guideStore,
   asaasPayoutStore,
   authSessionRepository,
-  authOtpRepository,
+  authIdentityRepository,
   driverPasswordAuthStore,
+  passwordRegistrationStore,
   adminRepository,
   adminHumanAuthRepository,
   rideRepository,
@@ -704,13 +698,12 @@ const asaasWebhookReceiver = driverPayoutProvider instanceof AsaasDriverPayoutPr
 const companyPayoutProvider = driverPayoutProvider?.name === 'asaas' ? null : driverPayoutProvider;
 const realtimeHub = new RealtimeHub();
 const browserRealtimeTickets = new BrowserRealtimeTicketStore();
-const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 const pushNotificationService = new PushNotificationService(
   pushDeviceRepository,
   resolvePushDeliveryProviderFromEnv(),
 );
 const growthChannels = createGrowthChannels(pushNotificationService);
-const growthService = new GrowthService({store:growthRepository,privacy:privacyRepository,identities:authOtpRepository,
+const growthService = new GrowthService({store:growthRepository,privacy:privacyRepository,identities:authIdentityRepository,
   rides:rideRepository,support:driverSupportRepository,matching:rideMatchingRepository,
   drivers:driverSupplyRepository,promotions:promotionRepository,admin:adminRepository,
   catalog:async()=>(await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository,at:new Date()})).snapshot,
@@ -718,8 +711,7 @@ const growthService = new GrowthService({store:growthRepository,privacy:privacyR
   send:growthChannels.send,readiness:growthChannels.readiness});
 let growthTimer:ReturnType<typeof setInterval>|null=null;
 async function runGrowthMarketing(){try{await growthService.runAutomatic();}catch{logError('marketing.worker.failed',{message:'Falha no processamento; consulte a central de problemas.'});}}
-resolveOtpHashSecret();
-const authRateLimitSecret = resolveOtpRateLimitSecret();
+const authRateLimitSecret = resolvePasswordRateLimitSecret();
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
 const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
@@ -1587,7 +1579,7 @@ const server = createServer(async (request, response) => {
     if (cookieBootstrap) response.setHeader('x-ramo-web-session', '1');
     const browserRole = prepareBrowserSessionRequest(request, { cookieBootstrap });
     const browserSession = browserRole == null ? null : await authenticateBearer({
-      repository: authSessionRepository, identities: authOtpRepository,
+      repository: authSessionRepository, identities: authIdentityRepository,
       headers: request.headers, requiredType: browserRole, allowDriverRegistration: true,
     });
     if (cookieBootstrap) {
@@ -2105,7 +2097,7 @@ const server = createServer(async (request, response) => {
       if (process.env.NODE_ENV === 'production' || authorization != null) {
         await authenticateBearer({
           repository: authSessionRepository,
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           headers: request.headers,
         });
       }
@@ -2208,7 +2200,7 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/maps/places/reverse-coordinate') {
       await authenticateBearer({ repository: authSessionRepository,
-        identities: authOtpRepository, headers: request.headers, requiredType: 'passenger' });
+        identities: authIdentityRepository, headers: request.headers, requiredType: 'passenger' });
       const body = await readJson(request) as Record<string, unknown> | null;
       const latitude = body?.latitude;
       const longitude = body?.longitude;
@@ -2232,7 +2224,7 @@ const server = createServer(async (request, response) => {
       if (process.env.NODE_ENV === 'production' || authorization != null) {
         await authenticateBearer({
           repository: authSessionRepository,
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           headers: request.headers,
         });
       }
@@ -2301,7 +2293,7 @@ const server = createServer(async (request, response) => {
       if (process.env.NODE_ENV === 'production' || authorization != null) {
         const session = await authenticateBearer({
           repository: authSessionRepository,
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           headers: request.headers,
         });
         isAuthenticatedPassenger = session.subjectType === 'passenger';
@@ -2523,7 +2515,7 @@ const server = createServer(async (request, response) => {
       if (process.env.NODE_ENV === 'production' || authorization != null) {
         await authenticateBearer({
           repository: authSessionRepository,
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           headers: request.headers,
         });
       }
@@ -2689,7 +2681,7 @@ const server = createServer(async (request, response) => {
     }
 
     if(await driverNavigationRoutes({request,response,url:requestUrl,store:driverNavigationControlStore,provider:routingRouteProvider,
-      authenticate:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),readJson,json}))return;
+      authenticate:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authIdentityRepository}),readJson,json}))return;
 
     if (
       request.method === 'POST' &&
@@ -2701,7 +2693,7 @@ const server = createServer(async (request, response) => {
         policyEnabled:async()=>(await driverNavigationControlStore?.policy())?.enabled===true,
         authenticate:()=>authenticateBearer({
           repository: authSessionRepository,
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           headers: request.headers,
         }),
         hasActiveRide:async driverId=>(await rideRepository.findActiveByDriverId(driverId))!=null,
@@ -2766,103 +2758,17 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if(request.method==='POST'&&(requestUrl.pathname==='/v1/auth/driver/password/register'||requestUrl.pathname==='/v1/auth/passenger/password/register')){
+      const body=await readJson(request),v=(body&&typeof body==='object'?body:{}) as Record<string,unknown>;
+      const text=(key:string)=>typeof v[key]==='string'?v[key] as string:'';
+      const result=await registerPasswordAccount({identities:authIdentityRepository,sessions:authSessionRepository,store:passwordRegistrationStore,rateLimitSecret:authRateLimitSecret},{role:requestUrl.pathname.includes('/driver/')?'driver':'passenger',phone:text('phone'),email:text('email'),fullName:text('fullName'),username:text('username'),password:text('password'),clientIp:requestClientIp(request),clientInstanceId:headerValue(request,'x-client-instance-id')});
+      response.setHeader('cache-control','no-store');json(response,201,browserAuthResponse(request,response,result));return;
+    }
+
     if (await handleDriverPasswordAuthRoute({request,response,pathname:requestUrl.pathname,
-      dependencies:{identities:authOtpRepository,sessions:authSessionRepository,store:driverPasswordAuthStore,rateLimitSecret:authRateLimitSecret},
-      delivery:otpDeliveryProvider,readJson,json,
+      dependencies:{identities:authIdentityRepository,sessions:authSessionRepository,store:driverPasswordAuthStore,rateLimitSecret:authRateLimitSecret},
+      readJson,json,
       clientIp:requestClientIp(request),clientInstanceId:headerValue(request,'x-client-instance-id')})) return;
-
-    if (
-      request.method === 'POST' &&
-      (requestUrl.pathname === '/v1/auth/otp/request' || requestUrl.pathname === '/v1/auth/driver-registration/request')
-    ) {
-      const body = await readJson(request);
-      const registrationRequest = requestUrl.pathname === '/v1/auth/driver-registration/request';
-      const subjectType = registrationRequest ? 'driver' :
-        body != null && typeof body === 'object' && 'subjectType' in body
-          ? String((body as { subjectType?: unknown }).subjectType ?? '')
-          : '';
-      const phone =
-        body != null && typeof body === 'object' && 'phone' in body
-          ? String((body as { phone?: unknown }).phone ?? '')
-          : '';
-      const email =
-        body != null && typeof body === 'object' && 'email' in body
-          ? String((body as { email?: unknown }).email ?? '')
-          : '';
-
-      if (subjectType !== 'passenger' && subjectType !== 'driver') {
-        json(response, 422, {
-          error: 'INVALID_AUTH_SUBJECT_TYPE',
-          message: 'Tipo de conta inválido.',
-        });
-        return;
-      }
-
-      const requested = await requestPhoneOtp({
-        repository: authOtpRepository,
-        delivery: otpDeliveryProvider,
-        allowDriverRegistration: registrationRequest,
-        subjectType,
-        phone,
-        email,
-        context: {
-          clientIp: requestClientIp(request),
-          clientInstanceId: headerValue(request, 'x-client-instance-id'),
-        },
-      });
-      json(response, 202, requested);
-      return;
-    }
-
-    if (
-      request.method === 'POST' &&
-      requestUrl.pathname === '/v1/auth/otp/verify'
-    ) {
-      const body = await readJson(request);
-      const challengeId =
-        body != null && typeof body === 'object' && 'challengeId' in body
-          ? String((body as { challengeId?: unknown }).challengeId ?? '')
-          : '';
-      const code =
-        body != null && typeof body === 'object' && 'code' in body
-          ? String((body as { code?: unknown }).code ?? '')
-          : '';
-
-      const verified = await verifyPhoneOtp({
-        delivery: otpDeliveryProvider,
-        repository: authOtpRepository,
-        sessions: authSessionRepository,
-        challengeId,
-        code,
-      });
-      json(response, 201, browserAuthResponse(request, response, verified));
-      return;
-    }
-
-    if (
-      request.method === 'POST' &&
-      requestUrl.pathname === '/v1/auth/passenger/password/reset/request'
-    ) {
-      const body = await readJson(request);
-      const phone =
-        body != null && typeof body === 'object' && 'phone' in body
-          ? String((body as { phone?: unknown }).phone ?? '')
-          : '';
-
-      const requested = await requestPhoneOtp({
-        repository: authOtpRepository,
-        delivery: otpDeliveryProvider,
-        subjectType: 'passenger',
-        phone,
-        allowPassengerCreate: false,
-        context: {
-          clientIp: requestClientIp(request),
-          clientInstanceId: headerValue(request, 'x-client-instance-id'),
-        },
-      });
-      json(response, 202, requested);
-      return;
-    }
 
     if (
       request.method === 'POST' &&
@@ -2882,7 +2788,7 @@ const server = createServer(async (request, response) => {
       const clientInstanceId =
         headerValue(request, 'x-client-instance-id');
       const session = await loginPassengerWithPassword({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         sessions: authSessionRepository,
         email,
         password,
@@ -2927,7 +2833,7 @@ const server = createServer(async (request, response) => {
       }
 
       const phoneE164 = normalizeBrazilMobilePhone(rawPhone);
-      const existing = await authOtpRepository.findIdentityByPhone(
+      const existing = await authIdentityRepository.findIdentityByPhone(
         'driver',
         phoneE164,
       );
@@ -2944,7 +2850,7 @@ const server = createServer(async (request, response) => {
       }
 
       const now = new Date().toISOString();
-      const identity = await authOtpRepository.createIdentity({
+      const identity = await authIdentityRepository.createIdentity({
         id: randomUUID(),
         subjectId: driverId,
         subjectType: 'driver',
@@ -2966,10 +2872,10 @@ const server = createServer(async (request, response) => {
         repository: authSessionRepository,
         // Passive browser checks must not keep extending session lifetime.
         renewSession: requestUrl.pathname === '/v1/auth/me',
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
-      const identity = await authOtpRepository.findIdentityBySubject(
+      const identity = await authIdentityRepository.findIdentityBySubject(
         session.subjectType,
         session.subjectId,
       );
@@ -2990,7 +2896,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
@@ -3019,12 +2925,12 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
       const photo = await readPassengerProfilePhoto({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         subjectId: session.subjectId,
       });
       if (photo == null) {
@@ -3051,7 +2957,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
@@ -3064,7 +2970,7 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       const identity = await updatePassengerProfilePhoto({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         subjectId: session.subjectId,
         mimeType: value.mimeType,
         dataBase64: value.dataBase64,
@@ -3089,11 +2995,11 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
-      const identity = await authOtpRepository.findIdentityBySubject(
+      const identity = await authIdentityRepository.findIdentityBySubject(
         'passenger',
         session.subjectId,
       );
@@ -3122,7 +3028,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
@@ -3141,14 +3047,14 @@ const server = createServer(async (request, response) => {
           : undefined;
 
       const account = await updatePassengerAccount({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         subjectId: session.subjectId,
         ...(fullName == null ? {} : { fullName }),
         ...(email == null ? {} : { email }),
         ...(password == null ? {} : { password }),
       });
       const updatedIdentity =
-        await authOtpRepository.findIdentityBySubject(
+        await authIdentityRepository.findIdentityBySubject(
           'passenger',
           session.subjectId,
         );
@@ -3170,7 +3076,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
@@ -3191,7 +3097,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
@@ -3232,7 +3138,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
         requiredType: 'passenger',
       });
@@ -3252,7 +3158,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       const registration = parsePushDeviceRegistration(
@@ -3281,7 +3187,7 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'DELETE' && requestUrl.pathname === '/v1/notifications/device') {
       const session = await authenticateBearer({
-        repository: authSessionRepository, identities: authOtpRepository,
+        repository: authSessionRepository, identities: authIdentityRepository,
         headers: request.headers,
       });
       await pushDeviceRepository.disableForSession(session.id, new Date().toISOString());
@@ -3292,7 +3198,7 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/realtime/ticket') {
       const result = await issueBrowserRealtimeTicket({ request,
-        sessions: authSessionRepository, identities: authOtpRepository,
+        sessions: authSessionRepository, identities: authIdentityRepository,
         drivers: driverSupplyRepository, registry: driverRegistryRepository,
         rides: rideRepository, tickets: browserRealtimeTickets });
       json(response, result.status, result.body);
@@ -3305,7 +3211,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       json(response, 200, {
@@ -3323,7 +3229,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       const now = new Date().toISOString();
@@ -3442,7 +3348,7 @@ const server = createServer(async (request, response) => {
         await readJson(request),
       );
       const result = await setDriverAuthStatusFromAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         sessions: authSessionRepository,
         registry: driverRegistryRepository,
         documents: driverDocumentRepository,
@@ -4307,8 +4213,8 @@ const server = createServer(async (request, response) => {
     }
 
     if(await occurrenceRoutes({path:requestUrl.pathname,method:request.method??'GET',store:occurrenceStore,
-      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
-      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
+      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
       authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
       body:()=>readJson(request),json:(status,value)=>json(response,status,value),
       context:async(rideId,driverId)=>{const context=await rideSupportContext({rides:rideRepository,finance:financeRepository,drivers:driverSupplyRepository,registry:driverRegistryRepository,rideId,requesterType:'driver',requesterId:driverId});if(!context)throw new Error('Contexto da corrida indisponível.');return context;},
@@ -4319,15 +4225,15 @@ const server = createServer(async (request, response) => {
     }))return;
 
     if(await boardingRoutes({url:requestUrl,method:request.method??'GET',store:boardingStore,rides:rideRepository,finance:financeRepository,
-      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
-      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
+      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
       authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
       body:()=>readJson(request),json:(status,value)=>json(response,status,value)}))return;
 
     if(await handleManualCancellationRoutes({path:requestUrl.pathname,method:request.method??'GET',store:manualCancellationStore,
-      rides:rideRepository,identities:authOtpRepository,
-      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
-      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      rides:rideRepository,identities:authIdentityRepository,
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
+      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
       authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
       readBody:()=>readJson(request,/^\/v1\/admin\/manual-refunds\/[0-9a-f-]{36}\/paid$/i.test(requestUrl.pathname)?720*1024:undefined),json:(status,value)=>json(response,status,value),
       cancelled:async c=>{
@@ -4344,7 +4250,7 @@ const server = createServer(async (request, response) => {
 
     if(await handleGrowthRoutes({request,response,url:requestUrl,service:growthService,
       authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
-      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
       readJson:()=>readJson(request),json:(status,payload)=>json(response,status,payload),verifyOptout:growthChannels.verify}))return;
 
     if(requestUrl.pathname==='/v1/admin/company-management'){
@@ -5672,7 +5578,7 @@ const server = createServer(async (request, response) => {
       }
 
       const passenger = await updatePassengerProfileFromAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         admin: adminRepository,
         actor,
         passengerId: adminPassengerProfileUpdateMatch[1]!,
@@ -5709,7 +5615,7 @@ const server = createServer(async (request, response) => {
           ? String((body as { status?: unknown }).status ?? '')
           : '';
       const result = await setPassengerAuthStatusFromAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         sessions: authSessionRepository,
         admin: adminRepository,
         actor,
@@ -5746,7 +5652,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'finance:read',
       });
       const wallet = await adminPassengerWalletView({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         finance: financeRepository,
         passengerId: adminPassengerWalletMatch[1]!,
       });
@@ -5769,7 +5675,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'communications:read',
       });
       const notifications = await adminPassengerNotificationsView({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         devices: pushDeviceRepository,
         passengerId: adminPassengerNotificationsMatch[1]!,
       });
@@ -5791,7 +5697,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'passengers:auth:read',
       });
       const passengerId = adminPassengerPhotoMatch[1]!;
-      const identity = await authOtpRepository.findIdentityBySubject(
+      const identity = await authIdentityRepository.findIdentityBySubject(
         'passenger',
         passengerId,
       );
@@ -5801,7 +5707,7 @@ const server = createServer(async (request, response) => {
           'Passageiro não encontrado.',
         );
       }
-      const photo = await authOtpRepository.findPassengerProfilePhoto(
+      const photo = await authIdentityRepository.findPassengerProfilePhoto(
         passengerId,
       );
       if (photo == null) {
@@ -5838,7 +5744,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'rides:read',
       });
       const profile = await adminPassengerProfile({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         rides: rideRepository,
         savedPlaces: passengerSavedPlaceRepository,
         passengerId: adminPassengerMatch[1]!,
@@ -5861,11 +5767,11 @@ const server = createServer(async (request, response) => {
         requestUrl.searchParams,
       );
       const [page, summary] = await Promise.all([
-        authOtpRepository.listIdentities({
+        authIdentityRepository.listIdentities({
           subjectType: 'passenger',
           ...query,
         }),
-        authOtpRepository.countIdentitiesByStatus('passenger'),
+        authIdentityRepository.countIdentitiesByStatus('passenger'),
       ]);
       const lastIdentity =
         page.identities[page.identities.length - 1];
@@ -5906,11 +5812,11 @@ const server = createServer(async (request, response) => {
         requestUrl.searchParams,
       );
       const [page, summary] = await Promise.all([
-        authOtpRepository.listIdentities({
+        authIdentityRepository.listIdentities({
           subjectType: 'driver',
           ...query,
         }),
-        authOtpRepository.countIdentitiesByStatus('driver'),
+        authIdentityRepository.countIdentitiesByStatus('driver'),
       ]);
       const lastIdentity =
         page.identities[page.identities.length - 1];
@@ -6051,7 +5957,7 @@ const server = createServer(async (request, response) => {
         response,
         200,
         await listAdminDriverDocumentComplianceAlerts({
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           registry: driverRegistryRepository,
           documents: driverDocumentRepository,
           controls: driverDocumentComplianceRepository,
@@ -6284,7 +6190,7 @@ const server = createServer(async (request, response) => {
 
       let authStatus: 'active' | 'suspended' | null = null;
       let revokedSessions = 0;
-      const identity = await authOtpRepository.findIdentityBySubject(
+      const identity = await authIdentityRepository.findIdentityBySubject(
         'driver',
         driverId,
       );
@@ -6292,7 +6198,7 @@ const server = createServer(async (request, response) => {
         authStatus = identity.status;
         if (!result.registryApproved && identity.status === 'active' && (identity.driverRegistrationOnly !== true || body.profileStatus === 'suspended' || body.vehicleStatus === 'suspended')) {
           const suspended = await setDriverAuthStatusFromAdmin({
-            identities: authOtpRepository,
+            identities: authIdentityRepository,
             sessions: authSessionRepository,
             registry: driverRegistryRepository,
             admin: adminRepository,
@@ -6327,7 +6233,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'drivers:profile:read',
       });
       const result = await getDriverRegistryForAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         registry: driverRegistryRepository,
         driverId: adminDriverRegistryMatch[1]!,
       });
@@ -6349,7 +6255,7 @@ const server = createServer(async (request, response) => {
         await readJson(request),
       );
       const result = await upsertDriverRegistryFromAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         registry: driverRegistryRepository,
         drivers: driverSupplyRepository,
         admin: adminRepository,
@@ -6375,7 +6281,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'finance:read',
       });
       const driverId = adminDriverFinanceMatch[1]!;
-      const identity = await authOtpRepository.findIdentityBySubject(
+      const identity = await authIdentityRepository.findIdentityBySubject(
         'driver',
         driverId,
       );
@@ -6416,7 +6322,7 @@ const server = createServer(async (request, response) => {
       });
       const driverId = adminDriverCashPolicyMatch[1]!;
       await getDriverAuthForAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         driverId,
       });
       json(
@@ -6443,7 +6349,7 @@ const server = createServer(async (request, response) => {
       });
       const driverId = adminDriverCashPolicyMatch[1]!;
       await getDriverAuthForAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         driverId,
       });
       const body = await readJson(request);
@@ -6498,7 +6404,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'drivers:auth:read',
       });
       const identity = await getDriverAuthForAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         driverId: adminDriverAuthMatch[1]!,
       });
       json(response, 200, {
@@ -6527,7 +6433,7 @@ const server = createServer(async (request, response) => {
         await readJson(request),
       );
       const result = await provisionDriverAuthFromAdmin({
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         sessions: authSessionRepository,
         registry: driverRegistryRepository,
         documents: driverDocumentRepository,
@@ -6554,7 +6460,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       json(
@@ -6575,7 +6481,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       const body = await readJson(request);
@@ -6603,7 +6509,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       const body = await readJson(request);
@@ -6631,7 +6537,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         headers: request.headers,
       });
       const body = await readJson(request);
@@ -6921,7 +6827,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       if(requestUrl.searchParams.has('rideId') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestUrl.searchParams.get('rideId')!)){json(response,400,{error:'INVALID_RIDE_ID',message:'Corrida inválida.'});return;}
       json(
@@ -6944,7 +6850,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = await readJson(request);
       const value =
@@ -6992,8 +6898,8 @@ const server = createServer(async (request, response) => {
 
     if ((request.method === 'GET' || request.method === 'POST') && requestUrl.pathname === '/v1/driver/me/registration') {
       const driverId = await resolveDriverId({ request, sessions: authSessionRepository,
-        identities: authOtpRepository, allowRegistration: true });
-      const dependencies = { identities: authOtpRepository, registry: driverRegistryRepository,
+        identities: authIdentityRepository, allowRegistration: true });
+      const dependencies = { identities: authIdentityRepository, registry: driverRegistryRepository,
         documents: driverDocumentRepository, driverId };
       const result = request.method === 'POST'
         ? await submitDriverRegistration({ ...dependencies, data: await readJson(request) })
@@ -7021,7 +6927,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         allowRegistration: true,
       });
       const rawContentType = headerValue(request, 'content-type')
@@ -7067,7 +6973,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
         allowRegistration: true,
       });
       const result = await getDriverDocumentsForAdmin({
@@ -7086,7 +6992,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       if(requestUrl.searchParams.has('rideId') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestUrl.searchParams.get('rideId')!)){json(response,400,{error:'INVALID_RIDE_ID',message:'Corrida inválida.'});return;}
       json(
@@ -7109,7 +7015,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = await readJson(request);
       const value =
@@ -7136,7 +7042,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       json(
         response,
@@ -7156,7 +7062,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = parseDriverPayoutDestinationRequest(
         await readJson(request),
@@ -7181,7 +7087,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const finance = await driverFinanceSummary(
         financeRepository,
@@ -7198,7 +7104,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const rawLimit = requestUrl.searchParams.get('limit');
       const limit =
@@ -7221,7 +7127,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = parseDriverPayoutRequest(await readJson(request));
       const result = await requestDriverPayoutFromApp({
@@ -7272,7 +7178,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const supply = await getDriverSupplyForApp({
         drivers: driverSupplyRepository,
@@ -7290,7 +7196,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = parseUpdateDriverSupplyRequest(await readJson(request));
       const documentPolicy = await driverDocumentPolicy(driverId);
@@ -7346,7 +7252,7 @@ const server = createServer(async (request, response) => {
         json(response, 401, {error:'AUTH_REQUIRED',message:'Entre na sua conta para visualizar os veículos próximos.'});
         return;
       }
-      await resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository});
+      await resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository});
       const lat = requestUrl.searchParams.get('latitude'), lng = requestUrl.searchParams.get('longitude');
       const latitude = Number(lat), longitude = Number(lng);
       if (lat == null || lng == null || !lat.trim() || !lng.trim() || !validNearbyPoint(latitude, longitude)) {
@@ -7358,7 +7264,7 @@ const server = createServer(async (request, response) => {
         drivers:driverSupplyRepository,settings:operationalSettingsRepository,latitude,longitude,
         sessionKey,now,
         canUseDriver:async id => {
-          const identity = await authOtpRepository.findIdentityBySubject('driver', id);
+          const identity = await authIdentityRepository.findIdentityBySubject('driver', id);
           return identity?.status === 'active' && await canDriverReceiveNewWorkUnderPolicy(id, now);
         },
       }));
@@ -7372,7 +7278,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       json(
         response,
@@ -7393,7 +7299,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       json(
         response,
@@ -7413,13 +7319,13 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       json(
         response,
         200,
         await driverProfileForApp({
-          identities: authOtpRepository,
+          identities: authIdentityRepository,
           registry: driverRegistryRepository,
           driverId,
         }),
@@ -7434,7 +7340,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = await readJson(
         request,
@@ -7471,7 +7377,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const rawLimit = requestUrl.searchParams.get('limit');
       const limit =
@@ -7520,14 +7426,14 @@ const server = createServer(async (request, response) => {
 
     if (await passengerRatingRoutes({
       request, response, url: requestUrl, rides: rideRepository, readJson, json,
-      authenticate: () => resolveDriverId({request, sessions: authSessionRepository, identities: authOtpRepository}),
+      authenticate: () => resolveDriverId({request, sessions: authSessionRepository, identities: authIdentityRepository}),
     })) return;
 
     if (await rideChatRoutes({
-      request, response, url: requestUrl, rides: rideRepository, identities: authOtpRepository,
+      request, response, url: requestUrl, rides: rideRepository, identities: authIdentityRepository,
       authenticate: role => role === 'driver'
-        ? resolveDriverId({ request, sessions: authSessionRepository, identities: authOtpRepository })
-        : resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository }),
+        ? resolveDriverId({ request, sessions: authSessionRepository, identities: authIdentityRepository })
+        : resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository }),
       readJson, json,
       publish: (message, driverId) => {
         const event = { type: 'ride.chat.message', message, serverTime: new Date().toISOString() };
@@ -7543,7 +7449,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const ride = await currentDriverRide({
         rides: rideRepository,
@@ -7561,7 +7467,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = await readJson(request);
       const record =
@@ -7703,7 +7609,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const rideId = driverRideAction[1]!;
       const action = driverRideAction[2] as
@@ -7778,7 +7684,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const offer = await currentDriverOffer({
       ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
@@ -7797,7 +7703,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/driver/me/screen-lock') {
-      const driverId=await resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository});
+      const driverId=await resolveDriverId({request,sessions:authSessionRepository,identities:authIdentityRepository});
       if (rideMatchingRepository.lockDriverScreen == null || rideMatchingRepository.lockScreenPendingOffer == null) {
         json(response,503,{error:'SCREEN_LOCK_UNAVAILABLE'}); return;
       }
@@ -7824,7 +7730,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const offerId = driverOfferAction[1]!;
       const action = driverOfferAction[2]!;
@@ -8001,7 +7907,7 @@ const server = createServer(async (request, response) => {
       });
       await authorizeManagedQuote({
         catalog:pricing.snapshot,limits:adminHumanAuthRepository,now,
-        authenticate:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+        authenticate:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository}),
       });
       const trustedBody = {...body,period:pricingPeriodAt(now,pricing.snapshot.periodPolicy)};
       const quote = pricing.snapshot.managedOperations == null
@@ -8011,14 +7917,14 @@ const server = createServer(async (request, response) => {
             dropoff:rawQuoteBody.dropoff as {latitude:number;longitude:number},
             routing:routingDistanceProvider});
       let additional=0;
-      if(occurrenceStore&&(await occurrenceStore.policy()).bonusEnabled){const subject=await resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository});additional=await occurrenceStore.quoteBonus(subject);}
+      if(occurrenceStore&&(await occurrenceStore.policy()).bonusEnabled){const subject=await resolvePassengerId({request,sessions:authSessionRepository,identities:authIdentityRepository});additional=await occurrenceStore.quoteBonus(subject);}
       json(response, 200, {...publicFareQuoteView(quote),...(quote.kind==='exact'?{totalAmountCents:quote.totalAmountCents+additional}:{minTotalAmountCents:quote.minTotalAmountCents+additional,maxTotalAmountCents:quote.maxTotalAmountCents+additional}),occurrenceAdditionalAmountCents:additional,pricingCatalog:pricing.reference});
       return;
     }
 
     const savedCardMatch = requestUrl.pathname.match(/^\/v1\/passenger\/cards(?:\/([A-Za-z0-9_-]{1,100}))?$/);
     if (savedCardMatch != null && ['GET', 'POST', 'DELETE'].includes(request.method ?? '')) {
-      const passengerId = await resolvePassengerId({request, sessions: authSessionRepository, identities: authOtpRepository});
+      const passengerId = await resolvePassengerId({request, sessions: authSessionRepository, identities: authIdentityRepository});
       const gateway = mercadoPagoOrdersClient;
       const policy = await paymentPolicySettingsRepository.get();
       if (gateway == null || !policy.cardEnabled) { json(response, 503, {error: 'CARD_UNAVAILABLE', message: 'Cartões indisponíveis neste ambiente.'}); return; }
@@ -8068,7 +7974,7 @@ const server = createServer(async (request, response) => {
     }
     const confirmationMatch = requestUrl.pathname.match(/^\/v1\/rides\/([0-9a-fA-F-]+)\/driver-confirmation$/);
     if (request.method === 'DELETE' && confirmationMatch != null) {
-      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository });
       const ride = await rideRepository.findById(confirmationMatch[1]!);
       if (ride == null || ride.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
       const released = await rideMatchingRepository.releasePrepaymentHold({ rideId: ride.id, at: new Date().toISOString() });
@@ -8078,7 +7984,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, { ride: passengerRideView(released) }); return;
     }
     if (request.method === 'POST' && confirmationMatch != null) {
-      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository });
       const ride = await rideRepository.findById(confirmationMatch[1]!);
       const now = new Date();
       if (ride == null || ride.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
@@ -8097,7 +8003,7 @@ const server = createServer(async (request, response) => {
       json(response, 201, { status: 'WAITING_ACCEPTANCE' }); return;
     }
     if (request.method === 'GET' && confirmationMatch != null) {
-      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository });
       const confirmation = await prepaymentDriverConfirmation({
         rides: rideRepository, matching: rideMatchingRepository, drivers: driverSupplyRepository,
         registry: driverRegistryRepository, routing: routingRouteProvider,
@@ -8116,9 +8022,9 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
-      const passengerContact = await authOtpRepository.findIdentityBySubject('passenger', passengerId);
+      const passengerContact = await authIdentityRepository.findIdentityBySubject('passenger', passengerId);
       if (passengerWhatsApp(passengerContact?.phoneE164) == null) {
         json(response, 409, { error: 'PASSENGER_WHATSAPP_REQUIRED',
           message: 'Confirme seu WhatsApp com DDD na conta antes de pedir uma corrida.' });
@@ -8260,9 +8166,9 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
-      const passengerContact = await authOtpRepository.findIdentityBySubject('passenger', passengerId);
+      const passengerContact = await authIdentityRepository.findIdentityBySubject('passenger', passengerId);
       if (passengerWhatsApp(passengerContact?.phoneE164) == null) {
         json(response, 409, { error: 'PASSENGER_WHATSAPP_REQUIRED',
           message: 'Confirme seu WhatsApp com DDD na conta antes de pedir uma corrida.' });
@@ -8293,7 +8199,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const result = await retryPassengerRideSearch({
         ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
@@ -8353,7 +8259,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const cancelled = await cancelPassengerRideAfterNoDriver({
         rides: rideRepository,
@@ -8413,7 +8319,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = await readJson(request);
       const record =
@@ -8444,7 +8350,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const tracking = await passengerRideTracking({
         rides: rideRepository,
@@ -8470,7 +8376,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const ride = await rideRepository.findById(rideMatch[1]!);
 
@@ -8490,7 +8396,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       json(response, 200, {
         preference: await passengerPromotionPreference({
@@ -8508,7 +8414,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = await readJson(request);
       const code =
@@ -8555,7 +8461,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       await promotionRepository.clearPreference(passengerId);
       response.writeHead(204);
@@ -8567,7 +8473,7 @@ const server = createServer(async (request, response) => {
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/promotion$/,
     );
     if (request.method === 'PUT' && ridePromotionMatch != null) {
-      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository });
       const couponRide = await rideRepository.findById(ridePromotionMatch[1]!);
       if (couponRide == null || couponRide.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
       if (couponRide.driverConsentRequired) {
@@ -8597,7 +8503,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'DELETE' && ridePromotionMatch != null) {
-      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository });
       const couponRide = await rideRepository.findById(ridePromotionMatch[1]!);
       if (couponRide == null || couponRide.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
       if (couponRide.driverConsentRequired) {
@@ -8626,7 +8532,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const ride = await rideRepository.findById(
         freePromotionPaymentMatch[1]!,
@@ -8720,7 +8626,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const balanceCents = await passengerWalletBalanceCents(
         financeRepository,
@@ -8738,7 +8644,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const rawLimit = requestUrl.searchParams.get('limit');
       const limit =
@@ -8760,7 +8666,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const topup = await financeRepository.findWalletTopupById(
         walletTopupMatch[1]!,
@@ -8783,7 +8689,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const body = parseCreateWalletTopupRequest(await readJson(request));
       const paymentSettings =
@@ -8801,7 +8707,7 @@ const server = createServer(async (request, response) => {
         );
       }
 
-      const identity = await authOtpRepository.findIdentityBySubject(
+      const identity = await authIdentityRepository.findIdentityBySubject(
         'passenger',
         passengerId,
       );
@@ -8840,7 +8746,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
-        identities: authOtpRepository,
+        identities: authIdentityRepository,
       });
       const ride = await rideRepository.findById(paymentMatch[1]!);
 
@@ -9120,7 +9026,7 @@ const server = createServer(async (request, response) => {
         }
 
         const identity =
-          await authOtpRepository.findIdentityBySubject(
+          await authIdentityRepository.findIdentityBySubject(
             'passenger',
             passengerId,
           );
@@ -9202,7 +9108,7 @@ const server = createServer(async (request, response) => {
 
       if (body.method === 'pix') {
         const identity =
-          await authOtpRepository.findIdentityBySubject(
+          await authIdentityRepository.findIdentityBySubject(
             'passenger',
             passengerId,
           );
@@ -9655,34 +9561,8 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (error instanceof PhoneOtpError) {
-      let status: number;
-      switch (error.code) {
-        case 'INVALID_PHONE':
-        case 'INVALID_EMAIL':
-          status = 422;
-          break;
-        case 'DRIVER_NOT_REGISTERED':
-        case 'AUTH_IDENTITY_SUSPENDED':
-          status = 403;
-          break;
-        case 'OTP_RATE_LIMITED':
-          status = 429;
-          break;
-        case 'OTP_INVALID_OR_EXPIRED':
-          status = 401;
-          break;
-        case 'OTP_DELIVERY_NOT_CONFIGURED':
-        case 'OTP_DELIVERY_FAILED':
-          status = 503;
-          break;
-      }
-      json(response, status, {
-        error: error.code,
-        message: error.message,
-      });
-      return;
-    }
+    if(error instanceof PasswordRegistrationError){if(error.retryAfterSeconds)response.setHeader('retry-after',String(error.retryAfterSeconds));json(response,error.code==='REGISTRATION_RATE_LIMITED'?429:409,{error:error.code,message:error.message});return;}
+    if(error instanceof AuthInputError){json(response,422,{error:error.code,message:error.message});return;}
 
     if (error instanceof PassengerPasswordAuthError) {
       const status =
@@ -10033,7 +9913,7 @@ const realtimeServer = attachRealtimeServer({
   registry: driverRegistryRepository,
   matching: rideMatchingRepository,
   sessions: authSessionRepository,
-  identities: authOtpRepository,
+  identities: authIdentityRepository,
 });
 
 let shutdownPromise: Promise<void> | null = null;

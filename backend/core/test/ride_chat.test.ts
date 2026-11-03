@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { createRide } from '../src/rides/create-ride.js';
 import { readJsonBody } from '../src/http/request-body.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
@@ -10,7 +10,7 @@ import { passengerWhatsApp, rideChatRoutes } from '../src/rides/ride-chat-routes
 
 test('chat HTTP: unread receipts, concurrent arrival, pagination and contact privacy', async () => {
   const rides = new InMemoryRideRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const passengerId = randomUUID(), driverId = randomUUID();
   await identities.createIdentity({ id: passengerId, subjectId: passengerId, subjectType: 'passenger',
     phoneE164: '+5588999990001', status: 'active', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });

@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import test from 'node:test';
 import {authenticateBearer, issueAuthSession} from '../src/auth/auth-service.js';
-import {InMemoryAuthOtpRepository} from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import {InMemoryAuthIdentityRepository} from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import {InMemoryAuthSessionRepository} from '../src/auth/repositories/in-memory-auth-session-repository.js';
 import {readJsonBody} from '../src/http/request-body.js';
 import {createRide} from '../src/rides/create-ride.js';
@@ -11,7 +11,7 @@ import {passengerRatingRoutes} from '../src/rides/passenger-rating-routes.js';
 import {InMemoryRideRepository} from '../src/rides/repositories/in-memory-ride-repository.js';
 
 test('passenger rating HTTP: real sessions, ownership, completed ride, validation and immutable retry',async()=>{
- const rides=new InMemoryRideRepository(),identities=new InMemoryAuthOtpRepository(),sessions=new InMemoryAuthSessionRepository();
+ const rides=new InMemoryRideRepository(),identities=new InMemoryAuthIdentityRepository(),sessions=new InMemoryAuthSessionRepository();
  async function account(subjectType:'passenger'|'driver',phoneE164:string){const subjectId=randomUUID(),at=new Date().toISOString();await identities.createIdentity({id:subjectId,subjectId,subjectType,phoneE164,status:'active',createdAt:at,updatedAt:at});return{subjectId,...await issueAuthSession({repository:sessions,subjectId,subjectType})};}
  const driver=await account('driver','+5588999990011'),passenger=await account('passenger','+5588999990012'),outsider=await account('driver','+5588999990013');
  const ride=await createRide(rides,{passengerId:passenger.subjectId,quoteRequest:{origin:{zoneId:'prea'},destination:{zoneId:'jericoacoara'},category:'comfort_black',period:'day'}});ride.driverId=driver.subjectId;ride.state='IN_PROGRESS';await rides.save(ride);

@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stagingGoogleMapsConfiguration } from './google-maps.mjs';
-import { stagingOtpConfiguration } from './otp.mjs';
 import { stagingComposeArguments, stagingComposeEnvironment } from './firebase.mjs';
 
 const rawArg = process.argv.slice(2).find((v) => v.startsWith('--user-id='));
@@ -17,7 +16,6 @@ const envFile = resolve(here, '.env');
 let raw = await readFile(envFile, 'utf8');
 const composeArgs = await stagingComposeArguments(envFile);
 const maps = await stagingGoogleMapsConfiguration(envFile);
-const otp = await stagingOtpConfiguration(envFile);
 for (const key of ['ADMIN_OWNER_USER_ID', 'ADMIN_PAYOUT_APPROVER_USER_ID']) {
   const re = new RegExp('^' + key + '=.*$', 'm');
   if (!re.test(raw)) throw new Error(key + ' não existe no .env.');
@@ -28,7 +26,7 @@ await chmod(envFile, 0o600);
 const result = spawnSync('docker', [
   ...composeArgs,
   'up', '-d', '--no-deps', '--force-recreate', 'core',
-], { cwd: repoRoot, stdio: 'inherit', env: stagingComposeEnvironment(maps, otp) });
+], { cwd: repoRoot, stdio: 'inherit', env: stagingComposeEnvironment(maps) });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
 console.log('Conta proprietária aplicada às duas proteções do ambiente.');

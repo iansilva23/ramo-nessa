@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import WebSocket from 'ws';
 import { AuthenticationError, issueAuthSession } from '../src/auth/auth-service.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
@@ -19,7 +19,7 @@ import { HttpRequestBodyError } from '../src/http/request-body.js';
 
 async function fixture(t: test.TestContext) {
   const sessions = new InMemoryAuthSessionRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const rides = new InMemoryRideRepository();

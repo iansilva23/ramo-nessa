@@ -41,9 +41,9 @@ try{
   for(const path of composeFiles){const index=originalPaths.indexOf(path);if(index<0||!readFileSync(path).equals(readFileSync(join(backup,'compose-'+index+'.private'))))throw Error('Arquivo Compose mudou desde a preparação. Preserve a alteração e envie o resultado.');}
   const baseFile=composeFiles.find(p=>p.endsWith('/deploy/staging/compose.yml'));if(!baseFile)throw Error('Compose principal não identificado.');
   const helper=dirname(baseFile),envFile=labels['com.docker.compose.project.environment_file']||join(helper,'.env');
-  for(const path of [...composeFiles,envFile,...['firebase.mjs','google-maps.mjs','otp.mjs'].map(n=>join(helper,n))]){const x=lstatSync(path);if(!x.isFile()||x.isSymbolicLink())throw Error('Configuração não é arquivo regular.');const bytes=readFileSync(path);if(files.has(path)&&!files.get(path).equals(bytes))throw Error('Arquivo mudou durante a resolução.');files.set(path,bytes);}
-  const mapsModule=await import(pathToFileURL(join(helper,'google-maps.mjs'))),otpModule=await import(pathToFileURL(join(helper,'otp.mjs'))),firebaseModule=await import(pathToFileURL(join(helper,'firebase.mjs')));
-  const maps=await mapsModule.stagingGoogleMapsConfiguration(envFile),otp=await otpModule.stagingOtpConfiguration(envFile),env=firebaseModule.stagingComposeEnvironment(maps,otp);
+  for(const path of [...composeFiles,envFile,...['firebase.mjs','google-maps.mjs'].map(n=>join(helper,n))]){const x=lstatSync(path);if(!x.isFile()||x.isSymbolicLink())throw Error('Configuração não é arquivo regular.');const bytes=readFileSync(path);if(files.has(path)&&!files.get(path).equals(bytes))throw Error('Arquivo mudou durante a resolução.');files.set(path,bytes);}
+  const mapsModule=await import(pathToFileURL(join(helper,'google-maps.mjs'))),firebaseModule=await import(pathToFileURL(join(helper,'firebase.mjs')));
+  const maps=await mapsModule.stagingGoogleMapsConfiguration(envFile),env=firebaseModule.stagingComposeEnvironment(maps);
   const args=['compose','--project-name',activationProject,'--env-file',envFile,...composeFiles.flatMap(p=>['-f',p]),'config','--format','json'];
   const resolved=JSON.parse(run('docker',args,{env,cwd:dirname(baseFile)}));
   const oldImage=JSON.parse(run('docker',['image','inspect',start[name].Image]))[0];assertEnvironmentMatches(resolved.services[name],start[name],oldImage);

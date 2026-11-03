@@ -15,9 +15,9 @@ import {
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { PostgresAdminRepository } from '../src/admin/repositories/postgres-admin-repository.js';
 import { issueAuthSession, hashBearerToken } from '../src/auth/auth-service.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
-import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import { PostgresAuthIdentityRepository } from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
@@ -170,7 +170,7 @@ test('chave admin expirada é recusada mesmo sem revogação', async () => {
 
 test('provisionamento sem status nasce suspenso por padrão', async () => {
   const admin = new InMemoryAdminRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const actor = (
@@ -196,7 +196,7 @@ test('provisionamento sem status nasce suspenso por padrão', async () => {
 
 test('admin provisiona e suspende motorista, revogando sessões e auditando', async () => {
   const admin = new InMemoryAdminRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const registry = new InMemoryDriverRegistryRepository();
 
@@ -263,7 +263,7 @@ test('admin provisiona e suspende motorista, revogando sessões e auditando', as
 
 test('admin impede conflito de telefone e identificador de motorista', async () => {
   const admin = new InMemoryAdminRepository();
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const actor = (
@@ -325,7 +325,7 @@ test(
   async () => {
     const pool = createPostgresPool(databaseUrl!);
     const admin = new PostgresAdminRepository(pool);
-    const identities = new PostgresAuthOtpRepository(pool);
+    const identities = new PostgresAuthIdentityRepository(pool);
     const sessions = new PostgresAuthSessionRepository(pool);
     const registry = new InMemoryDriverRegistryRepository();
     const driverId = 'driver-admin-postgres-001';

@@ -150,7 +150,7 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
               const SizedBox(height: 12),
               Text(
                 _configured
-                    ? 'Você pode entrar com seu usuário ou e-mail e a mesma senha. Se esquecer, use a recuperação pelo WhatsApp na tela de entrada.'
+                    ? 'Você pode entrar com seu usuário ou e-mail e a mesma senha.'
                     : 'Entre com usuário ou e-mail e senha. Seu WhatsApp continua vinculado à recuperação da conta.',
               ),
               const SizedBox(height: 24),

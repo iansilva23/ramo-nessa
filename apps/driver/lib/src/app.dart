@@ -1,14 +1,16 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
+
 import 'features/registration/driver_registration_gate.dart';
 import 'features/registration/driver_registration_service.dart';
 import 'features/home/data/http_driver_api.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_push/ramo_push.dart';
 
-import 'core/auth/http_phone_auth_service.dart';
+import 'core/auth/http_password_auth_service.dart';
 import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
 import 'core/communications/firebase_push_registration_service.dart';
@@ -49,35 +51,32 @@ class RamoNessaDriverApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coreUri = DriverCoreConfig.baseUri;
-    final preview =
-        DriverCoreConfig.previewMode ? DriverPreviewDependencies() : null;
-    final resolvedRouteService = routeService ??
+    final preview = DriverCoreConfig.previewMode
+        ? DriverPreviewDependencies()
+        : null;
+    final resolvedRouteService =
+        routeService ??
         (DriverCoreConfig.previewMode && coreUri != null
             ? CoreDriverRouteService(baseUrl: coreUri)
             : preview?.route);
     final restoredToken = accessToken?.trim();
-    final initialToken =
-        restoredToken != null && restoredToken.length >= 20
-            ? restoredToken
-            : null;
+    final initialToken = restoredToken != null && restoredToken.length >= 20
+        ? restoredToken
+        : null;
 
-    Widget home(
-      String? token, [
-      Future<bool> Function()? logout,
-    ]) {
+    Widget home(String? token, [Future<bool> Function()? logout]) {
       final normalizedToken = token?.trim();
-      final resolvedPrivacyService = privacyService ??
-          (
-            preview == null &&
-                coreUri != null &&
-                normalizedToken != null &&
-                normalizedToken.length >= 20
+      final resolvedPrivacyService =
+          privacyService ??
+          (preview == null &&
+                  coreUri != null &&
+                  normalizedToken != null &&
+                  normalizedToken.length >= 20
               ? HttpDriverPrivacyService(
                   baseUrl: coreUri,
                   accessToken: normalizedToken,
                 )
-              : null
-          );
+              : null);
 
       return DriverHomeScreen(
         accessToken: token,
@@ -91,10 +90,11 @@ class RamoNessaDriverApp extends StatelessWidget {
       );
     }
 
-
     Widget permissions(String? token, Widget content) {
       const storage = FlutterSecureStorage();
-      const key = kIsWeb ? 'ramo_nessa_permissions_driver_web_v2' : 'ramo_nessa_permissions_driver_v1';
+      const key = kIsWeb
+          ? 'ramo_nessa_permissions_driver_web_v2'
+          : 'ramo_nessa_permissions_driver_v1';
 
       Future<bool> requestLocation() async {
         try {
@@ -135,10 +135,13 @@ class RamoNessaDriverApp extends StatelessWidget {
         saveCompleted: () => storage.write(key: key, value: 'yes'),
         requestLocation: requestLocation,
         requestNotifications: requestNotifications,
-        notificationHelp: DriverFirebasePushRegistrationService.instance.notificationHelp,
-        readNotificationPreference: DriverFirebasePushRegistrationService.instance.readAllNotifications,
+        notificationHelp:
+            DriverFirebasePushRegistrationService.instance.notificationHelp,
+        readNotificationPreference:
+            DriverFirebasePushRegistrationService.instance.readAllNotifications,
         saveNotificationPreference: (all) async {
-          final synced = await DriverFirebasePushRegistrationService.instance.setAllNotifications(all);
+          final synced = await DriverFirebasePushRegistrationService.instance
+              .setAllNotifications(all);
           if (!synced) throw StateError('Preferência dos avisos pendente.');
         },
         child: content,
@@ -149,14 +152,14 @@ class RamoNessaDriverApp extends StatelessWidget {
     if (DriverCoreConfig.previewMode) {
       homeWidget = MobileAuthGate(
         subjectType: 'driver',
-        service: PreviewPhoneAuthService(subjectType: 'driver'),
+        service: PreviewPasswordAuthService(subjectType: 'driver'),
         tokenStore: PreviewAuthTokenStore(),
         initialAccessToken: initialToken,
         devBypass: false,
         loginTitle: 'Ramo Nessa Motorista',
-        loginSubtitle:
-            'Entre para testar o app. No Preview, o código é exibido na própria tela.',
-        authenticatedBuilder: (token, logout) => permissions(token, home(token, logout)),
+        loginSubtitle: 'Entre para testar o app. No Preview, o código é exibido na própria tela.',
+        authenticatedBuilder: (token, logout) =>
+            permissions(token, home(token, logout)),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
@@ -165,7 +168,7 @@ class RamoNessaDriverApp extends StatelessWidget {
     } else {
       homeWidget = MobileAuthGate(
         subjectType: 'driver',
-        service: HttpPhoneAuthService(
+        service: HttpPasswordAuthService(
           baseUrl: coreUri,
           subjectType: 'driver',
           clientInstanceId: clientInstanceId,
@@ -174,37 +177,42 @@ class RamoNessaDriverApp extends StatelessWidget {
         initialAccessToken: initialToken,
         devBypass: DriverCoreConfig.devDriverIdentityEnabled,
         loginTitle: 'Ramo Nessa Motorista',
-        loginSubtitle:
-            'Entre com seu WhatsApp ou cadastre-se para dirigir com a Ramo Nessa.',
-        authenticatedBuilder: (token, logout) => permissions(token, token == null ? home(token, logout) : DriverRegistrationGate(
-          key: ValueKey(token),
-          service: HttpDriverRegistrationService(baseUrl: coreUri, accessToken: token),
-          api: HttpDriverApi(baseUrl: coreUri, accessToken: token),
-          logout: logout,
-          homeBuilder: () => home(token, logout),
-        )),
-        onSessionReady: (token) => DriverFirebasePushRegistrationService.instance.restore(
-          baseUrl: coreUri, accessToken: token,
+        loginSubtitle: 'Entre com usuário ou e-mail e senha, ou seja um motorista parceiro.',
+        authenticatedBuilder: (token, logout) => permissions(
+          token,
+          token == null
+              ? home(token, logout)
+              : DriverRegistrationGate(
+                  key: ValueKey(token),
+                  service: HttpDriverRegistrationService(
+                    baseUrl: coreUri,
+                    accessToken: token,
+                  ),
+                  api: HttpDriverApi(baseUrl: coreUri, accessToken: token),
+                  logout: logout,
+                  homeBuilder: () => home(token, logout),
+                ),
         ),
-        onSessionEnded:
-            DriverFirebasePushRegistrationService.instance.stop,
+        onSessionReady: (token) => DriverFirebasePushRegistrationService
+            .instance
+            .restore(baseUrl: coreUri, accessToken: token),
+        onSessionEnded: DriverFirebasePushRegistrationService.instance.stop,
       );
     }
 
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: RamoAppearance.instance,
       builder: (context, themeMode, _) => MaterialApp(
-      title: 'Ramo Nessa Motorista',
-      debugShowCheckedModeBanner: false,
-      theme: RamoTheme.light,
-      darkTheme: RamoTheme.dark,
-      themeMode: themeMode,
-      home: homeWidget,
+        title: 'Ramo Nessa Motorista',
+        debugShowCheckedModeBanner: false,
+        theme: RamoTheme.light,
+        darkTheme: RamoTheme.dark,
+        themeMode: themeMode,
+        home: homeWidget,
       ),
     );
   }
 }
-
 
 class _CoreConfigurationError extends StatelessWidget {
   const _CoreConfigurationError();
@@ -224,10 +232,7 @@ class _CoreConfigurationError extends StatelessWidget {
                 Text(
                   'Aplicativo ainda não está conectado ao servidor.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 SizedBox(height: 10),
                 Text(

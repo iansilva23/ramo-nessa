@@ -4,8 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_token_store.dart';
-import 'phone_auth_service.dart';
-import 'phone_login_screen.dart';
+import 'password_auth_service.dart';
 import 'driver_password_login_screen.dart';
 import 'driver_password_auth_service.dart';
 
@@ -26,7 +25,7 @@ class MobileAuthGate extends StatefulWidget {
   });
 
   final String subjectType;
-  final PhoneAuthService service;
+  final PasswordAuthService service;
   final AuthTokenStore tokenStore;
   final String? initialAccessToken;
   final bool devBypass;
@@ -238,16 +237,8 @@ class _MobileAuthGateState extends State<MobileAuthGate>
       );
     }
 
-    return PhoneLoginScreen(
-      service: widget.service,
-      requestRegistrationOtp: widget.service is DriverRegistrationAuthService
-          ? (phone) => (widget.service as DriverRegistrationAuthService)
-                .requestRegistrationOtp(phone: phone)
-          : null,
-      tokenStore: widget.tokenStore,
-      title: widget.loginTitle,
-      subtitle: widget.loginSubtitle,
-      onAuthenticated: _authenticated,
+    return const Scaffold(
+      body: Center(child: Text('Não foi possível carregar o acesso.')),
     );
   }
 }

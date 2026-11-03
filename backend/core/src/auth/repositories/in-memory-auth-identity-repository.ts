@@ -6,12 +6,9 @@ import type {
   AuthIdentityRecord,
   AuthIdentityStatus,
   AuthIdentityStatusCounts,
-  AuthOtpRepository,
+  AuthIdentityRepository,
   AuthRateLimitResult,
-  OtpAttemptResult,
-  OtpChallengeCreationResult,
-  OtpChallengeRecord,
-} from '../auth-otp-repository.js';
+} from '../auth-identity-repository.js';
 import type { AuthSubjectType } from '../auth-session-repository.js';
 
 function normalizePassengerDirectoryName(value: string): string {
@@ -23,9 +20,8 @@ interface MemoryRateLimit {
   attemptCount: number;
 }
 
-export class InMemoryAuthOtpRepository implements AuthOtpRepository {
+export class InMemoryAuthIdentityRepository implements AuthIdentityRepository {
   private readonly identities = new Map<string, AuthIdentityRecord>();
-  private readonly challenges = new Map<string, OtpChallengeRecord>();
   private readonly federatedIdentities =
       new Map<string, AuthFederatedIdentityRecord>();
   private readonly passengerPhotos = new Map<
@@ -37,6 +33,8 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     }
   >();
   private readonly rateLimits = new Map<string, MemoryRateLimit>();
+
+  removeNewIdentity(id:string):void {this.identities.delete(id);}
 
   async createIdentity(
     identity: AuthIdentityRecord,
@@ -50,32 +48,6 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     if (duplicate != null) {
       throw new Error('Identidade de autenticação duplicada.');
     }
-    this.identities.set(identity.id, structuredClone(identity));
-    return structuredClone(identity);
-  }
-
-  async findOrCreateDriverRegistrationIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord> {
-    if (identity.subjectType !== 'driver') throw new Error('Tipo de conta inválido.');
-    const existing = [...this.identities.values()].find(item => item.subjectType === 'driver' && item.phoneE164 === identity.phoneE164);
-    if (existing) return structuredClone(existing);
-    const record = { ...identity, driverRegistrationOnly: true, status: 'active' as const };
-    this.identities.set(record.id, structuredClone(record));
-    return structuredClone(record);
-  }
-
-  async findOrCreatePassengerIdentity(
-    identity: AuthIdentityRecord,
-  ): Promise<AuthIdentityRecord> {
-    if (identity.subjectType !== 'passenger') {
-      throw new Error('Somente passageiro pode ser criado automaticamente.');
-    }
-    const existing = [...this.identities.values()].find(
-      (candidate) =>
-        candidate.subjectType === 'passenger' &&
-        candidate.phoneE164 === identity.phoneE164,
-    );
-    if (existing != null) return structuredClone(existing);
-
     this.identities.set(identity.id, structuredClone(identity));
     return structuredClone(identity);
   }
@@ -424,144 +396,4 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     return { allowed: true, retryAfterMs: 0 };
   }
 
-  async createChallengeWithCooldown(input: {
-    challenge: OtpChallengeRecord;
-    now: string;
-    cooldownMs: number;
-  }): Promise<OtpChallengeCreationResult> {
-    const nowMs = Date.parse(input.now);
-    const retentionMs = 24 * 60 * 60 * 1000;
-    for (const [id, candidate] of this.challenges) {
-      const reference = candidate.consumedAt ?? candidate.expiresAt;
-      if (Date.parse(reference) < nowMs - retentionMs) {
-        this.challenges.delete(id);
-      }
-    }
-
-    const latest = [...this.challenges.values()]
-      .filter((candidate) => candidate.identityId === input.challenge.identityId)
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-
-    if (latest != null && latest.consumedAt == null) {
-      const elapsedMs = Math.max(
-        0,
-        Date.parse(input.now) - Date.parse(latest.createdAt),
-      );
-      if (elapsedMs < input.cooldownMs) {
-        return {
-          created: false,
-          retryAfterMs: Math.max(1, input.cooldownMs - elapsedMs),
-        };
-      }
-      this.challenges.set(latest.id, {
-        ...latest,
-        consumedAt: input.now,
-      });
-    }
-
-    this.challenges.set(
-      input.challenge.id,
-      structuredClone(input.challenge),
-    );
-    return {
-      created: true,
-      challenge: structuredClone(input.challenge),
-    };
-  }
-
-  async createChallenge(
-    challenge: OtpChallengeRecord,
-  ): Promise<OtpChallengeRecord> {
-    this.challenges.set(challenge.id, structuredClone(challenge));
-    return structuredClone(challenge);
-  }
-
-  async findLatestChallengeByIdentityId(
-    identityId: string,
-  ): Promise<OtpChallengeRecord | null> {
-    const found = [...this.challenges.values()]
-      .filter((candidate) => candidate.identityId === identityId)
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-    return found == null ? null : structuredClone(found);
-  }
-
-  async findChallengeById(challengeId: string): Promise<OtpChallengeRecord | null> {
-    const challenge = this.challenges.get(challengeId);
-    return challenge == null ? null : structuredClone(challenge);
-  }
-
-  async setExternalReference(challengeId: string, reference: string): Promise<void> {
-    const challenge = this.challenges.get(challengeId);
-    if (challenge == null || challenge.consumedAt != null || challenge.externalProvider == null ||
-        challenge.externalReference != null) throw new Error('Desafio externo indisponível.');
-    this.challenges.set(challengeId, { ...challenge, externalReference: reference });
-  }
-
-  async beginExternalVerification(input: {
-    challengeId: string; nonce: string; attemptedAt: string;
-    leaseUntil: string; maxAttempts: number;
-  }): Promise<OtpChallengeRecord | null> {
-    const c = this.challenges.get(input.challengeId);
-    if (c == null || c.externalReference == null || c.consumedAt != null ||
-        Date.parse(c.expiresAt) <= Date.parse(input.attemptedAt) ||
-        c.attemptCount >= input.maxAttempts ||
-        (c.verificationLeaseUntil != null && Date.parse(c.verificationLeaseUntil) > Date.parse(input.attemptedAt))) return null;
-    const updated = { ...c, attemptCount: c.attemptCount + 1,
-      verificationNonce: input.nonce, verificationLeaseUntil: input.leaseUntil };
-    this.challenges.set(c.id, updated);
-    return structuredClone(updated);
-  }
-
-  async finishExternalVerification(input: {
-    challengeId: string; nonce: string; verified: boolean; completedAt: string;
-  }): Promise<OtpAttemptResult | null> {
-    const c = this.challenges.get(input.challengeId);
-    if (c == null || c.verificationNonce !== input.nonce || c.consumedAt != null) return null;
-    const matched = input.verified && Date.parse(c.expiresAt) > Date.parse(input.completedAt) &&
-      Date.parse(c.verificationLeaseUntil!) > Date.parse(input.completedAt);
-    const updated = { ...c, ...(matched ? { consumedAt: input.completedAt } : {}) };
-    delete updated.verificationNonce;
-    delete updated.verificationLeaseUntil;
-    this.challenges.set(c.id, updated);
-    return { challenge: structuredClone(updated), matched };
-  }
-
-  async cancelChallenge(
-    challengeId: string,
-    canceledAt: string,
-  ): Promise<void> {
-    const challenge = this.challenges.get(challengeId);
-    if (challenge == null || challenge.consumedAt != null) return;
-    this.challenges.set(challengeId, {
-      ...challenge,
-      consumedAt: canceledAt,
-    });
-  }
-
-  async attemptChallenge(input: {
-    challengeId: string;
-    codeDigest: string;
-    attemptedAt: string;
-    maxAttempts: number;
-  }): Promise<OtpAttemptResult | null> {
-    const challenge = this.challenges.get(input.challengeId);
-    if (
-      challenge == null ||
-      challenge.consumedAt != null ||
-      Date.parse(challenge.expiresAt) <= Date.parse(input.attemptedAt) ||
-      challenge.attemptCount >= input.maxAttempts
-    ) {
-      return null;
-    }
-
-    if (challenge.externalProvider != null) return null;
-    const matched = challenge.codeDigest === input.codeDigest;
-    const updated: OtpChallengeRecord = {
-      ...challenge,
-      attemptCount: challenge.attemptCount + 1,
-      ...(matched ? { consumedAt: input.attemptedAt } : {}),
-    };
-    this.challenges.set(updated.id, updated);
-    return { challenge: structuredClone(updated), matched };
-  }
 }

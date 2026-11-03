@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stagingFirebaseConfiguration } from './firebase.mjs';
 import { stagingGoogleMapsConfiguration } from './google-maps.mjs';
-import { stagingOtpConfiguration } from './otp.mjs';
 
 function parseEnv(raw) {
   const values = new Map();
@@ -62,8 +61,7 @@ export function validateStagingEnvironment(env) {
   }
   requireInteger(env, 'DB_POOL_MAX', 1, 100);
   requireInteger(env, 'SHUTDOWN_TIMEOUT_MS', 1000, 60000);
-  requireValue(env, 'OTP_HASH_SECRET', 32);
-  requireValue(env, 'OTP_RATE_LIMIT_SECRET', 32);
+  requireValue(env, 'AUTH_PASSWORD_RATE_LIMIT_SECRET', 32);
   assertBase64Bytes(requireValue(env, 'ADMIN_MFA_ENCRYPTION_KEY', 32), 32, 'ADMIN_MFA_ENCRYPTION_KEY');
   requireValue(env, 'ADMIN_LOGIN_RATE_LIMIT_SECRET', 32);
   uuidOrEmpty(env, 'ADMIN_OWNER_USER_ID');
@@ -96,7 +94,6 @@ const envFile = resolve(here, envFileArg?.slice('--env-file='.length) || '.env')
 const result = validateStagingEnvironment(parseEnv(await readFile(envFile, 'utf8')));
 const firebase = await stagingFirebaseConfiguration(envFile);
 const maps = await stagingGoogleMapsConfiguration(envFile);
-const otp = await stagingOtpConfiguration(envFile);
 console.log('Configuração de homologação válida para ' + result.domain + '. Mercado Pago sandbox: ' +
   (result.mercadoPagoSandboxConfigured ? 'configurado' : 'desativado') + '. Push: ' + firebase.provider +
-  '. Google Maps: ' + maps.provider + '. OTP: ' + otp.provider + '.');
+  '. Google Maps: ' + maps.provider + '.');

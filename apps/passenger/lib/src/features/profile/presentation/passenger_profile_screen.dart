@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/auth/phone_auth_service.dart';
+import '../../../core/auth/password_auth_service.dart';
 import '../../../core/communications/social_links_service.dart';
 import '../../../core/config/ramo_core_config.dart';
 import '../../rides/data/passenger_activity_service.dart';
@@ -42,7 +42,7 @@ class PassengerProfileScreen extends StatefulWidget {
     this.previewMode = false,
   });
 
-  final PhoneAuthService? authService;
+  final PasswordAuthService? authService;
   final String? accessToken;
   final VoidCallback onOpenActivity;
   final PassengerActivityService? activityService;
@@ -782,7 +782,7 @@ class _PassengerPersonalDataScreen extends StatefulWidget {
   });
 
   final PassengerAccount account;
-  final PhoneAuthService? service;
+  final PasswordAuthService? service;
   final String? accessToken;
 
   @override

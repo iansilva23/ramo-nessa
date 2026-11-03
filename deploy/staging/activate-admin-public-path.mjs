@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { stagingGoogleMapsConfiguration } from '/opt/ramo-nessa/deploy/staging/google-maps.mjs';
-import { stagingOtpConfiguration } from '/opt/ramo-nessa/deploy/staging/otp.mjs';
 import { stagingComposeArguments, stagingComposeEnvironment } from '/opt/ramo-nessa/deploy/staging/firebase.mjs';
 
 const repo = '/opt/ramo-nessa';
@@ -25,10 +24,9 @@ const git = (args, input) => run('sudo', ['-u', 'ubuntu', 'git', '-C', repo, ...
 
 const arquivo = repo + '/deploy/staging/.env';
 const maps = await stagingGoogleMapsConfiguration(arquivo);
-const otp = await stagingOtpConfiguration(arquivo);
 const args = await stagingComposeArguments(arquivo);
 args.splice(1, 0, '--project-name', 'ramo-nessa-staging');
-const env = stagingComposeEnvironment(maps, otp);
+const env = stagingComposeEnvironment(maps);
 const compose = tail => run('docker', [...args, ...tail], { env });
 
 compose(['config', '--quiet']);

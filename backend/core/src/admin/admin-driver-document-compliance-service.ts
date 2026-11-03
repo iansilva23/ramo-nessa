@@ -9,7 +9,7 @@ import type {
 import type {
   OperationalSettingsRepository,
 } from '../config/operational-settings-repository.js';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import type {
   DriverDocumentRepository,
   DriverDocumentType,
@@ -300,7 +300,7 @@ export async function notifyDriverDocumentCompliance(input: {
 
 
 export async function listAdminDriverDocumentComplianceAlerts(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   registry?: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   controls: DriverDocumentComplianceRepository;

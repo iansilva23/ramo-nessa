@@ -1,3 +1,4 @@
+import {PostgresPasswordRegistrationStore,MemoryPasswordRegistrationStore} from '../auth/password-registration.js';
 import {InMemoryDriverPasswordAuthStore, PostgresDriverPasswordAuthStore, type DriverPasswordAuthStore} from '../auth/driver-password-auth-store.js';
 import {DriverNavigationControlStore} from '../routing/driver-navigation-control.js';
 import {RideOccurrenceStore} from '../rides/ride-occurrence-store.js';
@@ -12,7 +13,7 @@ import { InMemoryCompanyCostRepository, PostgresCompanyCostRepository, type Comp
 import { InMemorySavedCardRepository, PostgresSavedCardRepository, type SavedCardRepository } from '../payments/saved-card-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import type { AdminRepository } from '../admin/admin-repository.js';
 import type { AdminHumanAuthRepository } from '../admin/admin-human-auth-repository.js';
 import { InMemoryAdminHumanAuthRepository } from '../admin/repositories/in-memory-admin-human-auth-repository.js';
@@ -21,8 +22,8 @@ import { InMemoryAdminRepository } from '../admin/repositories/in-memory-admin-r
 import { PostgresAdminRepository } from '../admin/repositories/postgres-admin-repository.js';
 import { InMemoryAuthSessionRepository } from '../auth/repositories/in-memory-auth-session-repository.js';
 import { PostgresAuthSessionRepository } from '../auth/repositories/postgres-auth-session-repository.js';
-import { InMemoryAuthOtpRepository } from '../auth/repositories/in-memory-auth-otp-repository.js';
-import { PostgresAuthOtpRepository } from '../auth/repositories/postgres-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../auth/repositories/in-memory-auth-identity-repository.js';
+import { PostgresAuthIdentityRepository } from '../auth/repositories/postgres-auth-identity-repository.js';
 import type { RidePreparationRepository } from '../rides/ride-preparation-repository.js';
 import { InMemoryRidePreparationRepository } from '../rides/in-memory-ride-preparation-repository.js';
 import { PostgresRidePreparationRepository } from '../rides/postgres-ride-preparation-repository.js';
@@ -82,6 +83,7 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  passwordRegistrationStore: import('../auth/password-registration.js').PasswordRegistrationStore;
   driverPasswordAuthStore: DriverPasswordAuthStore;
   driverNavigationControlStore: DriverNavigationControlStore|null;
   boardingStore: PostgresBoardingStore|null;
@@ -90,7 +92,7 @@ export interface RepositoryBundle {
   manualCancellationStore: PostgresManualCancellationStore | null;
   asaasPayoutStore: AsaasPayoutStore;
   authSessionRepository: AuthSessionRepository;
-  authOtpRepository: AuthOtpRepository;
+  authIdentityRepository: AuthIdentityRepository;
   adminRepository: AdminRepository;
   adminHumanAuthRepository: AdminHumanAuthRepository;
   rideRepository: RideRepository;
@@ -135,6 +137,7 @@ export function createRepositories(): RepositoryBundle {
 
     return {
       driverPasswordAuthStore: new PostgresDriverPasswordAuthStore(pool),
+      passwordRegistrationStore: new PostgresPasswordRegistrationStore(pool),
       driverNavigationControlStore: new DriverNavigationControlStore(pool),
       boardingStore: new PostgresBoardingStore(pool),
       occurrenceStore: new RideOccurrenceStore(pool),
@@ -143,7 +146,7 @@ export function createRepositories(): RepositoryBundle {
       guideStore: new PostgresGuideStore(pool),
       asaasPayoutStore: new PostgresAsaasPayoutStore(pool),
       authSessionRepository: new PostgresAuthSessionRepository(pool),
-      authOtpRepository: new PostgresAuthOtpRepository(pool),
+      authIdentityRepository: new PostgresAuthIdentityRepository(pool),
       adminRepository: new PostgresAdminRepository(pool),
       adminHumanAuthRepository:
         new PostgresAdminHumanAuthRepository(pool),
@@ -198,7 +201,8 @@ export function createRepositories(): RepositoryBundle {
     );
   }
 
-  const driverAuthIdentities = new InMemoryAuthOtpRepository();
+  const driverAuthIdentities = new InMemoryAuthIdentityRepository();
+  const driverPasswords = new InMemoryDriverPasswordAuthStore(driverAuthIdentities);
   const financeRepository = new InMemoryFinanceRepository();
   const adminRepository = new InMemoryAdminRepository();
   const promotionRepository = new InMemoryPromotionRepository();
@@ -206,7 +210,8 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
-    driverPasswordAuthStore: new InMemoryDriverPasswordAuthStore(driverAuthIdentities),
+    driverPasswordAuthStore: driverPasswords,
+    passwordRegistrationStore: new MemoryPasswordRegistrationStore(driverAuthIdentities,driverPasswords),
     driverNavigationControlStore: null,
     boardingStore: null,
     occurrenceStore: null,
@@ -214,7 +219,7 @@ export function createRepositories(): RepositoryBundle {
     manualCancellationStore: null,
     asaasPayoutStore: new InMemoryAsaasPayoutStore(),
     authSessionRepository: new InMemoryAuthSessionRepository(),
-    authOtpRepository: driverAuthIdentities,
+    authIdentityRepository: driverAuthIdentities,
     adminRepository,
     adminHumanAuthRepository:
       new InMemoryAdminHumanAuthRepository(),

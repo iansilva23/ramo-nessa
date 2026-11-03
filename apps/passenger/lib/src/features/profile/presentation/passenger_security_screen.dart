@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../../core/auth/phone_auth_service.dart';
+import '../../../core/auth/password_auth_service.dart';
 
 class PassengerSecurityScreen extends StatefulWidget {
   const PassengerSecurityScreen({
@@ -12,7 +12,7 @@ class PassengerSecurityScreen extends StatefulWidget {
     this.previewMode = false,
   });
 
-  final PhoneAuthService? service;
+  final PasswordAuthService? service;
   final String? accessToken;
   final PassengerAccount account;
   final bool previewMode;

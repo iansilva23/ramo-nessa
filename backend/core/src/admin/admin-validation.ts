@@ -1,4 +1,4 @@
-import type { AuthIdentityStatus } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityStatus } from '../auth/auth-identity-repository.js';
 import type { RideState } from '../rides/ride-state.js';
 
 export class InvalidAdminRequestError extends Error {

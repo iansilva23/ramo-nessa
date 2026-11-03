@@ -52,26 +52,6 @@ export interface AuthIdentityStatusCounts {
   suspended: number;
 }
 
-export interface OtpChallengeRecord {
-  id: string;
-  identityId: string;
-  codeDigest: string;
-  externalProvider?: 'entrar-whatsapp';
-  externalReference?: string;
-  verificationNonce?: string;
-  verificationLeaseUntil?: string;
-  expiresAt: string;
-  attemptCount: number;
-  requestedEmailNormalized?: string;
-  consumedAt?: string;
-  createdAt: string;
-}
-
-export interface OtpAttemptResult {
-  challenge: OtpChallengeRecord;
-  matched: boolean;
-}
-
 export interface AuthRateLimitRule {
   key: string;
   limit: number;
@@ -83,16 +63,8 @@ export interface AuthRateLimitResult {
   retryAfterMs: number;
 }
 
-export type OtpChallengeCreationResult =
-  | { created: true; challenge: OtpChallengeRecord }
-  | { created: false; retryAfterMs: number };
-
-export interface AuthOtpRepository {
+export interface AuthIdentityRepository {
   createIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord>;
-  findOrCreateDriverRegistrationIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord>;
-  findOrCreatePassengerIdentity(
-    identity: AuthIdentityRecord,
-  ): Promise<AuthIdentityRecord>;
   findIdentityByPhone(
     subjectType: AuthSubjectType,
     phoneE164: string,
@@ -159,31 +131,4 @@ export interface AuthOtpRepository {
     rules: AuthRateLimitRule[];
     now: string;
   }): Promise<AuthRateLimitResult>;
-  createChallengeWithCooldown(input: {
-    challenge: OtpChallengeRecord;
-    now: string;
-    cooldownMs: number;
-  }): Promise<OtpChallengeCreationResult>;
-  createChallenge(
-    challenge: OtpChallengeRecord,
-  ): Promise<OtpChallengeRecord>;
-  findLatestChallengeByIdentityId(
-    identityId: string,
-  ): Promise<OtpChallengeRecord | null>;
-  findChallengeById(challengeId: string): Promise<OtpChallengeRecord | null>;
-  setExternalReference(challengeId: string, reference: string): Promise<void>;
-  beginExternalVerification(input: {
-    challengeId: string; nonce: string; attemptedAt: string;
-    leaseUntil: string; maxAttempts: number;
-  }): Promise<OtpChallengeRecord | null>;
-  finishExternalVerification(input: {
-    challengeId: string; nonce: string; verified: boolean; completedAt: string;
-  }): Promise<OtpAttemptResult | null>;
-  cancelChallenge(challengeId: string, canceledAt: string): Promise<void>;
-  attemptChallenge(input: {
-    challengeId: string;
-    codeDigest: string;
-    attemptedAt: string;
-    maxAttempts: number;
-  }): Promise<OtpAttemptResult | null>;
 }

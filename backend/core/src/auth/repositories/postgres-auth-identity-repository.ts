@@ -8,12 +8,9 @@ import type {
   AuthIdentityRecord,
   AuthIdentityStatus,
   AuthIdentityStatusCounts,
-  AuthOtpRepository,
+  AuthIdentityRepository,
   AuthRateLimitResult,
-  OtpAttemptResult,
-  OtpChallengeCreationResult,
-  OtpChallengeRecord,
-} from '../auth-otp-repository.js';
+} from '../auth-identity-repository.js';
 import type { AuthSubjectType } from '../auth-session-repository.js';
 
 interface IdentityRow {
@@ -46,21 +43,6 @@ interface RateLimitRow {
   window_started_at: Date;
   attempt_count: number;
   updated_at: Date;
-}
-
-interface ChallengeRow {
-  id: string;
-  identity_id: string;
-  code_digest: string;
-  external_provider: 'entrar-whatsapp' | null;
-  external_reference: string | null;
-  verification_nonce: string | null;
-  verification_lease_until: Date | null;
-  expires_at: Date;
-  attempt_count: number;
-  requested_email_normalized: string | null;
-  consumed_at: Date | null;
-  created_at: Date;
 }
 
 function mapIdentity(row: IdentityRow): AuthIdentityRecord {
@@ -102,28 +84,7 @@ function mapFederatedIdentity(
   };
 }
 
-function mapChallenge(row: ChallengeRow): OtpChallengeRecord {
-  return {
-    id: row.id,
-    identityId: row.identity_id,
-    codeDigest: row.code_digest,
-    ...(row.external_provider == null ? {} : { externalProvider: row.external_provider }),
-    ...(row.external_reference == null ? {} : { externalReference: row.external_reference }),
-    ...(row.verification_nonce == null ? {} : { verificationNonce: row.verification_nonce }),
-    ...(row.verification_lease_until == null ? {} : { verificationLeaseUntil: row.verification_lease_until.toISOString() }),
-    expiresAt: row.expires_at.toISOString(),
-    attemptCount: row.attempt_count,
-    ...(row.requested_email_normalized != null
-      ? { requestedEmailNormalized: row.requested_email_normalized }
-      : {}),
-    ...(row.consumed_at != null
-      ? { consumedAt: row.consumed_at.toISOString() }
-      : {}),
-    createdAt: row.created_at.toISOString(),
-  };
-}
-
-export class PostgresAuthOtpRepository implements AuthOtpRepository {
+export class PostgresAuthIdentityRepository implements AuthIdentityRepository {
   constructor(private readonly pool: Pool) {}
 
   async createIdentity(
@@ -136,55 +97,6 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         full_name, password_hash, photo_url,
         status, created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *
-      `,
-      [
-        identity.id,
-        identity.subjectId,
-        identity.subjectType,
-        identity.phoneE164,
-        identity.emailNormalized ?? null,
-        identity.fullName ?? null,
-        identity.passwordHash ?? null,
-        identity.photoUrl ?? null,
-        identity.status,
-        identity.createdAt,
-        identity.updatedAt,
-      ],
-    );
-    const row = result.rows[0];
-    if (row == null) throw new Error('Identidade não foi persistida.');
-    return mapIdentity(row);
-  }
-
-  async findOrCreateDriverRegistrationIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord> {
-    if (identity.subjectType !== 'driver') throw new Error('Tipo de conta inválido.');
-    const result = await this.pool.query<IdentityRow>(`
-      INSERT INTO auth_identities (id, subject_id, subject_type, phone_e164, status,
-        driver_registration_only, created_at, updated_at)
-      VALUES ($1,$2,'driver',$3,'active',true,$4,$4)
-      ON CONFLICT (subject_type, phone_e164)
-      DO UPDATE SET phone_e164 = auth_identities.phone_e164 RETURNING *
-    `, [identity.id, identity.subjectId, identity.phoneE164, identity.createdAt]);
-    return mapIdentity(result.rows[0]!);
-  }
-
-  async findOrCreatePassengerIdentity(
-    identity: AuthIdentityRecord,
-  ): Promise<AuthIdentityRecord> {
-    if (identity.subjectType !== 'passenger') {
-      throw new Error('Somente passageiro pode ser criado automaticamente.');
-    }
-
-    const result = await this.pool.query<IdentityRow>(
-      `
-      INSERT INTO auth_identities (
-        id, subject_id, subject_type, phone_e164, email_normalized,
-        full_name, password_hash, photo_url,
-        status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT (subject_type, phone_e164)
-      DO UPDATE SET phone_e164 = auth_identities.phone_e164
       RETURNING *
       `,
       [
@@ -587,7 +499,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
 
       await client.query(
         `
-        DELETE FROM auth_otp_rate_limits
+        DELETE FROM auth_password_rate_limits
         WHERE updated_at < $1::timestamptz - INTERVAL '48 hours'
         `,
         [input.now],
@@ -602,7 +514,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         const existing = await client.query<RateLimitRow>(
           `
           SELECT bucket_key, window_started_at, attempt_count, updated_at
-          FROM auth_otp_rate_limits
+          FROM auth_password_rate_limits
           WHERE bucket_key = $1
           FOR UPDATE
           `,
@@ -616,7 +528,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         ) {
           await client.query(
             `
-            INSERT INTO auth_otp_rate_limits (
+            INSERT INTO auth_password_rate_limits (
               bucket_key, window_started_at, attempt_count, updated_at
             ) VALUES ($1, $2, 1, $2)
             ON CONFLICT (bucket_key)
@@ -642,7 +554,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
 
         await client.query(
           `
-          UPDATE auth_otp_rate_limits
+          UPDATE auth_password_rate_limits
           SET attempt_count = attempt_count + 1, updated_at = $2
           WHERE bucket_key = $1
           `,
@@ -662,232 +574,4 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     }
   }
 
-  async createChallengeWithCooldown(input: {
-    challenge: OtpChallengeRecord;
-    now: string;
-    cooldownMs: number;
-  }): Promise<OtpChallengeCreationResult> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        `
-        DELETE FROM auth_otp_challenges
-        WHERE
-          (consumed_at IS NOT NULL
-            AND consumed_at < $1::timestamptz - INTERVAL '24 hours')
-          OR expires_at < $1::timestamptz - INTERVAL '24 hours'
-        `,
-        [input.now],
-      );
-
-      const lockedIdentity = await client.query<{ id: string }>(
-        'SELECT id FROM auth_identities WHERE id = $1 FOR UPDATE',
-        [input.challenge.identityId],
-      );
-      if (lockedIdentity.rows[0] == null) {
-        throw new Error('Identidade OTP não encontrada.');
-      }
-
-      const latestResult = await client.query<ChallengeRow>(
-        `
-        SELECT *
-        FROM auth_otp_challenges
-        WHERE identity_id = $1
-        ORDER BY created_at DESC
-        LIMIT 1
-        `,
-        [input.challenge.identityId],
-      );
-      const latest = latestResult.rows[0];
-      if (latest != null && latest.consumed_at == null) {
-        const elapsedMs = Math.max(
-          0,
-          Date.parse(input.now) - latest.created_at.getTime(),
-        );
-        if (elapsedMs < input.cooldownMs) {
-          await client.query('ROLLBACK');
-          return {
-            created: false,
-            retryAfterMs: Math.max(1, input.cooldownMs - elapsedMs),
-          };
-        }
-
-        await client.query(
-          `
-          UPDATE auth_otp_challenges
-          SET consumed_at = COALESCE(consumed_at, $2::timestamptz)
-          WHERE id = $1
-          `,
-          [latest.id, input.now],
-        );
-      }
-
-      const inserted = await client.query<ChallengeRow>(
-        `
-        INSERT INTO auth_otp_challenges (
-          id, identity_id, code_digest, expires_at,
-          attempt_count, requested_email_normalized, consumed_at, created_at, external_provider
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING *
-        `,
-        [
-          input.challenge.id,
-          input.challenge.identityId,
-          input.challenge.codeDigest,
-          input.challenge.expiresAt,
-          input.challenge.attemptCount,
-          input.challenge.requestedEmailNormalized ?? null,
-          input.challenge.consumedAt ?? null,
-          input.challenge.createdAt,
-          input.challenge.externalProvider ?? null,
-        ],
-      );
-      const row = inserted.rows[0];
-      if (row == null) throw new Error('Desafio OTP não foi persistido.');
-
-      await client.query('COMMIT');
-      return { created: true, challenge: mapChallenge(row) };
-    } catch (error) {
-      try {
-        await client.query('ROLLBACK');
-      } catch {}
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  async createChallenge(
-    challenge: OtpChallengeRecord,
-  ): Promise<OtpChallengeRecord> {
-    const result = await this.pool.query<ChallengeRow>(
-      `
-      INSERT INTO auth_otp_challenges (
-        id, identity_id, code_digest, expires_at,
-        attempt_count, requested_email_normalized, consumed_at, created_at, external_provider
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *
-      `,
-      [
-        challenge.id,
-        challenge.identityId,
-        challenge.codeDigest,
-        challenge.expiresAt,
-        challenge.attemptCount,
-        challenge.requestedEmailNormalized ?? null,
-        challenge.consumedAt ?? null,
-        challenge.createdAt,
-        challenge.externalProvider ?? null,
-      ],
-    );
-    const row = result.rows[0];
-    if (row == null) throw new Error('Desafio OTP não foi persistido.');
-    return mapChallenge(row);
-  }
-
-  async findLatestChallengeByIdentityId(
-    identityId: string,
-  ): Promise<OtpChallengeRecord | null> {
-    const result = await this.pool.query<ChallengeRow>(
-      `
-      SELECT *
-      FROM auth_otp_challenges
-      WHERE identity_id = $1
-      ORDER BY created_at DESC
-      LIMIT 1
-      `,
-      [identityId],
-    );
-    return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
-  }
-
-  async findChallengeById(challengeId: string): Promise<OtpChallengeRecord | null> {
-    const result = await this.pool.query<ChallengeRow>(
-      'SELECT * FROM auth_otp_challenges WHERE id = $1', [challengeId]);
-    return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
-  }
-
-  async setExternalReference(challengeId: string, reference: string): Promise<void> {
-    const result = await this.pool.query(`UPDATE auth_otp_challenges SET external_reference = $2
-      WHERE id = $1 AND external_provider = 'entrar-whatsapp'
-      AND consumed_at IS NULL AND external_reference IS NULL`, [challengeId, reference]);
-    if (result.rowCount !== 1) throw new Error('Desafio externo indisponível.');
-  }
-
-  async beginExternalVerification(input: {
-    challengeId: string; nonce: string; attemptedAt: string;
-    leaseUntil: string; maxAttempts: number;
-  }): Promise<OtpChallengeRecord | null> {
-    const result = await this.pool.query<ChallengeRow>(`UPDATE auth_otp_challenges
-      SET attempt_count = attempt_count + 1, verification_nonce = $2,
-          verification_lease_until = $4::timestamptz
-      WHERE id = $1 AND external_provider = 'entrar-whatsapp' AND external_reference IS NOT NULL
-        AND consumed_at IS NULL AND expires_at > $3::timestamptz AND attempt_count < $5
-        AND (verification_lease_until IS NULL OR verification_lease_until <= $3::timestamptz)
-      RETURNING *`, [input.challengeId, input.nonce, input.attemptedAt, input.leaseUntil, input.maxAttempts]);
-    return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
-  }
-
-  async finishExternalVerification(input: {
-    challengeId: string; nonce: string; verified: boolean; completedAt: string;
-  }): Promise<OtpAttemptResult | null> {
-    const result = await this.pool.query<ChallengeRow & { matched: boolean }>(`UPDATE auth_otp_challenges
-      SET consumed_at = CASE WHEN $3 AND expires_at > $4::timestamptz
-        AND verification_lease_until > $4::timestamptz THEN $4::timestamptz ELSE consumed_at END,
-        verification_nonce = NULL, verification_lease_until = NULL
-      WHERE id = $1 AND verification_nonce = $2 AND consumed_at IS NULL
-      RETURNING *, COALESCE(consumed_at = $4::timestamptz, false) AS matched`,
-      [input.challengeId, input.nonce, input.verified, input.completedAt]);
-    const row = result.rows[0];
-    return row == null ? null : { challenge: mapChallenge(row), matched: row.matched };
-  }
-
-  async cancelChallenge(
-    challengeId: string,
-    canceledAt: string,
-  ): Promise<void> {
-    await this.pool.query(
-      `
-      UPDATE auth_otp_challenges
-      SET consumed_at = COALESCE(consumed_at, $2::timestamptz)
-      WHERE id = $1
-      `,
-      [challengeId, canceledAt],
-    );
-  }
-
-  async attemptChallenge(input: {
-    challengeId: string;
-    codeDigest: string;
-    attemptedAt: string;
-    maxAttempts: number;
-  }): Promise<OtpAttemptResult | null> {
-    const result = await this.pool.query<ChallengeRow & { matched: boolean }>(
-      `
-      UPDATE auth_otp_challenges
-      SET
-        attempt_count = attempt_count + 1,
-        consumed_at = CASE
-          WHEN code_digest = $2 THEN $3::timestamptz
-          ELSE consumed_at
-        END
-      WHERE id = $1
-        AND consumed_at IS NULL
-        AND expires_at > $3::timestamptz
-        AND external_provider IS NULL
-        AND attempt_count < $4
-      RETURNING *, (code_digest = $2) AS matched
-      `,
-      [
-        input.challengeId,
-        input.codeDigest,
-        input.attemptedAt,
-        input.maxAttempts,
-      ],
-    );
-    const row = result.rows[0];
-    if (row == null) return null;
-    return { challenge: mapChallenge(row), matched: row.matched };
-  }
 }

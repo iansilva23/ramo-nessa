@@ -6,7 +6,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {createPostgresPool} from '../src/db/postgres.js';
-import {PostgresAuthOtpRepository} from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import {PostgresAuthIdentityRepository} from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import {PostgresAuthSessionRepository} from '../src/auth/repositories/postgres-auth-session-repository.js';
 import {PostgresDriverSupplyRepository} from '../src/drivers/repositories/postgres-driver-supply-repository.js';
 import {PostgresDriverRegistryRepository} from '../src/drivers/repositories/postgres-driver-registry-repository.js';
@@ -23,7 +23,7 @@ test('actual passenger nearby HTTP: authentication, moving fleet, anonymization 
   await root.query('CREATE SCHEMA '+schema);
   for(const table of ['auth_identities','auth_sessions','driver_supply','driver_profiles','driver_vehicles','driver_documents','driver_document_compliance_controls','operational_settings'])await root.query('CREATE TABLE '+schema+'.'+table+' (LIKE public.'+table+' INCLUDING ALL)');
   await pool.query('INSERT INTO operational_settings SELECT * FROM public.operational_settings');
-  const identities=new PostgresAuthOtpRepository(pool),sessions=new PostgresAuthSessionRepository(pool),drivers=new PostgresDriverSupplyRepository(pool),registry=new PostgresDriverRegistryRepository(pool),time=new Date().toISOString();
+  const identities=new PostgresAuthIdentityRepository(pool),sessions=new PostgresAuthSessionRepository(pool),drivers=new PostgresDriverSupplyRepository(pool),registry=new PostgresDriverRegistryRepository(pool),time=new Date().toISOString();
   const tokens:Record<string,string>={};
   for(const [i,kind]of (['passenger','passenger','driver'] as const).entries()){
    const id='nearby-person-'+i;

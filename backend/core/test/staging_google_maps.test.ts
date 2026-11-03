@@ -55,7 +55,7 @@ test('Maps opt-in rejects unsafe files and overrides without exposing the key', 
     await writeFile(envFile, 'GOOGLE_MAPS_PROVIDER=unknown');
     await assert.rejects(stagingGoogleMapsConfiguration(envFile));
     for (const script of ['start.mjs', 'set-owner.mjs']) {
-      assert.match(await readFile(resolve(root, 'deploy/staging', script), 'utf8'), /stagingComposeEnvironment\(maps, otp\)/);
+      assert.match(await readFile(resolve(root, 'deploy/staging', script), 'utf8'), /stagingComposeEnvironment\(maps\)/);
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
@@ -68,7 +68,7 @@ test('Maps overlay targets official APIs only in Core and composes with Firebase
       await writeFile(envFile, [
         'APP_DOMAIN=staging.ramonessa.test', 'ACME_EMAIL=ops@ramonessa.test',
         'POSTGRES_PASSWORD=fixture-only', 'DATABASE_URL=postgresql://ramonessa:fixture@postgres/ramonessa',
-        ...['OTP_HASH_SECRET', 'OTP_RATE_LIMIT_SECRET', 'ADMIN_MFA_ENCRYPTION_KEY',
+        ...['OTP_HASH_SECRET', 'AUTH_PASSWORD_RATE_LIMIT_SECRET', 'ADMIN_MFA_ENCRYPTION_KEY',
           'ADMIN_LOGIN_RATE_LIMIT_SECRET', 'PLACE_PROOF_SECRET', 'DOCUMENT_INSPECTION_ENCRYPTION_KEY']
           .map(k => `${k}=fixture-only`),
         'FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/private/fixture.json',

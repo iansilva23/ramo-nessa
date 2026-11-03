@@ -6,7 +6,6 @@ import { createHash } from 'node:crypto';
 import { sameConfiguration } from './web-image-contract.mjs';
 import { assertGatewayOnly,assertPreviousRefresh } from './web-refresh-contract.mjs';
 import { stagingGoogleMapsConfiguration } from '/opt/ramo-nessa/deploy/staging/google-maps.mjs';
-import { stagingOtpConfiguration } from '/opt/ramo-nessa/deploy/staging/otp.mjs';
 import { stagingComposeArguments,stagingComposeEnvironment } from '/opt/ramo-nessa/deploy/staging/firebase.mjs';
 const here=fileURLToPath(new URL('.',import.meta.url)),meta=JSON.parse(readFileSync(here+'/web-refresh-release.json','utf8'));
 const base='5247aabd587efa610c9b4cc36d74cbc348048b41',previousWeb='a8a766a62fb637c687bc7d079ebb247b864f82dd',previousRoot='/var/backups/ramo-nessa-web/refresh-a8a766a62fb6',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
@@ -60,7 +59,7 @@ try{
   const gatewayEnv=Object.fromEntries(gateway.Config.Env.map(line=>{const i=line.indexOf('=');return[line.slice(0,i),line.slice(i+1)];}));
   docker('run','--rm','--network','none','--entrypoint','caddy','--env','APP_DOMAIN='+gatewayEnv.APP_DOMAIN,'--env','ACME_EMAIL='+gatewayEnv.ACME_EMAIL,'--mount','type=bind,src='+candidateCaddy+',dst=/etc/caddy/Caddyfile,readonly',gateway.Image,'validate','--config','/etc/caddy/Caddyfile','--adapter','caddyfile');
   run(process.execPath,['/opt/ramo-nessa-web/releases/5247aabd587e/source/scripts/web/verify_web_homologation.mjs','--passenger='+release+'/bundles/passenger','--driver='+release+'/bundles/driver','--firebase-project=ramo-nessa']);
-  const envFile=repo+'/deploy/staging/.env';env=stagingComposeEnvironment(await stagingGoogleMapsConfiguration(envFile),await stagingOtpConfiguration(envFile));args=await stagingComposeArguments(envFile);args.splice(1,0,'--project-name','ramo-nessa-staging');
+  const envFile=repo+'/deploy/staging/.env';env=stagingComposeEnvironment(await stagingGoogleMapsConfiguration(envFile));args=await stagingComposeArguments(envFile);args.splice(1,0,'--project-name','ramo-nessa-staging');
   const baseline=JSON.parse(run('docker',[...args,'config','--format','json'],{env}));
   const override=release+'/compose.web.json';
   privateJson(override,{services:{gateway:{image:gateway.Image,volumes:[release+'/bundles:/srv/web:ro']}}});

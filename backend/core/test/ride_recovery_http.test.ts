@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import { authenticateBearer, AuthenticationError, issueAuthSession } from '../src/auth/auth-service.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
 import { authenticateAdminBearer, AdminAuthenticationError, issueAdminApiKey } from '../src/admin/admin-auth.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
@@ -16,7 +16,7 @@ import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memor
 
 test('recovery HTTP authenticates real sessions, isolates accounts and never creates a second payment', async () => {
   const rides = new InMemoryRideRepository(), finance = new InMemoryFinanceRepository();
-  const identities = new InMemoryAuthOtpRepository(), sessions = new InMemoryAuthSessionRepository(), admin = new InMemoryAdminRepository();
+  const identities = new InMemoryAuthIdentityRepository(), sessions = new InMemoryAuthSessionRepository(), admin = new InMemoryAdminRepository();
   async function account(subjectType: 'passenger' | 'driver', phoneE164: string) {
     const subjectId = randomUUID(), instant = new Date().toISOString();
     await identities.createIdentity({ id: subjectId, subjectId, subjectType, phoneE164, status: 'active', createdAt: instant, updatedAt: instant });

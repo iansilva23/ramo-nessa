@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
-import 'phone_auth_service.dart';
+import 'password_auth_service.dart';
 import 'session_http_client.dart';
 
 class AuthHttpException implements Exception {
@@ -22,18 +22,18 @@ class AuthHttpException implements Exception {
   String toString() => message;
 }
 
-class HttpPhoneAuthService implements PhoneAuthService {
-  HttpPhoneAuthService({
+class HttpPasswordAuthService implements PasswordAuthService {
+  HttpPasswordAuthService({
     required Uri baseUrl,
     required String subjectType,
     String? clientInstanceId,
     http.Client? client,
     this.readOnlySessionCheck = kIsWeb,
     this.browserSession = kIsWeb,
-  })  : _baseUrl = baseUrl,
-        _subjectType = subjectType,
-        _clientInstanceId = clientInstanceId?.trim(),
-        _client = client ?? createSessionHttpClient(subjectType);
+  }) : _baseUrl = baseUrl,
+       _subjectType = subjectType,
+       _clientInstanceId = clientInstanceId?.trim(),
+       _client = client ?? createSessionHttpClient(subjectType);
 
   final Uri _baseUrl;
   final String _subjectType;
@@ -43,7 +43,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
   final bool readOnlySessionCheck;
   final bool browserSession;
 
-  Map<String, String> get _otpHeaders {
+  Map<String, String> get _authHeaders {
     final clientInstanceId = _clientInstanceId;
     return {
       'content-type': 'application/json',
@@ -54,95 +54,6 @@ class HttpPhoneAuthService implements PhoneAuthService {
   }
 
   @override
-  Future<RequestedOtp> requestOtp({
-    required String phone,
-    String? email,
-  }) async {
-    final response = await _client
-        .post(
-          _baseUrl.resolve('/v1/auth/otp/request'),
-          headers: _otpHeaders,
-          body: jsonEncode({
-            'subjectType': _subjectType,
-            'phone': phone,
-            if (email != null && email.trim().isNotEmpty)
-              'email': email.trim(),
-          }),
-        )
-        .timeout(const Duration(seconds: 12));
-    final json = _decodeObject(response);
-    _throwIfError(response, json);
-
-    final challengeId = json['challengeId'];
-    final expiresAt = json['expiresAt'];
-    final retryAfterSeconds = json['retryAfterSeconds'];
-    if (challengeId is! String ||
-        expiresAt is! String ||
-        retryAfterSeconds is! num) {
-      throw const FormatException('Resposta de OTP inválida.');
-    }
-
-    return RequestedOtp(
-      challengeId: challengeId,
-      expiresAt: DateTime.parse(expiresAt),
-      retryAfterSeconds: retryAfterSeconds.toInt(),
-      devCode: json['devCode'] is String ? json['devCode'] as String : null,
-    );
-  }
-
-  @override
-  Future<RequestedOtp> requestPasswordResetOtp({
-    required String phone,
-  }) async {
-    final response = await _client
-        .post(
-          _baseUrl.resolve('/v1/auth/passenger/password/reset/request'),
-          headers: _otpHeaders,
-          body: jsonEncode({'phone': phone}),
-        )
-        .timeout(const Duration(seconds: 12));
-    final json = _decodeObject(response);
-    _throwIfError(response, json);
-
-    final challengeId = json['challengeId'];
-    final expiresAt = json['expiresAt'];
-    final retryAfterSeconds = json['retryAfterSeconds'];
-    if (challengeId is! String ||
-        expiresAt is! String ||
-        retryAfterSeconds is! num) {
-      throw const FormatException('Resposta de recuperação inválida.');
-    }
-
-    return RequestedOtp(
-      challengeId: challengeId,
-      expiresAt: DateTime.parse(expiresAt),
-      retryAfterSeconds: retryAfterSeconds.toInt(),
-      devCode: json['devCode'] is String ? json['devCode'] as String : null,
-    );
-  }
-
-  @override
-  Future<AuthSession> verifyOtp({
-    required String challengeId,
-    required String code,
-  }) async {
-    final response = await _client
-        .post(
-          _baseUrl.resolve('/v1/auth/otp/verify'),
-          headers: _otpHeaders,
-          body: jsonEncode({
-            'challengeId': challengeId,
-            'code': code,
-          }),
-        )
-        .timeout(const Duration(seconds: 12));
-    final json = _decodeObject(response);
-    _throwIfError(response, json);
-
-    return _sessionFromJson(json);
-  }
-
-  @override
   Future<AuthSession> loginWithPassword({
     required String email,
     required String password,
@@ -150,11 +61,8 @@ class HttpPhoneAuthService implements PhoneAuthService {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/auth/passenger/password/login'),
-          headers: _otpHeaders,
-          body: jsonEncode({
-            'email': email.trim(),
-            'password': password,
-          }),
+          headers: _authHeaders,
+          body: jsonEncode({'email': email.trim(), 'password': password}),
         )
         .timeout(const Duration(seconds: 12));
     final json = _decodeObject(response);
@@ -229,7 +137,9 @@ class HttpPhoneAuthService implements PhoneAuthService {
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
     final response = await _client
         .get(
-          _baseUrl.resolve(readOnlySessionCheck ? '/v1/auth/me/check' : '/v1/auth/me'),
+          _baseUrl.resolve(
+            readOnlySessionCheck ? '/v1/auth/me/check' : '/v1/auth/me',
+          ),
           headers: {'authorization': 'Bearer ${accessToken.trim()}'},
         )
         .timeout(const Duration(seconds: 10));
@@ -316,11 +226,9 @@ class HttpPhoneAuthService implements PhoneAuthService {
           headers: {'authorization': 'Bearer ${accessToken.trim()}'},
         )
         .timeout(const Duration(seconds: 10));
-    if (
-      response.statusCode == 204 ||
-      response.statusCode == 401 ||
-      response.statusCode == 403
-    ) {
+    if (response.statusCode == 204 ||
+        response.statusCode == 401 ||
+        response.statusCode == 403) {
       return;
     }
 
@@ -340,7 +248,10 @@ class HttpPhoneAuthService implements PhoneAuthService {
         subjectType is! String) {
       throw const FormatException('Sessão autenticada inválida.');
     }
-    if (browserSession && (subjectType != _subjectType || !RegExp('^ramo_web_${_subjectType}_v1_[a-f0-9]{32}\$').hasMatch(token))) {
+    if (browserSession &&
+        (subjectType != _subjectType ||
+            !RegExp('^ramo_web_${_subjectType}_v1_[a-f0-9]{32}\$')
+                .hasMatch(token))) {
       throw const FormatException('Sessão Web não configurada no servidor.');
     }
     return AuthSession(
@@ -374,6 +285,32 @@ class HttpPhoneAuthService implements PhoneAuthService {
     return uri.hasScheme ? value : _baseUrl.resolveUri(uri).toString();
   }
 
+  @override
+  Future<AuthSession> registerWithPassword({
+    required String fullName,
+    required String phone,
+    required String email,
+    required String password,
+    String? username,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/auth/passenger/password/register'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'fullName': fullName,
+            'phone': phone,
+            'email': email,
+            'password': password,
+            if (username != null) 'username': username,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    final value = _decodeObject(response);
+    _throwIfError(response, value);
+    return _sessionFromJson(value);
+  }
+
   Map<String, dynamic> _decodeObject(http.Response response) {
     if (response.body.trim().isEmpty) return <String, dynamic>{};
     dynamic decoded;
@@ -388,10 +325,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
     return decoded;
   }
 
-  void _throwIfError(
-    http.Response response,
-    Map<String, dynamic> json,
-  ) {
+  void _throwIfError(http.Response response, Map<String, dynamic> json) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
 
     throw AuthHttpException(

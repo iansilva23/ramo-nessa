@@ -1,6 +1,6 @@
 import { normalizeDriverCpf } from './driver-cpf.js';
 import { randomUUID } from 'node:crypto';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import { AuthenticationError } from '../auth/auth-service.js';
 import type { DriverRegistryRepository } from './driver-registry-repository.js';
 import type { DriverDocumentRepository } from './driver-document-repository.js';
@@ -8,7 +8,7 @@ import { DriverRegistryError } from './driver-registry-service.js';
 import { parseUpsertDriverRegistryRequest } from './driver-registry-validation.js';
 
 type RegistrationDependencies = {
-  identities: AuthOtpRepository; registry: DriverRegistryRepository;
+  identities: AuthIdentityRepository; registry: DriverRegistryRepository;
   documents: DriverDocumentRepository; driverId: string; now?: Date;
 };
 

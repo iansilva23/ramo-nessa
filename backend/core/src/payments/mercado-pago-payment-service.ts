@@ -1,4 +1,4 @@
-import type { AuthIdentityRecord } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRecord } from '../auth/auth-identity-repository.js';
 import { isRidePaymentWindowExpired, type RideRecord } from '../rides/ride.js';
 import { createPaymentForRide } from './create-payment.js';
 import type { FinanceRepository } from './finance-repository.js';

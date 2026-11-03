@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {randomUUID} from 'node:crypto';
-import type {AuthOtpRepository,AuthIdentityRecord} from '../src/auth/auth-otp-repository.js';
-import {InMemoryAuthOtpRepository} from '../src/auth/repositories/in-memory-auth-otp-repository.js';
-import {PostgresAuthOtpRepository} from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import type {AuthIdentityRepository,AuthIdentityRecord} from '../src/auth/auth-identity-repository.js';
+import {InMemoryAuthIdentityRepository} from '../src/auth/repositories/in-memory-auth-identity-repository.js';
+import {PostgresAuthIdentityRepository} from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import {createPostgresPool} from '../src/db/postgres.js';
 
-async function verify(repository:AuthOtpRepository,rows:AuthIdentityRecord[]){
+async function verify(repository:AuthIdentityRepository,rows:AuthIdentityRecord[]){
  for(const row of rows)await repository.createIdentity(row);
  for(const search of ['João','JOAO','silva','Conceicao','joao da']){
   const page=await repository.listIdentities({subjectType:'passenger',search,limit:20});
@@ -38,9 +38,9 @@ function fixtures():AuthIdentityRecord[]{
   {id:randomUUID(),subjectId:'d-name-'+prefix,subjectType:'driver',fullName:'João da Silva Conceição',phoneE164:'+5588999817303',status:'active',createdAt:'2026-10-23T00:00:00.000Z',updatedAt:'2026-10-23T03:00:00.000Z'},
  ];
 }
-test('passenger directory searches name, accents, partials, contacts and ID without changing identity',async()=>verify(new InMemoryAuthOtpRepository(),fixtures()));
+test('passenger directory searches name, accents, partials, contacts and ID without changing identity',async()=>verify(new InMemoryAuthIdentityRepository(),fixtures()));
 test('PostgreSQL passenger name search persists and preserves pagination and subject isolation',{skip:!process.env.DATABASE_URL},async()=>{
  const pool=createPostgresPool(process.env.DATABASE_URL!);const rows=fixtures();
- try{await verify(new PostgresAuthOtpRepository(pool),rows);}
+ try{await verify(new PostgresAuthIdentityRepository(pool),rows);}
  finally{await pool.query('DELETE FROM auth_identities WHERE id = ANY($1::uuid[])',[rows.map(x=>x.id)]);await pool.end();}
 });

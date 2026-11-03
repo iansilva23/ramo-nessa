@@ -66,10 +66,10 @@ export async function prepareActivation(args){
       let envFile=labels['com.docker.compose.project.environment_file']||(base?join(dirname(base),'.env'):'/dev/null');
       let environment={PATH:process.env.PATH};
       if(base){
-        const helper=dirname(base),paths=['firebase.mjs','google-maps.mjs','otp.mjs'].map(n=>join(helper,n));
+        const helper=dirname(base),paths=['firebase.mjs','google-maps.mjs'].map(n=>join(helper,n));
         for(const f of paths)configs.set(f,readFileSync(f));
-        const maps=await import(pathToFileURL(paths[1])),otp=await import(pathToFileURL(paths[2])),firebase=await import(pathToFileURL(paths[0]));
-        environment=firebase.stagingComposeEnvironment(await maps.stagingGoogleMapsConfiguration(envFile),await otp.stagingOtpConfiguration(envFile));
+        const maps=await import(pathToFileURL(paths[1])),firebase=await import(pathToFileURL(paths[0]));
+        environment=firebase.stagingComposeEnvironment(await maps.stagingGoogleMapsConfiguration(envFile));
       }
       if(envFile!=='/dev/null')configs.set(envFile,readFileSync(envFile));
       const resolved=JSON.parse(run('docker',['compose','--project-name','ramo-nessa-staging','--env-file',envFile,...files.flatMap(f=>['-f',f]),'config','--format','json'],{env:environment,cwd:dirname(files[0])}));

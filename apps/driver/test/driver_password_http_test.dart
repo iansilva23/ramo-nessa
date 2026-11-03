@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:ramo_nessa_driver/src/core/auth/http_phone_auth_service.dart';
+import 'package:ramo_nessa_driver/src/core/auth/http_password_auth_service.dart';
 
 void main() {
   const nativeToken = 'abcdefghijklmnopqrstuvwxyz123456';
@@ -16,7 +16,7 @@ void main() {
   test(
     'password login sends identifier and password without requesting OTP',
     () async {
-      final service = HttpPhoneAuthService(
+      final service = HttpPasswordAuthService(
         baseUrl: Uri.parse('https://example.test'),
         subjectType: 'driver',
         clientInstanceId: 'test-installation-instance',
@@ -44,7 +44,7 @@ void main() {
   );
   test('browser password login uses existing cookie role and public session handle', () async {
     const handle = 'ramo_web_driver_v1_0123456789abcdef0123456789abcdef';
-    final service = HttpPhoneAuthService(
+    final service = HttpPasswordAuthService(
       baseUrl: Uri.parse('https://example.test'),
       subjectType: 'driver',
       browserSession: true,
@@ -64,7 +64,7 @@ void main() {
   test(
     'browser refuses raw bearer credential returned as a browser session',
     () async {
-      final service = HttpPhoneAuthService(
+      final service = HttpPasswordAuthService(
         baseUrl: Uri.parse('https://example.test'),
         subjectType: 'driver',
         browserSession: true,
@@ -83,7 +83,7 @@ void main() {
   );
   test('enrollment requires the existing authenticated session and a persistence acknowledgement', () async {
     var calls = 0;
-    final service = HttpPhoneAuthService(
+    final service = HttpPasswordAuthService(
       baseUrl: Uri.parse('https://example.test'),
       subjectType: 'driver',
       client: MockClient((request) async {
@@ -112,38 +112,5 @@ void main() {
       password: 'Example12345',
     );
     expect(calls, 2);
-  });
-  test('recovery never submits an alternate telephone number', () async {
-    final paths = <String>[];
-    final service = HttpPhoneAuthService(
-      baseUrl: Uri.parse('https://example.test'),
-      subjectType: 'driver',
-      client: MockClient((request) async {
-        paths.add(request.url.path);
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body.containsKey('phone'), false);
-        if (request.url.path.endsWith('/request')) {
-          expect(body, {'identifier': 'driver.name'});
-          return http.Response(
-            '{"challengeId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","expiresAt":"2027-01-01T00:00:00Z","retryAfterSeconds":0}',
-            202,
-          );
-        }
-        expect(body, {
-          'challengeId': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          'code': '654321',
-          'password': 'NewPassword123',
-        });
-        return http.Response(jsonEncode(session(nativeToken)), 201);
-      }),
-    );
-    final r = await service.requestPasswordReset(identifier: 'driver.name');
-    expect(r.retryAfterSeconds, 0);
-    await service.completePasswordReset(
-      challengeId: r.challengeId,
-      code: '654321',
-      password: 'NewPassword123',
-    );
-    expect(paths.length, 2);
   });
 }

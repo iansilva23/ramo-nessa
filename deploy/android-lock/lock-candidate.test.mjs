@@ -143,7 +143,7 @@ test('candidate HTTP: authentication, idle lock, accepted ride and restart',
     const secret='isolated-test-only-0123456789abcdef0123456789abcdef';
     child=spawn(process.execPath,[resolve(coreDist,'src/server.js')],{
       env:{...process.env,NODE_ENV:'test',PORT:'18911',ALLOW_DEV_IDENTITY:'true',
-        ALLOW_DEV_OTP:'true',OTP_PROVIDER:'dev',OTP_HASH_SECRET:secret,OTP_RATE_LIMIT_SECRET:secret,
+        AUTH_PASSWORD_RATE_LIMIT_SECRET:secret,
         PLACE_PROOF_SECRET:secret,ADMIN_LOGIN_RATE_LIMIT_SECRET:secret,
         DOCUMENT_STORAGE_LOCAL_DIR:'/tmp/ramo-lock-documents',DOCUMENT_STORAGE_BASE_URL:'',DOCUMENT_STORAGE_AUTH_TOKEN:'',
         ADMIN_MFA_ENCRYPTION_KEY:Buffer.alloc(32,17).toString('base64'),DOCUMENT_INSPECTION_ENCRYPTION_KEY:Buffer.alloc(32,34).toString('base64'),

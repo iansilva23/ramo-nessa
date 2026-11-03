@@ -161,7 +161,7 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
                   SizedBox(width: RamoSpacing.md),
                   Expanded(
                     child: Text(
-                      'Sua conta usa uma sessão segura. Você pode configurar usuário e senha e recuperar o acesso pelo WhatsApp.',
+                      'Sua conta usa uma sessão segura. Você pode configurar usuário e senha.',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,

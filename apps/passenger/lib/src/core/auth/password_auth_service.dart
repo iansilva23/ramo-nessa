@@ -1,19 +1,5 @@
 import 'dart:typed_data';
 
-class RequestedOtp {
-  const RequestedOtp({
-    required this.challengeId,
-    required this.expiresAt,
-    required this.retryAfterSeconds,
-    this.devCode,
-  });
-
-  final String challengeId;
-  final DateTime expiresAt;
-  final int retryAfterSeconds;
-  final String? devCode;
-}
-
 class AuthSession {
   const AuthSession({
     required this.accessToken,
@@ -84,19 +70,13 @@ class PassengerAccount {
   final String? photoUrl;
 }
 
-abstract interface class PhoneAuthService {
-  Future<RequestedOtp> requestOtp({
+abstract interface class PasswordAuthService {
+  Future<AuthSession> registerWithPassword({
+    required String fullName,
     required String phone,
-    String? email,
-  });
-
-  Future<RequestedOtp> requestPasswordResetOtp({
-    required String phone,
-  });
-
-  Future<AuthSession> verifyOtp({
-    required String challengeId,
-    required String code,
+    required String email,
+    required String password,
+    String? username,
   });
 
   Future<AuthSession> loginWithPassword({

@@ -1,4 +1,4 @@
-import type { AuthOtpRepository } from './auth-otp-repository.js';
+import type { AuthIdentityRepository } from './auth-identity-repository.js';
 
 export const MAX_PASSENGER_PROFILE_PHOTO_BYTES = 1_500_000;
 export const MAX_PASSENGER_PROFILE_PHOTO_JSON_BYTES = 2_100_000;
@@ -94,7 +94,7 @@ function decodeBase64Photo(
 }
 
 export async function updatePassengerProfilePhoto(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   subjectId: string;
   mimeType: unknown;
   dataBase64: unknown;
@@ -131,7 +131,7 @@ export async function updatePassengerProfilePhoto(input: {
 }
 
 export async function readPassengerProfilePhoto(input: {
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   subjectId: string;
 }) {
   return input.identities.findPassengerProfilePhoto(

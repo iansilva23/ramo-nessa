@@ -8,7 +8,7 @@ import {
 } from '../src/admin/admin-driver-auth-service.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { issueAuthSession, hashBearerToken } from '../src/auth/auth-service.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 import type { ServiceCategory } from '../src/pricing/types.js';
@@ -50,7 +50,7 @@ function approvedVehicle(now: string) {
 }
 
 test('Admin não libera OTP antes de perfil e veículo aprovados', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const admin = new InMemoryAdminRepository();
@@ -104,7 +104,7 @@ test('Admin não libera OTP antes de perfil e veículo aprovados', async () => {
 });
 
 test('suspender acesso revoga sessões já emitidas', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const sessions = new InMemoryAuthSessionRepository();
   const registry = new InMemoryDriverRegistryRepository();
   const admin = new InMemoryAdminRepository();

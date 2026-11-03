@@ -1,6 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
-import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AuthIdentityRepository } from '../auth/auth-identity-repository.js';
 import { authenticateBearer } from '../auth/auth-service.js';
 import { getDriverSupplyForApp } from '../drivers/driver-app-service.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
@@ -12,7 +12,7 @@ import { BrowserRealtimeTicketStore, browserRealtimeOrigin } from './browser-rea
 export async function issueBrowserRealtimeTicket(input: {
   request: IncomingMessage;
   sessions: AuthSessionRepository;
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   drivers: DriverSupplyRepository;
   registry: DriverRegistryRepository;
   rides: RideRepository;

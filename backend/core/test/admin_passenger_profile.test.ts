@@ -9,7 +9,7 @@ import {
   updatePassengerProfileFromAdmin,
 } from '../src/admin/admin-passenger-service.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
 import { InMemoryPushDeviceRepository } from '../src/notifications/repositories/in-memory-push-device-repository.js';
 import { InMemoryPassengerSavedPlaceRepository } from '../src/passengers/repositories/in-memory-passenger-saved-place-repository.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
@@ -51,7 +51,7 @@ function ride(input: {
 }
 
 test('ficha Admin do passageiro agrega identidade e histórico exato sem GPS', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const rides = new InMemoryRideRepository();
   const savedPlaces = new InMemoryPassengerSavedPlaceRepository();
 
@@ -162,7 +162,7 @@ test('ficha Admin retorna erro explícito para passageiro inexistente', async ()
   await assert.rejects(
     () =>
       adminPassengerProfile({
-        identities: new InMemoryAuthOtpRepository(),
+        identities: new InMemoryAuthIdentityRepository(),
         rides: new InMemoryRideRepository(),
         savedPlaces: new InMemoryPassengerSavedPlaceRepository(),
         passengerId: 'passenger-missing',
@@ -174,7 +174,7 @@ test('ficha Admin retorna erro explícito para passageiro inexistente', async ()
 });
 
 test('Admin consulta carteira e notificações do passageiro sem expor credenciais', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const devices = new InMemoryPushDeviceRepository();
   await identities.createIdentity({
     id: '55555555-5555-4555-8555-555555555550',
@@ -242,7 +242,7 @@ test('Admin consulta carteira e notificações do passageiro sem expor credencia
 
 
 test('Admin edita nome e e-mail do passageiro com validação e auditoria', async () => {
-  const identities = new InMemoryAuthOtpRepository();
+  const identities = new InMemoryAuthIdentityRepository();
   const admin = new InMemoryAdminRepository();
   const actor = {
     kind: 'user' as const,

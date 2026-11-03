@@ -1,10 +1,10 @@
 import type {AdminActor,AdminScope} from '../admin/admin-repository.js';
 import type {RideRepository} from './ride-repository.js';
-import type {AuthOtpRepository} from '../auth/auth-otp-repository.js';
+import type {AuthIdentityRepository} from '../auth/auth-identity-repository.js';
 import {CancellationError} from './manual-cancellation-policy.js';
 import {publicCancellation,type PostgresManualCancellationStore,type ManualCancellation} from './manual-cancellation-store.js';
 export async function handleManualCancellationRoutes(input:{
- path:string;method:string;store:PostgresManualCancellationStore|null;rides:RideRepository;identities:AuthOtpRepository;
+ path:string;method:string;store:PostgresManualCancellationStore|null;rides:RideRepository;identities:AuthIdentityRepository;
  passenger():Promise<string>;driver():Promise<string>;authorize(scope:AdminScope):Promise<AdminActor>;
  readBody():Promise<unknown>;json(status:number,value:unknown):void;cancelled(record:ManualCancellation):Promise<void>;
 }):Promise<boolean>{

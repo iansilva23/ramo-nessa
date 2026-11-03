@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
-import 'phone_auth_service.dart';
+import 'password_auth_service.dart';
 import 'driver_password_auth_service.dart';
 import 'session_http_client.dart';
 
@@ -22,12 +22,9 @@ class AuthHttpException implements Exception {
   String toString() => message;
 }
 
-class HttpPhoneAuthService
-    implements
-        PhoneAuthService,
-        DriverRegistrationAuthService,
-        DriverPasswordAuthService {
-  HttpPhoneAuthService({
+class HttpPasswordAuthService
+    implements PasswordAuthService, DriverPasswordAuthService {
+  HttpPasswordAuthService({
     required Uri baseUrl,
     required String subjectType,
     String? clientInstanceId,
@@ -47,7 +44,7 @@ class HttpPhoneAuthService
   final bool readOnlySessionCheck;
   final bool browserSession;
 
-  Map<String, String> get _otpHeaders {
+  Map<String, String> get _authHeaders {
     final clientInstanceId = _clientInstanceId;
     return {
       'content-type': 'application/json',
@@ -55,64 +52,6 @@ class HttpPhoneAuthService
       if (clientInstanceId != null && clientInstanceId.isNotEmpty)
         'x-client-instance-id': clientInstanceId,
     };
-  }
-
-  @override
-  Future<RequestedOtp> requestOtp({required String phone}) =>
-      _requestCode(phone, '/v1/auth/otp/request');
-
-  @override
-  Future<RequestedOtp> requestRegistrationOtp({required String phone}) {
-    if (_subjectType != 'driver') {
-      throw StateError('Cadastro exclusivo para motoristas.');
-    }
-    return _requestCode(phone, '/v1/auth/driver-registration/request');
-  }
-
-  Future<RequestedOtp> _requestCode(String phone, String path) async {
-    final response = await _client
-        .post(
-          _baseUrl.resolve(path),
-          headers: _otpHeaders,
-          body: jsonEncode({'subjectType': _subjectType, 'phone': phone}),
-        )
-        .timeout(const Duration(seconds: 12));
-    final json = _decodeObject(response);
-    _throwIfError(response, json);
-
-    final challengeId = json['challengeId'];
-    final expiresAt = json['expiresAt'];
-    final retryAfterSeconds = json['retryAfterSeconds'];
-    if (challengeId is! String ||
-        expiresAt is! String ||
-        retryAfterSeconds is! num) {
-      throw const FormatException('Resposta de OTP inválida.');
-    }
-
-    return RequestedOtp(
-      challengeId: challengeId,
-      expiresAt: DateTime.parse(expiresAt),
-      retryAfterSeconds: retryAfterSeconds.toInt(),
-      devCode: json['devCode'] is String ? json['devCode'] as String : null,
-    );
-  }
-
-  @override
-  Future<AuthSession> verifyOtp({
-    required String challengeId,
-    required String code,
-  }) async {
-    final response = await _client
-        .post(
-          _baseUrl.resolve('/v1/auth/otp/verify'),
-          headers: _otpHeaders,
-          body: jsonEncode({'challengeId': challengeId, 'code': code}),
-        )
-        .timeout(const Duration(seconds: 12));
-    final json = _decodeObject(response);
-    _throwIfError(response, json);
-
-    return _session(json);
   }
 
   AuthSession _session(Map<String, dynamic> json) {
@@ -203,7 +142,7 @@ class HttpPhoneAuthService
         .post(
           _baseUrl.resolve(path),
           headers: {
-            ..._otpHeaders,
+            ..._authHeaders,
             if (token != null) 'authorization': 'Bearer ${token.trim()}',
           },
           body: jsonEncode(body),
@@ -233,7 +172,7 @@ class HttpPhoneAuthService
         .get(
           _baseUrl.resolve('/v1/driver/me/login-credentials'),
           headers: {
-            ..._otpHeaders,
+            ..._authHeaders,
             'authorization': 'Bearer ${accessToken.trim()}',
           },
         )
@@ -272,38 +211,29 @@ class HttpPhoneAuthService
   }
 
   @override
-  Future<RequestedOtp> requestPasswordReset({
-    required String identifier,
-  }) async {
-    final value = await _passwordRequest(
-      '/v1/auth/driver/password/reset/request',
-      {'identifier': identifier},
-    );
-    if (value['challengeId'] is! String ||
-        value['expiresAt'] is! String ||
-        value['retryAfterSeconds'] is! num) {
-      throw const FormatException('Resposta de recuperação inválida.');
-    }
-    return RequestedOtp(
-      challengeId: value['challengeId'] as String,
-      expiresAt: DateTime.parse(value['expiresAt'] as String),
-      retryAfterSeconds: (value['retryAfterSeconds'] as num).toInt(),
-    );
-  }
-
-  @override
-  Future<AuthSession> completePasswordReset({
-    required String challengeId,
-    required String code,
+  Future<AuthSession> registerWithPassword({
+    required String fullName,
+    required String phone,
+    required String email,
     required String password,
+    String? username,
   }) async {
-    return _session(
-      await _passwordRequest('/v1/auth/driver/password/reset/complete', {
-        'challengeId': challengeId,
-        'code': code,
-        'password': password,
-      }),
-    );
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/auth/driver/password/register'),
+          headers: _authHeaders,
+          body: jsonEncode({
+            'fullName': fullName,
+            'phone': phone,
+            'email': email,
+            'password': password,
+            if (username != null) 'username': username,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    final value = _decodeObject(response);
+    _throwIfError(response, value);
+    return _session(value);
   }
 
   Map<String, dynamic> _decodeObject(http.Response response) {

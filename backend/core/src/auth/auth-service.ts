@@ -6,7 +6,7 @@ import type {
   AuthSessionRecord,
   AuthSubjectType,
 } from './auth-session-repository.js';
-import type { AuthOtpRepository } from './auth-otp-repository.js';
+import type { AuthIdentityRepository } from './auth-identity-repository.js';
 
 const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -117,7 +117,7 @@ export async function authenticateBearer(input: {
   requiredType?: AuthSubjectType;
   allowDriverRegistration?: boolean;
   renewSession?: boolean;
-  identities?: AuthOtpRepository;
+  identities?: AuthIdentityRepository;
   now?: Date;
 }): Promise<AuthSessionRecord> {
   const token = bearerToken(input.headers);

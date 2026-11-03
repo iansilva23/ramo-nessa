@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type {
-  AuthOtpRepository,
+  AuthIdentityRepository,
   AuthIdentityRecord,
-} from '../auth/auth-otp-repository.js';
+} from '../auth/auth-identity-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { RideRecord } from '../rides/ride.js';
 import type {
@@ -41,7 +41,7 @@ export interface Customer {
 export interface GrowthDependencies {
   store: GrowthRepository;
   privacy: PrivacyRepository;
-  identities: AuthOtpRepository;
+  identities: AuthIdentityRepository;
   rides: RideRepository;
   support: DriverSupportRepository;
   matching: RideMatchingRepository;

@@ -6903,34 +6903,6 @@ function renderIntegrations(payload) {
       `${mercadoPago.webhookSecretConfigured ? 'webhook configurado' : 'webhook pendente'}`;
   }
 
-  const otp = payload?.otp;
-  const otpStatus = byId('otp-provider-status');
-  const otpDetail = byId('otp-provider-detail');
-  if (otp == null) {
-    otpStatus.textContent = 'Não verificado';
-    otpStatus.className = 'integration-status-pending';
-    otpDetail.textContent = 'Provider de produção';
-  } else {
-    otpStatus.textContent = otp.productionReady === true
-      ? otp.provider === 'entrar-whatsapp' ? 'WhatsApp configurado' : 'Produção pronta'
-      : otp.provider === 'entrar-whatsapp'
-        ? 'WhatsApp incompleto'
-        : otp.provider === 'dev'
-        ? 'Modo desenvolvimento'
-        : otp.provider === 'webhook'
-          ? 'Webhook incompleto'
-          : otp.provider === 'missing'
-            ? 'Não configurado'
-            : 'Provider inválido';
-    otpStatus.className = otp.productionReady === true
-      ? 'integration-status-ok'
-      : 'integration-status-pending';
-    otpDetail.textContent =
-      `${otp.providerEnvironmentVariable} · ` +
-      `${otp.endpointConfigured ? 'endpoint HTTPS OK' : 'endpoint pendente'} · ` +
-      `${otp.tokenConfigured ? 'token configurado' : 'token pendente'}`;
-  }
-
   const push = payload?.push;
   const pushStatus = byId('push-provider-status');
   const pushDetail = byId('push-provider-detail');

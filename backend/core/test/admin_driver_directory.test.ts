@@ -7,9 +7,9 @@ import {
 } from '../src/admin/admin-validation.js';
 import type {
   AuthIdentityRecord,
-} from '../src/auth/auth-otp-repository.js';
-import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
-import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
+} from '../src/auth/auth-identity-repository.js';
+import { InMemoryAuthIdentityRepository } from '../src/auth/repositories/in-memory-auth-identity-repository.js';
+import { PostgresAuthIdentityRepository } from '../src/auth/repositories/postgres-auth-identity-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 
 function identity(input: {
@@ -32,7 +32,7 @@ function identity(input: {
 }
 
 test('diretório de motoristas ordena, pagina, busca e conta estados', async () => {
-  const repository = new InMemoryAuthOtpRepository();
+  const repository = new InMemoryAuthIdentityRepository();
   const rows = [
     identity({
       id: '11111111-1111-4111-8111-111111111111',
@@ -125,7 +125,7 @@ test('diretório de motoristas ordena, pagina, busca e conta estados', async () 
 });
 
 test('diretório de passageiros isola identidades e respeita status', async () => {
-  const repository = new InMemoryAuthOtpRepository();
+  const repository = new InMemoryAuthIdentityRepository();
   await repository.createIdentity(
     identity({
       id: '55555555-5555-4555-8555-555555555551',
@@ -234,7 +234,7 @@ test(
   { skip: !databaseUrl },
   async () => {
     const pool = createPostgresPool(databaseUrl!);
-    const repository = new PostgresAuthOtpRepository(pool);
+    const repository = new PostgresAuthIdentityRepository(pool);
     const ids = [
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',

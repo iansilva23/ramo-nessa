@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { AuthIdentityRecord } from '../src/auth/auth-otp-repository.js';
+import type { AuthIdentityRecord } from '../src/auth/auth-identity-repository.js';
 import { MercadoPagoOrdersClient } from '../src/payments/mercado-pago-orders.js';
 import {
   applyMercadoPagoWalletTopupOrderStatus,
