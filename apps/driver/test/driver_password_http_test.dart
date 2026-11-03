@@ -90,8 +90,9 @@ void main() {
         calls++;
         expect(request.url.path, '/v1/driver/me/login-credentials');
         expect(request.headers['authorization'], 'Bearer $nativeToken');
-        if (request.method == 'GET')
+        if (request.method == 'GET') {
           return http.Response('{"configured":false}', 200);
+        }
         expect(jsonDecode(request.body), {
           'username': 'driver.name',
           'email': 'driver@example.com',

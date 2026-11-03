@@ -53,8 +53,9 @@ class _DriverPasswordLoginScreenState extends State<DriverPasswordLoginScreen> {
   }
 
   Future<void> _finish(AuthSession session) async {
-    if (session.subjectType != 'driver')
+    if (session.subjectType != 'driver') {
       throw const FormatException('Sessão de motorista inválida.');
+    }
     try {
       await widget.tokenStore.saveAccessToken(session.accessToken);
     } catch (_) {
@@ -118,11 +119,12 @@ class _DriverPasswordLoginScreenState extends State<DriverPasswordLoginScreen> {
             );
       await _finish(session);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = error.toString();
         });
+      }
     }
   }
 
@@ -151,7 +153,7 @@ class _DriverPasswordLoginScreenState extends State<DriverPasswordLoginScreen> {
         _loading = false;
       });
       _timer?.cancel();
-      if (_retrySeconds > 0)
+      if (_retrySeconds > 0) {
         _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
           if (!mounted || _retrySeconds <= 1) {
             timer.cancel();
@@ -160,12 +162,14 @@ class _DriverPasswordLoginScreenState extends State<DriverPasswordLoginScreen> {
           }
           setState(() => _retrySeconds--);
         });
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = error.toString();
         });
+      }
     }
   }
 
@@ -224,10 +228,11 @@ class _DriverPasswordLoginScreenState extends State<DriverPasswordLoginScreen> {
         return;
       }
       final info = await widget.phoneService.currentSession(token);
-      if (info == null || info.subjectType != 'driver')
+      if (info == null || info.subjectType != 'driver') {
         throw const FormatException(
           'Sua sessão expirou. Entre com usuário e senha.',
         );
+      }
       await _finish(
         AuthSession(
           accessToken: token,
@@ -240,11 +245,12 @@ class _DriverPasswordLoginScreenState extends State<DriverPasswordLoginScreen> {
       try {
         await widget.phoneService.logout(token);
       } catch (_) {}
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = error.toString();
         });
+      }
     }
   }
 

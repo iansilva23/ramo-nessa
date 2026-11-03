@@ -59,11 +59,12 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
         _loading = false;
       });
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = error.toString();
           _loading = false;
         });
+      }
     }
   }
 
@@ -124,11 +125,12 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
         );
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _saving = false;
           _error = error.toString();
         });
+      }
     }
   }
 

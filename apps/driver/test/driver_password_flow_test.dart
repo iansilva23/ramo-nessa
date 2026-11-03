@@ -115,7 +115,7 @@ Future<void> tap(WidgetTester t, String key) async {
 }
 
 void main() {
-  for (final id in ['driver.name', 'driver@example.com'])
+  for (final id in ['driver.name', 'driver@example.com']) {
     testWidgets('login with $id uses password and no WhatsApp', (t) async {
       final service = Service(), store = Store();
       String? token;
@@ -142,6 +142,7 @@ void main() {
       expect(token, store.token);
       expect(token, isNotNull);
     });
+  }
   testWidgets('failed password does not store a session', (t) async {
     final service = Service()..fail = true, store = Store();
     await t.pumpWidget(

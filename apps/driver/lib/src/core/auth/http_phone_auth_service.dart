@@ -63,8 +63,9 @@ class HttpPhoneAuthService
 
   @override
   Future<RequestedOtp> requestRegistrationOtp({required String phone}) {
-    if (_subjectType != 'driver')
+    if (_subjectType != 'driver') {
       throw StateError('Cadastro exclusivo para motoristas.');
+    }
     return _requestCode(phone, '/v1/auth/driver-registration/request');
   }
 
@@ -263,10 +264,11 @@ class HttpPhoneAuthService
       'email': email,
       'password': password,
     }, token: accessToken);
-    if (value['configured'] != true)
+    if (value['configured'] != true) {
       throw const FormatException(
         'A configuração do acesso não foi confirmada.',
       );
+    }
   }
 
   @override
