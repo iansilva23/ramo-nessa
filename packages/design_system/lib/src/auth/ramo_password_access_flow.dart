@@ -109,6 +109,9 @@ class _RamoPasswordAccessFlowState extends State<RamoPasswordAccessFlow> {
         username: _username.text.trim(),
       );
       await (registering ? widget.onRegister(values) : widget.onLogin(values));
+      if (!mounted) {
+        return;
+      }
       _password.clear();
       if (mounted) {
         setState(() => _loading = false);

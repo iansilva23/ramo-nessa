@@ -428,12 +428,7 @@ test(
          WHERE subject_type = 'driver' AND subject_id = $1`,
         [driverId],
       );
-      for (const row of identity.rows) {
-        await pool.query(
-          'DELETE FROM auth_otp_challenges WHERE identity_id = $1',
-          [row.id],
-        );
-      }
+
       await pool.query(
         `DELETE FROM auth_identities
          WHERE subject_type = 'driver' AND subject_id = $1`,
