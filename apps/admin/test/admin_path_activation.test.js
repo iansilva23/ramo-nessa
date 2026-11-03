@@ -24,9 +24,8 @@ async function simulate(options = {}) {
     console: { log() {}, error() {} },
     readFileSync: path => path === repo + '/deploy/staging/Caddyfile' ? state.config : files.get(path),
     stagingGoogleMapsConfiguration: async () => ({ provider: 'google', apiKey: 'private-map-key' }),
-    stagingOtpConfiguration: async () => ({ provider: 'entrar-whatsapp', secret: 'private-otp-key' }),
-    stagingComposeArguments: async () => ['compose', '--env-file', repo + '/deploy/staging/.env', '-f', 'compose.yml', '-f', 'compose.firebase.yml', '-f', 'compose.google-maps.yml', '-f', 'compose.otp.yml'],
-    stagingComposeEnvironment: (maps, otp) => ({ GOOGLE_MAPS_SERVER_API_KEY: maps.apiKey, ENTRAR_API_SECRET: otp.secret }),
+    stagingComposeArguments: async () => ['compose', '--env-file', repo + '/deploy/staging/.env', '-f', 'compose.yml', '-f', 'compose.firebase.yml', '-f', 'compose.google-maps.yml'],
+    stagingComposeEnvironment: (maps) => ({ GOOGLE_MAPS_SERVER_API_KEY: maps.apiKey }),
     spawnSync: (command, args, settings) => {
       state.calls.push({ command, args: Array.from(args) });
       const ok = stdout => ({ status: 0, stdout: stdout ?? '' });
@@ -47,9 +46,7 @@ async function simulate(options = {}) {
         if (args[0] === 'image' && args[1] === 'tag') { state.tag = args[2].includes('administrodo-116dd008') ? 'new-image' : args[2]; return ok(); }
         if (args[0] === 'compose') {
           assert.equal(settings.env.GOOGLE_MAPS_SERVER_API_KEY, 'private-map-key');
-          assert.equal(settings.env.ENTRAR_API_SECRET, 'private-otp-key');
           assert.ok(args.includes('compose.google-maps.yml'));
-          assert.ok(args.includes('compose.otp.yml'));
           if (args.includes('config')) return options.invalidCompose ? { status: 1 } : ok();
           if (args.includes('--help')) return ok('--wait-timeout');
           assert.equal(args.at(-1), 'gateway');

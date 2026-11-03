@@ -359,7 +359,7 @@ test('ações sensíveis de acesso e cadastro do motorista exigem confirmação'
 });
 
 
-test('acesso OTP do motorista só é liberado depois do cadastro aprovado', () => {
+test('motorista só pode operar depois do cadastro aprovado', () => {
   const html = readFileSync(
     new URL('../pages/drivers.html', import.meta.url),
     'utf8',
@@ -402,17 +402,17 @@ test('acesso OTP do motorista só é liberado depois do cadastro aprovado', () =
   assert.equal(
     /value=["']active["']/.test(provisionForm),
     false,
-    'motorista novo não pode nascer com OTP liberado',
+    'motorista novo não pode nascer com operação liberada',
   );
   assert.match(html, /Criar acesso suspenso/);
   assert.match(
     html,
-    /perfil e\s+o veículo; depois libere o login OTP/i,
+    /perfil e\s+o veículo; depois libere o motorista para operar/i,
   );
 
   assert.match(app, /const status = 'suspended'/);
   assert.match(app, /id = 'driver-auth-status-action'/);
-  assert.match(app, /Liberar acesso OTP/);
+  assert.match(app, /Liberar motorista/);
   assert.match(
     app,
     /state\.currentDriverRegistry\?\.registryApproved === true/,

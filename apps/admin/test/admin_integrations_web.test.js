@@ -19,7 +19,7 @@ test('admin exposes secure production integration status center', async () => {
   assert.match(html, /Places API \(New\)/);
   assert.match(html, /GOOGLE_MAPS_SERVER_API_KEY/);
   assert.match(html, /id="mercado-pago-status"/);
-  assert.match(html, /id="otp-provider-status"/);
+  assert.doesNotMatch(html, /id="otp-provider-status"/);
   assert.match(html, /id="push-provider-status"/);
   assert.match(html, /id="push-provider-detail"/);
   assert.match(html, /id="mercado-pago-public-key-form"/);
@@ -28,10 +28,10 @@ test('admin exposes secure production integration status center', async () => {
 
   assert.match(app, /loadIntegrations/);
   assert.match(app, /payload\?\.mercadoPago/);
-  assert.match(app, /payload\?\.otp/);
+  assert.doesNotMatch(app, /payload\?\.otp/);
   assert.match(app, /payload\?\.push/);
   assert.match(app, /mercadoPago\.productionReady/);
-  assert.match(app, /otp\.productionReady/);
+  assert.doesNotMatch(app, /otp\.productionReady/);
   assert.match(app, /push\.productionReady/);
   assert.match(app, /firebaseCredentialSource/);
   assert.match(app, /item\.githubSecretName/);

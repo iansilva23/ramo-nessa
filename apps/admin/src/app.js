@@ -1821,7 +1821,7 @@ async function handleDriverRegistryStatus() {
     setMessage(
       globalMessage,
       result.registryApproved
-        ? 'Perfil e veículo aprovados. O acesso OTP pode ser liberado.'
+        ? 'Perfil e veículo aprovados. O motorista pode ser liberado para operar.'
         : result.authStatus === 'suspended' &&
             Number(result.revokedSessions ?? 0) > 0
           ? `Status cadastral atualizado. Acesso suspenso e ${result.revokedSessions} sessão(ões) revogada(s).`
@@ -2500,7 +2500,7 @@ function syncDriverAuthActionAvailability() {
   const documentsApproved = !driver.registrationOnly || state.currentDriverDocuments?.documentsApproved === true;
   button.disabled = !registryApproved || !documentsApproved;
   button.title = registryApproved
-    ? 'Liberar o login OTP para este motorista.'
+    ? 'Liberar este motorista para operar.'
     : 'Aprove o perfil, o veículo, a CNH e o CRLV antes de liberar o motorista.';
 }
 
@@ -2554,7 +2554,7 @@ function renderDriver(driver) {
     button.textContent =
       driver.status === 'active' && !driver.registrationOnly
         ? 'Suspender acesso'
-        : driver.registrationOnly ? 'Liberar motorista' : 'Liberar acesso OTP';
+        : driver.registrationOnly ? 'Liberar motorista' : 'Reativar acesso';
     button.addEventListener('click', () => {
       void changeDriverStatus(
         driver.driverId,
@@ -8104,7 +8104,7 @@ async function changeDriverStatus(driverId, status, button) {
   const nextStatus = validateDriverStatus(status);
   const confirmed = window.confirm(
     nextStatus === 'active'
-      ? 'Confirmar alteração de acesso do motorista? O login OTP será liberado para este motorista.'
+      ? 'Confirmar a liberação deste motorista para operar?'
       : 'Confirmar alteração de acesso do motorista? A suspensão revoga imediatamente as sessões ativas.',
   );
   if (!confirmed) return;
@@ -8122,7 +8122,7 @@ async function changeDriverStatus(driverId, status, button) {
     setMessage(
       globalMessage,
       status === 'active'
-        ? 'Acesso OTP liberado para motorista com cadastro aprovado.'
+        ? 'Motorista liberado para operar.'
         : `Motorista suspenso. ${result.revokedSessions ?? 0} sessão(ões) revogada(s).`,
       'success',
     );
