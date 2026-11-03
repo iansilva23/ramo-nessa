@@ -23,7 +23,7 @@ BASE='sha256:449ead609890bc47d4274d4bc3e1df545ba87f5a732881efeb4037482a2e4083'
 FLAG='WHATSAPP_OTP_ABUSE_CONTROLS'
 APP='/app/dist/src/'
 PACKAGE=Path(__file__).resolve().parent
-BASE_CODE={APP+'server.js':'f0b57a4d160396177810b95a86d28b4a2e2b1ee8fd67043bfe3a02f54a28f075',APP+'matching/postgres-ride-matching-repository.js':'3674660de29eadca2062ec4f2a4a8bab0f70ad6cf0588136f6eeb6c02c928058',APP+'rides/pending-dispatch-service.js':'4e8257fe9314e2b2bab1f3d77b04742b68670117010b45b32ea02d8a7c0b565a'}
+BASE_CODE={APP+'server.js':'c9a402a06a76d998fbfaf5b9e00d6221b698615ec7ef2dcee820fdab0923299b',APP+'matching/postgres-ride-matching-repository.js':'52769175b3a53c214bc6dbfcd2bffabf197eecaf4f8489c6e82d2e6f326a7cb6',APP+'rides/pending-dispatch-service.js':'4e8257fe9314e2b2bab1f3d77b04742b68670117010b45b32ea02d8a7c0b565a'}
 
 
 def require(ok,msg):
