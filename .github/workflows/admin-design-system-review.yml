@@ -1,0 +1,58 @@
+name: ADM design system and preserved workflows
+on:
+  push:
+    branches: [feature/admin-design-system-20261025]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: admin-design-system-review
+  cancel-in-progress: true
+jobs:
+  admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve backend, passenger, driver, API, runtime and approved pricing
+        run: git diff --exit-code a9cd8f1a084ebb4fd5c458a19dc2946330518d46 HEAD -- backend apps/driver apps/passenger packages config deploy apps/admin/src/api.js apps/admin/pages/regions-pricing.html apps/admin/src/regions-pricing-admin.js apps/admin/styles.css apps/admin/guide.css
+      - name: ADM checks and unit regressions
+        run: |
+          npm run check --prefix apps/admin
+          node --check apps/admin/src/admin-components.js
+          node --check apps/admin/src/admin-workspace.js
+          node --check apps/admin/src/boarding-admin.js
+          node --check apps/admin/src/ride-occurrences-admin.js
+          npm test --prefix apps/admin
+      - name: Dependencies for authenticated browser tests
+        run: npm ci --prefix backend/core --no-audit --no-fund
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+          ln -s "$PWD/scripts/web/browser-tests/node_modules" node_modules
+      - name: Every page, responsive layout and original control preservation
+        run: node apps/admin/test/browser/admin-workspace-flow.mjs
+      - name: Live components, permissions, save, errors and motion preferences
+        if: ${{ !cancelled() }}
+        run: node apps/admin/test/browser/admin-design-flow.mjs
+      - name: Authenticated Guide, shell login, MFA and logout
+        if: ${{ !cancelled() }}
+        run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/local-guide-flow.mjs
+      - name: Approved pricing workflow regression
+        if: ${{ !cancelled() }}
+        run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/regions-pricing-flow.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-design-review
+          path: |
+            apps/admin/workspace-browser-artifacts/
+            apps/admin/design-browser-artifacts/
+            apps/admin/guide-browser-artifacts/
+            apps/admin/regions-browser-artifacts/

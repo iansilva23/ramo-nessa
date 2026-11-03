@@ -1,0 +1,47 @@
+name: V5 ADM isolated image candidate - no deploy
+on:
+  push:
+    branches: [integration/pricing-v5-finance-safe-20261019]
+    paths: [.github/workflows/v5-admin-image-candidate.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  admin-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate ADM source
+        working-directory: apps/admin
+        run: |
+          npm run check
+          npm test
+      - name: Build isolated gateway candidate - never activate
+        run: |
+          set -euo pipefail
+          docker build --pull -t ramo-nessa-admin-v5-ci:${{ github.sha }} apps/admin
+          docker image inspect ramo-nessa-admin-v5-ci:${{ github.sha }} --format '{{.Id}}'
+      - name: Smoke test ADM entry without exposing ports
+        run: |
+          set -euo pipefail
+          docker run -d --name v5-admin-candidate --network none ramo-nessa-admin-v5-ci:${{ github.sha }}
+          trap 'docker rm -f v5-admin-candidate >/dev/null 2>&1 || true' EXIT
+          docker exec v5-admin-candidate sh -c 'test -s /srv/admin/index.html && test -s /srv/admin/src/app.js && test -s /srv/admin/styles.css'
+          docker exec v5-admin-candidate sh -c 'wget -q -O /dev/null http://127.0.0.1:8080/administrodo/' || {
+            docker logs v5-admin-candidate
+            exit 1
+          }
+      - name: Record isolated image evidence, not a deployment artifact
+        run: |
+          mkdir -p artifacts
+          printf 'commit=%s\nstatus=isolated-image-built-and-smoke-tested\nfinancial-config=not-loaded\ndeployment=false\n' "${{ github.sha }}" > artifacts/admin-image-audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v5-adm-isolated-image-audit
+          path: artifacts/admin-image-audit.txt
+          if-no-files-found: error
+          retention-days: 14
