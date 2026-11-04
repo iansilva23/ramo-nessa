@@ -30,10 +30,7 @@ test('PostgreSQL bounds recovery sends and commits one password change with sess
       createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
     };
     assert.equal(await sessions.createForPassengerPassword(session, 'old-password-hash'), true);
-    await pool.query(`
-      INSERT INTO auth_recovery_contacts(identity_id, channel, destination_hash)
-      VALUES ($1, 'email', $2)
-    `, [identity, challenge.destination_hash]);
+    assert.equal(await store.confirmed(identity, 'email', challenge.destination_hash), false);
     await store.create(challenge);
     await store.setProof(challenge.id, 'proof');
     const claims = await Promise.all([
@@ -43,15 +40,31 @@ test('PostgreSQL bounds recovery sends and commits one password change with sess
     assert.equal(claims.filter(Boolean).length, 1);
     const claimed = claims.find(Boolean);
     assert.ok(claimed);
+    assert.equal((await store.account('passenger', '+5588999900123'))?.id, identity);
+    assert.equal(await store.authorizeReset(challenge.id, 'reset:proof'), true);
+    assert.equal(await store.claim(challenge.id, 'passenger', null), undefined);
+    assert.equal(await store.claimReset(challenge.id, 'passenger', 'reset:wrong'), undefined);
+    const resetClaims = await Promise.all([
+      store.claimReset(challenge.id, 'passenger', 'reset:proof'),
+      store.claimReset(challenge.id, 'passenger', 'reset:proof'),
+    ]);
+    assert.equal(resetClaims.filter(Boolean).length, 1);
+    const resetClaim = resetClaims.find(Boolean);
+    assert.ok(resetClaim);
     assert.equal(await store.finish({
-      challenge: claimed, role: 'passenger', password: 'new-password-hash',
+      challenge: resetClaim, role: 'passenger', password: 'new-password-hash',
       isCurrent: account => account.password === 'old-password-hash',
     }), true);
     assert.equal(await store.claim(challenge.id, 'passenger', null), undefined);
+    assert.equal(await store.claimReset(challenge.id, 'passenger', 'reset:proof'), undefined);
     assert.ok((await sessions.findByTokenHash(session.tokenHash))?.revokedAt);
     assert.equal(await sessions.createForPassengerPassword(
       { ...session, id: randomUUID(), tokenHash: randomUUID() }, 'old-password-hash',
     ), false);
+    await pool.query(`
+      INSERT INTO auth_recovery_contacts(identity_id, channel, destination_hash)
+      VALUES ($1, 'email', $2)
+    `, [identity, challenge.destination_hash]);
     await pool.query("UPDATE auth_identities SET email_normalized = 'changed-ci@example.test' WHERE id = $1", [identity]);
     assert.equal(await store.confirmed(identity, 'email', challenge.destination_hash), false);
     await store.create(challenge);

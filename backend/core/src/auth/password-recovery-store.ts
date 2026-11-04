@@ -37,6 +37,7 @@ export class PostgresPasswordRecoveryStore {
 
   async account(role: AuthSubjectType, identifier: string, subjectId?: string) {
     const where = subjectId != null ? 'a.subject_id = $2'
+      : /^\+55[1-9]\d9\d{8}$/.test(identifier) ? 'a.phone_e164 = $2'
       : role === 'driver' ? '(d.username_normalized = $2 OR d.email_normalized = $2)'
       : 'a.email_normalized = $2';
     return (await this.pool.query<Account>(accountSelect + ' AND ' + where,
@@ -104,9 +105,30 @@ export class PostgresPasswordRecoveryStore {
       WHERE c.id = $1 AND a.id = c.identity_id AND a.subject_type = $2 AND a.status = 'active'
         AND c.session_id IS NOT DISTINCT FROM $3::uuid
         AND c.expires_at > now() AND c.consumed_at IS NULL AND NOT c.checking
-        AND c.attempts < 5 AND c.proof IS NOT NULL
+        AND c.attempts < 5 AND c.proof NOT LIKE 'reset:%'
       RETURNING c.*
     `, [id, role, sessionId])).rows[0];
+  }
+
+  async authorizeReset(id: string, proof: string) {
+    const result = await this.pool.query(`
+      UPDATE auth_recovery_challenges c SET proof = $2, checking = false
+      WHERE c.id = $1 AND c.session_id IS NULL AND c.checking AND c.consumed_at IS NULL
+        AND c.expires_at > now() AND c.proof NOT LIKE 'reset:%'
+      RETURNING id
+    `, [id, proof]);
+    return result.rowCount === 1;
+  }
+
+  async claimReset(id: string, role: AuthSubjectType, proof: string) {
+    return (await this.pool.query<Challenge>(`
+      UPDATE auth_recovery_challenges c SET checking = true
+      FROM auth_identities a
+      WHERE c.id = $1 AND c.proof = $3 AND c.session_id IS NULL
+        AND a.id = c.identity_id AND a.subject_type = $2 AND a.status = 'active'
+        AND c.expires_at > now() AND c.consumed_at IS NULL AND NOT c.checking
+      RETURNING c.*
+    `, [id, role, proof])).rows[0];
   }
 
   async release(id: string) {
@@ -158,13 +180,6 @@ export class PostgresPasswordRecoveryStore {
           ON CONFLICT (identity_id, channel) DO UPDATE SET destination_hash = EXCLUDED.destination_hash
         `, [account.id, challenge.channel, challenge.destination_hash]);
       } else {
-        const confirmed = await client.query(`
-          SELECT 1 FROM auth_recovery_contacts WHERE identity_id = $1 AND channel = $2 AND destination_hash = $3
-        `, [account.id, challenge.channel, challenge.destination_hash]);
-        if (confirmed.rowCount !== 1) {
-          await client.query('ROLLBACK');
-          return false;
-        }
         await client.query(role === 'driver'
           ? 'UPDATE driver_login_credentials SET password_hash = $2, version = version + 1, updated_at = now() WHERE identity_id = $1'
           : 'UPDATE auth_identities SET password_hash = $2, updated_at = now() WHERE id = $1', [account.id, password]);

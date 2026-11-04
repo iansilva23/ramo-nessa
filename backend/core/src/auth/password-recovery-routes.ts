@@ -1,6 +1,7 @@
-import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthIdentityRepository } from './auth-identity-repository.js';
+import { normalizeBrazilMobilePhone } from './auth-input.js';
 import { authenticateBearer } from './auth-service.js';
 import type { AuthSessionRepository, AuthSubjectType } from './auth-session-repository.js';
 import {
@@ -39,12 +40,13 @@ export async function handlePasswordRecoveryRoute(input: {
   dependencies: Dependencies;
 }): Promise<boolean> {
   const { request, response, dependencies: d } = input;
-  const match = /^\/v1\/auth\/(driver|passenger)\/recovery\/(channels|request|complete|confirm-request|confirm-complete)$/.exec(input.pathname);
+  const match = /^\/v1\/auth\/(driver|passenger)\/recovery\/(channels|contact-status|request|verify|reset|complete|confirm-request|confirm-complete)$/.exec(input.pathname);
   if (!match) return false;
 
   const role = match[1] as AuthSubjectType;
   const action = match[2]!;
-  const confirmation = action.startsWith('confirm-');
+  const contactStatus = action === 'contact-status';
+  const confirmation = action.startsWith('confirm-') || contactStatus;
   const start = action.endsWith('request');
   const reply = (status: number, body: unknown) => {
     input.json(response, status, body);
@@ -61,7 +63,7 @@ export async function handlePasswordRecoveryRoute(input: {
   };
 
   response.setHeader('cache-control', 'no-store');
-  if (request.method !== (action === 'channels' ? 'GET' : 'POST')) {
+  if (request.method !== (action === 'channels' || contactStatus ? 'GET' : 'POST')) {
     return reply(405, { error: 'METHOD_NOT_ALLOWED' });
   }
 
@@ -80,6 +82,19 @@ export async function handlePasswordRecoveryRoute(input: {
     repository: d.sessions, identities: d.identities, headers: request.headers,
     requiredType: role, allowDriverRegistration: true,
   }) : null;
+  if (contactStatus && session) {
+    const account = await store.account(role, '', session.subjectId);
+    const contacts = await Promise.all(channels.filter(channel => d.deliveries[channel]).map(async channel => {
+      const destination = account && recoveryDestination(account, channel);
+      return {
+        channel,
+        registered: Boolean(destination),
+        confirmed: Boolean(account && destination &&
+          await store.confirmed(account.id, channel, digest(d.secret, 'contact', channel, destination))),
+      };
+    }));
+    return reply(200, { channels: contacts.filter(contact => contact.registered).map(contact => contact.channel), contacts });
+  }
   const value = await input.readJson(request);
   const body = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const field = (name: string) => typeof body[name] === 'string' ? body[name] as string : '';
@@ -89,7 +104,14 @@ export async function handlePasswordRecoveryRoute(input: {
     if (!channels.includes(channel)) return invalid();
     const provider = d.deliveries[channel];
     if (!provider) return reply(503, { error: 'RECOVERY_CHANNEL_UNAVAILABLE', message: 'Este canal está indisponível. Tente outro.' });
-    const identifier = field('identifier').trim().toLowerCase();
+    let identifier = field('identifier').trim().toLowerCase();
+    if (!session && /^[+0-9(). -]+$/.test(identifier)) {
+      try {
+        identifier = normalizeBrazilMobilePhone(identifier);
+      } catch {
+        return reply(422, { error: 'RECOVERY_IDENTIFIER_INVALID', message: 'Confira o número de celular e o DDD.' });
+      }
+    }
     if (!session && (identifier.length < 3 || identifier.length > 254)) {
       return reply(422, { error: 'RECOVERY_IDENTIFIER_INVALID', message: 'Informe o acesso usado na conta.' });
     }
@@ -114,17 +136,15 @@ export async function handlePasswordRecoveryRoute(input: {
     }
     if (account && destination && password) {
       const destinationHash = digest(d.secret, 'contact', channel, destination);
-      if (session || await store.confirmed(account.id, channel, destinationHash)) {
-        // Provider work has no effect on the public HTTP response or its timing.
-        void (async () => {
-          const allowed = await takeLimit('delivery', [
-            [`destination:${channel}:${destination}`, 3, 15 * 60_000],
-            [`destination-cooldown:${channel}:${destination}`, 1, 60_000],
-            [`identity:${account.id}`, 4, 15 * 60_000],
-            [`channel-burst:${channel}`, Math.min(20, provider.dailyLimit), 15 * 60_000],
-            [`channel-daily:${channel}`, provider.dailyLimit, 24 * 60 * 60_000],
-          ]);
-          if (!allowed.allowed) return;
+      const send = async () => {
+        const allowed = await takeLimit('delivery', [
+          [`destination:${channel}:${destination}`, 3, 15 * 60_000],
+          [`destination-cooldown:${channel}:${destination}`, 1, 60_000],
+          [`identity:${account.id}`, 4, 15 * 60_000],
+          [`channel-burst:${channel}`, Math.min(20, provider.dailyLimit), 15 * 60_000],
+          [`channel-daily:${channel}`, provider.dailyLimit, 24 * 60 * 60_000],
+        ]);
+        if (allowed.allowed) {
           const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
           await store.create({
             id, identity_id: account.id, channel, session_id: session?.id ?? null,
@@ -133,10 +153,24 @@ export async function handlePasswordRecoveryRoute(input: {
           });
           const reference = await provider.send({ id, destination, code });
           await store.setProof(id, reference ?? digest(d.secret, 'code', id, code));
-        })().catch(() => {
-          // Upstream bodies can contain codes and personal data.
-          console.warn('Password recovery delivery could not be completed.');
-        });
+        }
+        return allowed;
+      };
+      const logFailure = () => console.warn(JSON.stringify({
+        event: 'password_recovery.delivery_failed', channel, mode: session ? 'confirmation' : 'recovery',
+      }));
+      if (session) {
+        try {
+          const sent = await send();
+          if (!sent.allowed) return limited(sent.retryAfterMs);
+        } catch {
+          logFailure();
+          return reply(503, { error: 'RECOVERY_CHANNEL_UNAVAILABLE',
+            message: 'O envio não foi confirmado. Confira o contato antes de pedir outro código.' });
+        }
+      } else {
+        // Public replies must not disclose whether the account or contact exists.
+        void send().catch(logFailure);
       }
     }
     return reply(202, { challengeId: id });
@@ -145,8 +179,12 @@ export async function handlePasswordRecoveryRoute(input: {
   const id = field('challengeId');
   const code = field('code').trim();
   const password = field('password');
-  if (!uuid.test(id) || !/^\d{6}$/.test(code)) return invalid();
-  if (!confirmation) {
+  const resetting = action === 'reset';
+  const verifying = action === 'verify';
+  const resetToken = field('resetToken');
+  const resetProof = (token: string) => 'reset:' + digest(d.secret, 'reset', id, token);
+  if (!uuid.test(id) || (resetting ? !/^[A-Za-z0-9_-]{43}$/.test(resetToken) : !/^\d{6}$/.test(code))) return invalid();
+  if (!confirmation && !verifying) {
     try {
       validatePassengerPassword(password);
     } catch (error) {
@@ -156,19 +194,30 @@ export async function handlePasswordRecoveryRoute(input: {
   }
   const verificationLimit = await takeLimit('verification', [
     ...(d.clientIp ? [[`ip:${d.clientIp}`, 40, 15 * 60_000] as [string, number, number]] : []),
-    [`challenge:${id}`, 8, 5 * 60_000],
+    [`${resetting ? 'reset' : 'challenge'}:${id}`, 8, 5 * 60_000],
   ]);
   if (!verificationLimit.allowed) return limited(verificationLimit.retryAfterMs);
 
-  const challenge = await store.claim(id, role, session?.id ?? null);
+  const challenge = resetting
+    ? await store.claimReset(id, role, resetProof(resetToken))
+    : await store.claim(id, role, session?.id ?? null);
   if (!challenge) return invalid();
+  let released = false;
   try {
-    const provider = d.deliveries[challenge.channel];
-    if (!provider) return invalid();
-    const valid = provider.verify
-      ? await provider.verify(challenge.proof, code)
-      : timingSafeEqual(Buffer.from(challenge.proof), Buffer.from(digest(d.secret, 'code', id, code)));
-    if (!valid) return invalid();
+    if (!resetting) {
+      const provider = d.deliveries[challenge.channel];
+      if (!provider) return invalid();
+      const valid = provider.verify
+        ? await provider.verify(challenge.proof, code)
+        : timingSafeEqual(Buffer.from(challenge.proof), Buffer.from(digest(d.secret, 'code', id, code)));
+      if (!valid) return invalid();
+    }
+    if (verifying) {
+      const token = randomBytes(32).toString('base64url');
+      const authorized = await store.authorizeReset(id, resetProof(token));
+      released = authorized;
+      return authorized ? reply(200, { ok: true, resetToken: token }) : invalid();
+    }
     const updated = await store.finish({
       role, challenge, password: confirmation ? null : await hashPassengerPassword(password),
       isCurrent: (account, expected) => {
@@ -185,6 +234,6 @@ export async function handlePasswordRecoveryRoute(input: {
     }
     throw error;
   } finally {
-    await store.release(id);
+    if (!released) await store.release(id);
   }
 }
