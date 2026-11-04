@@ -2,7 +2,7 @@ name: Native Compatibility - Web and Permissions
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013]
+    branches: [feature/flutter-web-permissions-20261013, feature/driver-trip-arrow-20261104]
     paths:
       - '.github/workflows/flutter-native-web-regression.yml'
       - 'apps/passenger/**'
@@ -91,5 +91,9 @@ jobs:
         if: matrix.platform == 'ios-simulator'
         working-directory: apps/${{ matrix.app }}
         run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Compile the Motorista Web build
+        if: github.ref_name == 'feature/driver-trip-arrow-20261104' && matrix.app == 'driver' && matrix.platform == 'android'
+        working-directory: apps/driver
+        run: flutter build web --release --no-pub
       - name: Check that review did not change source or dependency lock
         run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
