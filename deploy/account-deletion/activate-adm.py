@@ -57,7 +57,12 @@ def load_guard():
 
 
 def admin_mount(container):
-    matches = [m for m in container['Mounts'] if m['Destination'] == '/srv/admin']
+    mounts = container['Mounts']
+    require(not any(m['Destination'] in ('/', '/srv') or m['Destination'].startswith('/srv/admin/')
+                    for m in mounts), 'Outro mount sobrepõe os arquivos do ADM.')
+    matches = [m for m in mounts if m['Destination'] == '/srv/admin']
+    if not matches:
+        return None
     require(len(matches) == 1 and matches[0]['Type'] == 'bind' and not matches[0]['RW'],
             'O mount ativo do ADM exige revisão.')
     return matches[0]['Source']
@@ -86,10 +91,11 @@ def verify(review, h, plan, candidate):
     core = plan['core']['container']
     gateway = copy.deepcopy(plan['gateway']['container'])
     current_gateway = h.inspect(gateway['Name'])
-    source = plan['nextAdmin'] if candidate else plan['oldAdmin']
+    source = plan['nextAdmin'] if candidate and plan['oldAdmin'] else plan['oldAdmin']
+    gateway_image = plan['gatewayImage'] if candidate else gateway['Image']
     require(admin_mount(current_gateway) == source, 'O mount publicado do ADM divergiu.')
     require(review.web_mount(current_gateway) == plan['web'], 'O mount dos apps Web divergiu.')
-    if candidate:
+    if candidate and plan['oldAdmin']:
         for mount in gateway['Mounts']:
             if mount['Destination'] == '/srv/admin':
                 mount['Source'] = source
@@ -97,12 +103,12 @@ def verify(review, h, plan, candidate):
             source + entry[len(plan['oldAdmin']):] if entry.startswith(plan['oldAdmin'] + ':') else entry
             for entry in gateway['HostConfig'].get('Binds') or []
         ]
-    h.runtime_matches(gateway, current_gateway, gateway['Image'])
+    h.runtime_matches(gateway, current_gateway, gateway_image)
     h.runtime_matches(core, h.inspect(core['Name']), plan['image'] if candidate else core['Image'])
     for container in plan['others']:
         require(h.identity(h.inspect(container['Name'])) == h.identity(container), 'Outro serviço mudou.')
 
-    checks = {name: sha((Path(source) / name).read_bytes()) for name in ADM_FILES}
+    checks = plan['admHashes']['after' if candidate else 'before']
     js = """
 import {createHash} from 'node:crypto';
 const base = 'https://app.ramonessa.com.br';
@@ -152,9 +158,15 @@ def rollback(review, h, plan):
             changed[service] = current['Image'] == plan['image']
         else:
             source = admin_mount(current)
-            require(current['Image'] == original['Image'] and source in (plan['oldAdmin'], plan['nextAdmin'])
-                    and review.web_mount(current) == plan['web'], 'O gateway mudou.')
-            changed[service] = source == plan['nextAdmin']
+            require(review.web_mount(current) == plan['web'], 'O mount dos apps Web mudou.')
+            if plan['oldAdmin'] is None:
+                require(source is None and current['Image'] in (original['Image'], plan['gatewayImage']),
+                        'A imagem do gateway mudou.')
+                changed[service] = current['Image'] == plan['gatewayImage']
+            else:
+                require(current['Image'] == original['Image'] and source in (plan['oldAdmin'], plan['nextAdmin']),
+                        'O mount do ADM mudou.')
+                changed[service] = source == plan['nextAdmin']
     for service in ('gateway', 'core'):
         if changed[service]:
             up(review, h, plan, service, 'before')
@@ -174,9 +186,11 @@ def install(review, h, source, checksum):
     require(shutil.disk_usage(ROOT).free >= 2 * 1024**3, 'São necessários 2 GB livres.')
     require(all(not (m['Destination'] == '/app' or m['Destination'].startswith('/app/dist'))
                 for m in core['container']['Mounts']), 'O Core está sobreposto por um mount.')
-    old_admin = Path(admin_mount(gateway['container']))
-    require(old_admin.is_dir() and not old_admin.is_symlink()
-            and all(not p.is_symlink() for p in old_admin.rglob('*')), 'Pasta atual do ADM exige revisão.')
+    active_admin_mount = admin_mount(gateway['container'])
+    old_admin = Path(active_admin_mount) if active_admin_mount else None
+    if old_admin is not None:
+        require(old_admin.is_dir() and not old_admin.is_symlink()
+                and all(not p.is_symlink() for p in old_admin.rglob('*')), 'Pasta atual do ADM exige revisão.')
     h.inactive()
     others = [h.inspect(name) for name in h.NAMES[2:]]
     h.DIRECTORY = Path(tempfile.mkdtemp(prefix='admin-account-deletion-', dir=ROOT))
@@ -209,14 +223,21 @@ def install(review, h, source, checksum):
         next_admin.parent.mkdir(parents=True)
         for directory in (release_root, next_admin.parent):
             directory.chmod(0o755)
-        shutil.copytree(old_admin, next_admin)
+        if old_admin is None:
+            next_admin.mkdir(mode=0o755)
+            h.run(['docker', 'cp', gateway['name'] + ':/srv/admin/.', str(next_admin)], timeout=45)
+        else:
+            shutil.copytree(old_admin, next_admin)
+        require(all(not p.is_symlink() and (p.is_file() or p.is_dir()) for p in next_admin.rglob('*')),
+                'Arquivos inesperados na cópia do ADM.')
+        before_hashes = {name: sha((next_admin / name).read_bytes()) for name in ADM_FILES}
         for opts in (['--check'], []):
             result = subprocess.run(['git', 'apply', *opts, '--include=apps/admin/src/app.js',
                                      '--include=apps/admin/src/api.js', str(patch)],
                                     cwd=release_root, capture_output=True)
             require(result.returncode == 0, 'Os arquivos atuais do ADM exigem revisão antes da troca.')
         for name in ADM_FILES:
-            require((next_admin / name).read_bytes() != (old_admin / name).read_bytes(),
+            require(sha((next_admin / name).read_bytes()) != before_hashes[name],
                     'A atualização não foi aplicada aos dois arquivos do ADM.')
             (next_admin / name).chmod(0o644)
             h.run(['docker', 'exec', '-i', core['name'], 'node', '--input-type=module', '--check'],
@@ -236,9 +257,37 @@ def install(review, h, source, checksum):
            candidate['Id'], '-ec', 'for f do node --check "$f"; done', 'core-check',
            *('/app/' + name for name in FILES)])
 
+    gateway_image = h.inspect(gateway['container']['Image'], True)
+    if old_admin is None:
+        context = h.DIRECTORY / 'gateway-build'
+        context.mkdir()
+        gateway_tag = 'ramo-nessa-adm-gateway-base:' + h.DIRECTORY.name
+        gateway_candidate_tag = gateway_tag.replace('-base:', ':')
+        h.run(['docker', 'image', 'tag', gateway_image['Id'], gateway_tag])
+        dockerfile = [f'FROM {gateway_tag}']
+        for name in ADM_FILES:
+            path = context / Path(name).name
+            shutil.copyfile(next_admin / name, path)
+            path.chmod(0o644)
+            dockerfile.append(f'COPY {path.name} /srv/admin/{name}')
+        (context / 'Dockerfile').write_text('\n'.join(dockerfile) + '\n')
+        h.run(['docker', 'build', '--pull=false', '--network=none', '-t', gateway_candidate_tag, str(context)], timeout=180)
+        next_gateway = h.inspect(gateway_candidate_tag, True)
+        require(next_gateway['Config'] == gateway_image['Config'] and
+                next_gateway['RootFS']['Layers'][:len(gateway_image['RootFS']['Layers'])] == gateway_image['RootFS']['Layers'],
+                'A configuração da imagem do gateway mudou.')
+        for name in ADM_FILES:
+            raw = h.run(['docker', 'run', '--rm', '--network=none', '--read-only', '--entrypoint', 'cat',
+                         next_gateway['Id'], '/srv/admin/' + name])
+            require(sha(raw) == sha((next_admin / name).read_bytes()), 'O arquivo na imagem do ADM divergiu.')
+    else:
+        next_gateway = gateway_image
+
     plan = {'core': core, 'gateway': gateway, 'image': candidate['Id'], 'source': source,
-            'oldAdmin': str(old_admin), 'nextAdmin': str(next_admin), 'web': active['newWeb'],
-            'configHashes': {}, 'others': others}
+            'gatewayImage': next_gateway['Id'], 'oldAdmin': active_admin_mount,
+            'nextAdmin': str(next_admin), 'web': active['newWeb'], 'configHashes': {}, 'others': others,
+            'admHashes': {'before': before_hashes,
+                          'after': {name: sha((next_admin / name).read_bytes()) for name in ADM_FILES}}}
     for service in ('core', 'gateway'):
         info = plan[service]
         for stage in ('before', 'after'):
@@ -249,6 +298,8 @@ def install(review, h, source, checksum):
                     settings = model['services'][service]
                     if service == 'core':
                         settings['image'] = candidate['Id']
+                    elif old_admin is None:
+                        settings['image'] = next_gateway['Id']
                     else:
                         mount, = [m for m in settings['volumes'] if m.get('target') == '/srv/admin']
                         require(mount.get('source') == str(old_admin) and mount.get('read_only'), 'Mount ADM divergente.')
