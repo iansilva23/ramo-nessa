@@ -113,9 +113,12 @@ def snapshot(h, name, service):
     require(set(original['services']) == {service} and not original['services'][service].get('env_file'),
             'A configuração Compose deve conter um serviço isolado e sem env_file.')
     resolved = json.loads(compose(h, workdir, path, 'config', '--format', 'json'))
-    verify_model = {'services': {'core': resolved['services'][service]}}
-    h.assert_environment(verify_model, container, h.inspect(container['Image'], True))
-    h.assert_mount_plan(verify_model, container)
+    verify_model = {**resolved, 'services': {'core': resolved['services'][service]}}
+    try:
+        h.assert_environment(verify_model, container, h.inspect(container['Image'], True))
+        h.assert_mount_plan(verify_model, container)
+    except RuntimeError as error:
+        raise InstallError(f'Conferência do {service}: {error}') from None
     original['services'][service]['image'] = container['Image']
     resolved['services'][service]['image'] = container['Image']
     return {
@@ -341,6 +344,7 @@ def rollback(h, plan):
 
 def install(h, package, source):
     require(re.fullmatch(r'[a-f0-9]{40}', source), 'Identificador do pacote inválido.')
+    print('Conferindo a configuração, as redes e os volumes da versão ativa.', flush=True)
     core = snapshot(h, h.NAMES[0], 'core')
     gateway = snapshot(h, h.NAMES[1], 'gateway')
     require(core['container']['Config']['Image'] == BASE_CORE or
@@ -350,7 +354,10 @@ def install(h, package, source):
     require(shutil.disk_usage(ROOT).free >= 2 * 1024**3, 'São necessários pelo menos 2 GB livres.')
     require(all(not (m['Destination'] == '/app' or m['Destination'].startswith('/app/dist'))
                 for m in core['container']['Mounts']), 'O código do Core está sobreposto por um mount.')
-    h.inactive()
+    try:
+        h.inactive()
+    except RuntimeError as error:
+        raise InstallError(f'Conferência de atividade: {error}') from None
     h.DIRECTORY = Path(tempfile.mkdtemp(prefix='password-recovery-', dir=ROOT))
     print(f'Preparação privada: {h.DIRECTORY}', flush=True)
     build = h.DIRECTORY / 'build'
