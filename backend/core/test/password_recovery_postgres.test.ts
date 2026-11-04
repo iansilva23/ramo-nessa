@@ -43,11 +43,23 @@ test('PostgreSQL bounds recovery sends and commits one password change with sess
     assert.equal(claims.filter(Boolean).length, 1);
     const claimed = claims.find(Boolean);
     assert.ok(claimed);
+    assert.equal((await store.account('passenger', '+5588999900123'))?.id, identity);
+    assert.equal(await store.authorizeReset(challenge.id, 'reset:proof'), true);
+    assert.equal(await store.claim(challenge.id, 'passenger', null), undefined);
+    assert.equal(await store.claimReset(challenge.id, 'passenger', 'reset:wrong'), undefined);
+    const resetClaims = await Promise.all([
+      store.claimReset(challenge.id, 'passenger', 'reset:proof'),
+      store.claimReset(challenge.id, 'passenger', 'reset:proof'),
+    ]);
+    assert.equal(resetClaims.filter(Boolean).length, 1);
+    const resetClaim = resetClaims.find(Boolean);
+    assert.ok(resetClaim);
     assert.equal(await store.finish({
-      challenge: claimed, role: 'passenger', password: 'new-password-hash',
+      challenge: resetClaim, role: 'passenger', password: 'new-password-hash',
       isCurrent: account => account.password === 'old-password-hash',
     }), true);
     assert.equal(await store.claim(challenge.id, 'passenger', null), undefined);
+    assert.equal(await store.claimReset(challenge.id, 'passenger', 'reset:proof'), undefined);
     assert.ok((await sessions.findByTokenHash(session.tokenHash))?.revokedAt);
     assert.equal(await sessions.createForPassengerPassword(
       { ...session, id: randomUUID(), tokenHash: randomUUID() }, 'old-password-hash',
