@@ -1,0 +1,107 @@
+name: Disposable account maintenance check
+
+on:
+  push:
+    branches: [feature/disposable-test-account-20261104]
+  pull_request:
+    branches: [feature/password-recovery-20261104]
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: ramonessa, POSTGRES_PASSWORD: ramonessa, POSTGRES_DB: ramonessa}
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U ramonessa" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund && npm run build --prefix backend/core
+      - run: node backend/core/dist/scripts/migrate.js
+      - name: Verify account isolation and financial safeguards with disposable data
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import runpy
+          import subprocess
+          from uuid import uuid4
+
+          module = runpy.run_path('deploy/account-deletion/disposable-account.py')
+          postgres = Path('backend/core/dist/src/db/postgres.js').resolve().as_uri()
+          probe = module['PROBE'].replace('/app/dist/src/db/postgres.js', postgres)
+
+          def run(code, payload):
+              result = subprocess.run(
+                  ['node', '--input-type=module', '-e', code],
+                  input=json.dumps(payload), check=True, capture_output=True, text=True,
+              )
+              return json.loads(result.stdout)
+
+          def account(role, email, confirmed=None):
+              return run(probe, {'role':role, 'email':email, 'confirmedId':confirmed})
+
+          def query(sql, values):
+              return run(f"""
+              import {{readFileSync}} from 'node:fs';
+              import {{createPostgresPool}} from '{postgres}';
+              const pool = createPostgresPool(process.env.DATABASE_URL);
+              try {{
+                const {{sql,values}} = JSON.parse(readFileSync(0,'utf8'));
+                console.log(JSON.stringify((await pool.query(sql,values)).rows));
+              }} finally {{ await pool.end(); }}
+              """, {'sql':sql, 'values':values})
+
+          email = 'disposable-ci@example.test'
+          phone = '+5588999912345'
+          passenger = str(uuid4())
+          driver = str(uuid4())
+          passenger_subject = 'passenger-' + str(uuid4())
+          driver_subject = 'driver-' + str(uuid4())
+          for role, identity, subject in [
+              ('passenger', passenger, passenger_subject), ('driver', driver, driver_subject),
+          ]:
+              query("""
+                INSERT INTO auth_identities(id,subject_id,subject_type,phone_e164,email_normalized,status,created_at,updated_at)
+                VALUES($1,$2,$3,$4,$5,'active',now(),now())
+              """, [identity,subject,role,phone,email])
+          assert account('passenger', email) == {'state':'eligible','id':passenger}
+          query("""
+            INSERT INTO auth_sessions(id,subject_id,subject_type,token_hash,created_at,expires_at)
+            VALUES($1,$2,'passenger',$3,now(),now() + interval '1 hour')
+          """, [str(uuid4()),passenger_subject,str(uuid4())])
+          assert account('passenger', email)['state'] == 'blocked'
+          assert account('passenger', email, passenger)['state'] == 'blocked'
+          query("""
+            UPDATE auth_sessions SET expires_at = now() - interval '11 minutes',
+              created_at = now() - interval '1 hour'
+            WHERE subject_id=$1
+          """, [passenger_subject])
+          transaction = query("""
+            INSERT INTO ledger_transactions(kind,reference_key) VALUES('test','disposable-account-test')
+            RETURNING id
+          """, [])[0]['id']
+          query("""
+            INSERT INTO ledger_entries(transaction_id,account_key,direction,amount_cents)
+            VALUES($1,$2,'credit',100)
+          """, [transaction,'passenger:' + passenger_subject + ':wallet'])
+          assert 'ledger financeiro' in account('passenger', email)['blockers']
+          assert account('passenger', email, passenger)['state'] == 'blocked'
+          query('DELETE FROM ledger_entries WHERE transaction_id=$1', [transaction])
+          assert account('passenger', email, passenger) == {'state':'deleted'}
+          assert account('passenger', email) == {'state':'not_found'}
+          assert account('driver', email) == {'state':'eligible','id':driver}
+          assert account('driver', email, driver) == {'state':'deleted'}
+          print('Validated read-only query, live-session and ledger blocking, and deletion for both roles.')
+          PY
