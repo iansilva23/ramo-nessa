@@ -106,11 +106,11 @@ test('recovery never sends to an unconfirmed contact and accepts the selected ch
   assert.equal(noContact.status, 202);
   assert.equal(noAccount.status, 202);
   assert.deepEqual(Object.keys(noContact.body), Object.keys(noAccount.body));
-  assert.deepEqual(deliveries, []);
+  assert.equal(deliveries.length, 0);
 
   const proof = await call('confirm-request', { channel: 'whatsapp', password }, true);
   assert.equal(proof.status, 202);
-  assert.deepEqual(deliveries, [{ destination: account.phone_e164, channel: 'whatsapp', code: '271828' }]);
+  assert.deepEqual(deliveries.slice(), [{ destination: account.phone_e164, channel: 'whatsapp', code: '271828' }]);
   assert.equal((await call('confirm-complete', { ...proof.body, code: '271828' }, true)).status, 200);
   assert.equal((await call('request', { identifier: 'test-driver', channel: 'email' })).status, 202);
   assert.equal(deliveries.length, 1);
