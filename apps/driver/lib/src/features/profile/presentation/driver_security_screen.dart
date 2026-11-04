@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../../../core/config/driver_core_config.dart';
 import '../../home/data/driver_api.dart';
 import '../../home/domain/driver_models.dart';
 
@@ -10,11 +11,13 @@ class DriverSecurityScreen extends StatefulWidget {
     required this.api,
     this.profile,
     this.configureLogin,
+    this.accessToken,
   });
 
   final DriverApi api;
   final DriverProfileSnapshot? profile;
   final VoidCallback? configureLogin;
+  final String? accessToken;
 
   @override
   State<DriverSecurityScreen> createState() => _DriverSecurityScreenState();
@@ -171,6 +174,18 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
                 ],
               ),
             ),
+            if (DriverCoreConfig.baseUri != null && (widget.accessToken?.length ?? 0) >= 20)
+              ListTile(
+                leading: const Icon(Icons.verified_user_outlined),
+                title: const Text('Contatos para recuperar senha'),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => RamoPasswordRecovery(
+                    baseUri: DriverCoreConfig.baseUri!,
+                    driver: true,
+                    accessToken: widget.accessToken,
+                  ),
+                )),
+              ),
             if (widget.configureLogin != null)
               ListTile(
                 leading: const Icon(Icons.password_rounded),

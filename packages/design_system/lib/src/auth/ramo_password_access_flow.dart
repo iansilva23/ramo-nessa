@@ -23,9 +23,11 @@ class RamoPasswordAccessFlow extends StatefulWidget {
     required this.onLogin,
     required this.onRegister,
     this.heroImageUrl,
+    this.onRecoverPassword,
   });
   final bool driver;
   final String? heroImageUrl;
+  final VoidCallback? onRecoverPassword;
   final Future<void> Function(RamoPasswordAccessValues values) onLogin,
       onRegister;
   @override
@@ -256,6 +258,12 @@ class _RamoPasswordAccessFlowState extends State<RamoPasswordAccessFlow> {
                 loading: _loading,
                 label: 'Entrar',
               ),
+              if (widget.onRecoverPassword != null)
+                TextButton(
+                  key: const Key('auth-forgot-password'),
+                  onPressed: _loading ? null : widget.onRecoverPassword,
+                  child: const Text('Esqueci minha senha'),
+                ),
             ] else ...[
               _heading(
                 widget.driver

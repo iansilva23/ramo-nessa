@@ -1,3 +1,5 @@
+import { handlePasswordRecoveryRoute } from './auth/password-recovery-routes.js';
+import { recoveryDeliveryFromEnv } from './auth/recovery-delivery.js';
 import {registerPasswordAccount,PasswordRegistrationError} from './auth/password-registration.js';
 import {handleDriverPasswordAuthRoute} from './auth/driver-password-auth-routes.js';
 import {NavigationControlError} from './routing/driver-navigation-control.js';
@@ -549,6 +551,7 @@ const {
   authIdentityRepository,
   driverPasswordAuthStore,
   passwordRegistrationStore,
+  passwordRecoveryStore,
   adminRepository,
   adminHumanAuthRepository,
   rideRepository,
@@ -712,6 +715,8 @@ const growthService = new GrowthService({store:growthRepository,privacy:privacyR
 let growthTimer:ReturnType<typeof setInterval>|null=null;
 async function runGrowthMarketing(){try{await growthService.runAutomatic();}catch{logError('marketing.worker.failed',{message:'Falha no processamento; consulte a central de problemas.'});}}
 const authRateLimitSecret = resolvePasswordRateLimitSecret();
+const passwordRecoverySecret = process.env.PASSWORD_RECOVERY_SECRET?.trim() ?? '';
+const recoveryDeliveries = passwordRecoverySecret.length >= 32 ? recoveryDeliveryFromEnv(process.env) : {};
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
 const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
@@ -2757,6 +2762,15 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
+
+    if (await handlePasswordRecoveryRoute({
+      request, response, pathname: requestUrl.pathname, readJson, json,
+      dependencies: {
+        store: passwordRecoveryStore, identities: authIdentityRepository, sessions: authSessionRepository,
+        deliveries: recoveryDeliveries, secret: passwordRecoverySecret, clientIp: requestClientIp(request),
+        clientInstanceId: headerValue(request, 'x-client-instance-id'),
+      },
+    })) return;
 
     if(request.method==='POST'&&(requestUrl.pathname==='/v1/auth/driver/password/register'||requestUrl.pathname==='/v1/auth/passenger/password/register')){
       const body=await readJson(request),v=(body&&typeof body==='object'?body:{}) as Record<string,unknown>;

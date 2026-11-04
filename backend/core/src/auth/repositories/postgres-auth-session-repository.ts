@@ -34,7 +34,7 @@ export class PostgresAuthSessionRepository
   implements AuthSessionRepository {
   constructor(private readonly pool: Pool) {}
 
-  async create(session: AuthSessionRecord): Promise<AuthSessionRecord> {
+  private async pruneExpired(createdAt: string): Promise<void> {
     await this.pool.query(
       `
       DELETE FROM auth_sessions
@@ -43,9 +43,12 @@ export class PostgresAuthSessionRepository
           AND revoked_at < $1::timestamptz - INTERVAL '30 days')
         OR expires_at < $1::timestamptz - INTERVAL '30 days'
       `,
-      [session.createdAt],
+      [createdAt],
     );
+  }
 
+  async create(session: AuthSessionRecord): Promise<AuthSessionRecord> {
+    await this.pruneExpired(session.createdAt);
     const result = await this.pool.query<AuthSessionRow>(
       `
       INSERT INTO auth_sessions (
@@ -67,6 +70,20 @@ export class PostgresAuthSessionRepository
     const row = result.rows[0];
     if (row == null) throw new Error('Sessão não foi persistida.');
     return mapSession(row);
+  }
+
+  async createForPassengerPassword(session: AuthSessionRecord, passwordHash: string): Promise<boolean> {
+    await this.pruneExpired(session.createdAt);
+    // Serialize session issuance against a concurrent password recovery.
+    const result = await this.pool.query(`
+      INSERT INTO auth_sessions (id, subject_id, subject_type, token_hash, expires_at, created_at)
+      SELECT $1, subject_id, subject_type, $3, $4, $5
+      FROM auth_identities
+      WHERE subject_id = $2 AND subject_type = 'passenger' AND status = 'active' AND password_hash = $6
+      FOR UPDATE
+      RETURNING id
+    `, [session.id, session.subjectId, session.tokenHash, session.expiresAt, session.createdAt, passwordHash]);
+    return result.rowCount === 1;
   }
 
   async findByTokenHash(

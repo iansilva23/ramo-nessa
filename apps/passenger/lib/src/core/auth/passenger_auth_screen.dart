@@ -37,6 +37,11 @@ class PassengerAuthScreen extends StatelessWidget {
     heroImageUrl: RamoCoreConfig.baseUri
         ?.resolve('/v1/content/app-auth-branding/hero')
         .toString(),
+    onRecoverPassword: RamoCoreConfig.baseUri == null ? null : () {
+      Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => RamoPasswordRecovery(baseUri: RamoCoreConfig.baseUri!, driver: false),
+      ));
+    },
     onLogin: (values) async {
       await _save(
         await service.loginWithPassword(

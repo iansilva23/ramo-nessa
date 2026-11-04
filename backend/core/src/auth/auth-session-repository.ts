@@ -12,6 +12,7 @@ export interface AuthSessionRecord {
 
 export interface AuthSessionRepository {
   create(session: AuthSessionRecord): Promise<AuthSessionRecord>;
+  createForPassengerPassword?(session: AuthSessionRecord, passwordHash: string): Promise<boolean>;
   findByTokenHash(tokenHash: string): Promise<AuthSessionRecord | null>;
   renewActive(id: string, now: string, expiresAt: string): Promise<AuthSessionRecord | null>;
   revoke(id: string, revokedAt: string): Promise<void>;

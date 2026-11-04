@@ -41,6 +41,7 @@ export async function issueAuthSession(input: {
   subjectType: AuthSubjectType;
   now?: Date;
   ttlMs?: number;
+  passengerPasswordHash?: string;
 }): Promise<IssuedAuthSession> {
   const subjectId = input.subjectId.trim();
   if (subjectId.length < 3) {
@@ -68,7 +69,13 @@ export async function issueAuthSession(input: {
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
   };
-  await input.repository.create(session);
+  if (input.subjectType === 'passenger' && input.passengerPasswordHash != null &&
+      input.repository.createForPassengerPassword != null) {
+    const saved = await input.repository.createForPassengerPassword(session, input.passengerPasswordHash);
+    if (!saved) throw new AuthenticationError('AUTH_INVALID', 'E-mail ou senha inválidos.');
+  } else {
+    await input.repository.create(session);
+  }
   return { token, session };
 }
 
