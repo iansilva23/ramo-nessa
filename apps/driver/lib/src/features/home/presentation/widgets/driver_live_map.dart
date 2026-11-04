@@ -448,6 +448,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   gm.BitmapDescriptor _passengerIcon = gm.BitmapDescriptor.defaultMarker;
   gm.BitmapDescriptor _destinationIcon = gm.BitmapDescriptor.defaultMarker;
   final Map<String, gm.BitmapDescriptor> _vehicleIcons = {};
+  gm.BitmapDescriptor? _navigationArrow;
 
   domain.LatLng get _driverPoint {
     final animated = _displayDriverPoint;
@@ -569,6 +570,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   }
 
   Future<void> _loadMarkerIcons() async {
+    final navigationArrow = await buildRamoNavigationArrow();
     final passengerIcon = await buildRamoMapMarker(
       icon: Icons.person_rounded,
       assetName: RamoMapMarkerAssets.passenger,
@@ -602,6 +604,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
     if (!mounted) return;
     setState(() {
+      _navigationArrow = navigationArrow;
       _passengerIcon = passengerIcon;
       _destinationIcon = destinationIcon;
       _vehicleIcons
@@ -771,11 +774,14 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     }
 
     final driverPoint = _driverPoint;
+    final navigationArrow = widget.activeRide?.state == 'IN_PROGRESS'
+        ? _navigationArrow
+        : null;
     markers.add(
       gm.Marker(
         markerId: const gm.MarkerId('current-driver'),
         position: gm.LatLng(driverPoint.latitude, driverPoint.longitude),
-        icon: _vehicleIcon(_currentVehicleCategory()),
+        icon: navigationArrow ?? _vehicleIcon(_currentVehicleCategory()),
         anchor: const Offset(.5, .5),
         flat: true,
         rotation: _displayDriverBearing,
