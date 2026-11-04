@@ -2504,6 +2504,39 @@ function syncDriverAuthActionAvailability() {
     : 'Aprove o perfil, o veículo, a CNH e o CRLV antes de liberar o motorista.';
 }
 
+function accountDeletionButton(role, subjectId, name) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button button--danger';
+  button.textContent = 'Excluir conta definitivamente';
+  button.addEventListener('click', () => {
+    void deleteAccount(role, subjectId, name, button);
+  });
+  return button;
+}
+
+async function deleteAccount(role, subjectId, name, button) {
+  if (!state.token || !canManageStaff() || button.disabled) return;
+  if (!window.confirm(`Excluir definitivamente a conta de ${name} (${subjectId})? O acesso será encerrado agora.`)) return;
+  button.disabled = true;
+  try {
+    const result = await api.deleteAccount(state.token, { role, subjectId });
+    if (result?.deleted !== true) throw new Error('O servidor não confirmou a exclusão.');
+    if (role === 'driver') {
+      await lookupDriver(subjectId);
+      await loadDriverDirectory({ reset: true, announce: false });
+    } else {
+      renderPassengerDetailEmpty('Selecione outro passageiro.');
+      await loadPassengerDirectory({ reset: true, announce: false });
+    }
+    setMessage(globalMessage, 'Conta excluída definitivamente.', 'success');
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderDriver(driver) {
   const target = byId('driver-result');
   target.replaceChildren();
@@ -2563,6 +2596,9 @@ function renderDriver(driver) {
       );
     });
     actions.append(button);
+    if (canManageStaff()) {
+      actions.append(accountDeletionButton('driver', driver.driverId, title.textContent));
+    }
     target.append(actions);
     syncDriverAuthActionAvailability();
   }
@@ -6528,6 +6564,9 @@ function renderPassengerDetail(payload) {
     ),
   );
   content.append(identity, grid);
+  if (canManageStaff() && hasScope('passengers:auth:write')) {
+    content.append(accountDeletionButton('passenger', passenger.passengerId, name.textContent));
+  }
 
   const canEditProfile = hasScope('passengers:auth:write');
   const editForm = byId('passenger-profile-edit-form');

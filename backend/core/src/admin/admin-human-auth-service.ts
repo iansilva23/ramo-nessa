@@ -391,15 +391,18 @@ export async function reauthenticateAdminHuman(input: {
   totpCode: unknown;
   encryptionKey?: Buffer;
   rateLimitSecret?: string;
+  requiredScope?: AdminScope;
+  purpose?: 'account-deletion';
   now?: Date;
 }): Promise<void> {
   const now=input.now??new Date();
+  const requiredScope = input.requiredScope ?? 'pricing:write';
   const authenticated=await authenticateAdminHumanSession({
-    repository:input.repository,headers:input.headers,requiredScope:'pricing:write',now,
+    repository:input.repository,headers:input.headers,requiredScope,now,
   });
   const secret=input.rateLimitSecret??resolveAdminLoginRateLimitSecret();
   const limited=await input.repository.consumeRateLimits({
-    rules:[{key:rateBucket(secret,'pricing-reauth',authenticated.user.id),limit:5,windowMs:LOGIN_WINDOW_MS}],
+    rules:[{key:rateBucket(secret,input.purpose === 'account-deletion' ? 'account-deletion-reauth' : 'pricing-reauth',authenticated.user.id),limit:5,windowMs:LOGIN_WINDOW_MS}],
     now:now.toISOString(),
   });
   if(!limited.allowed)throw new AdminHumanAuthenticationError('ADMIN_LOGIN_RATE_LIMITED','Muitas tentativas de confirmação. Aguarde antes de tentar novamente.',Math.max(1,Math.ceil(limited.retryAfterMs/1000)));
@@ -416,5 +419,5 @@ export async function reauthenticateAdminHuman(input: {
   if(counter==null||!await input.repository.consumeTotpCounter({userId:authenticated.user.id,counter,updatedAt:now.toISOString()}))
     throw new AdminHumanAuthenticationError('ADMIN_LOGIN_INVALID','Use um código MFA novo do autenticador.');
   // Recheck status/scopes/revocation after expensive password verification.
-  await authenticateAdminHumanSession({repository:input.repository,headers:input.headers,requiredScope:'pricing:write',now});
+  await authenticateAdminHumanSession({repository:input.repository,headers:input.headers,requiredScope,now});
 }

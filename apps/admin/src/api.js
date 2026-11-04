@@ -844,6 +844,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    deleteAccount(token, { role, subjectId }) {
+      return request(
+        `/v1/admin/accounts/${encodeURIComponent(role)}/${encodeURIComponent(subjectId)}/delete`,
+        { method: 'POST', token, body: { confirmed: true } },
+      );
+    },
+
     setPassengerStatus(token, { passengerId, status }) {
       return request(
         `/v1/admin/passengers/${encodeURIComponent(passengerId)}/auth/status`,
