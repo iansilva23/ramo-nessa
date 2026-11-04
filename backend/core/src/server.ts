@@ -1,3 +1,4 @@
+import { AdminAccountDeletionError } from './admin/admin-account-deletion.js';
 import { handlePasswordRecoveryRoute } from './auth/password-recovery-routes.js';
 import { recoveryDeliveryFromEnv } from './auth/recovery-delivery.js';
 import {registerPasswordAccount,PasswordRegistrationError} from './auth/password-registration.js';
@@ -166,6 +167,7 @@ import {
 import {
   AdminHumanAuthenticationError,
   authenticateAdminHumanSession,
+  reauthenticateAdminHuman,
   loginAdminHuman,
   resolveAdminLoginRateLimitSecret,
   revokeAdminHumanSession,
@@ -552,6 +554,7 @@ const {
   driverPasswordAuthStore,
   passwordRegistrationStore,
   passwordRecoveryStore,
+  adminAccountDeletion,
   adminRepository,
   adminHumanAuthRepository,
   rideRepository,
@@ -5531,6 +5534,39 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const adminAccountDeletionMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/accounts\/(driver|passenger)\/([A-Za-z0-9._:-]{3,120})\/delete$/,
+    );
+    if (request.method === 'POST' && adminAccountDeletionMatch) {
+      const role = adminAccountDeletionMatch[1] === 'driver' ? 'driver' : 'passenger';
+      const requiredScope = role === 'driver' ? 'drivers:auth:write' : 'passengers:auth:write';
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository, headers: request.headers, requiredScope,
+      });
+      const actor = { kind: 'user' as const, id: authenticated.user.id, name: authenticated.user.name };
+      assertAdminOwner(actor);
+      const body = await readJson(request);
+      const value = body != null && typeof body === 'object' && !Array.isArray(body)
+        ? body as Record<string, unknown> : {};
+      if (value.confirmation !== 'EXCLUIR') {
+        throw new AdminAccountDeletionError(422, 'ACCOUNT_DELETE_CONFIRMATION_REQUIRED',
+          'Digite EXCLUIR para confirmar a exclusão definitiva.');
+      }
+      if (adminAccountDeletion == null) {
+        throw new AdminAccountDeletionError(503, 'ACCOUNT_DELETE_UNAVAILABLE',
+          'Exclusão indisponível neste ambiente.');
+      }
+      await reauthenticateAdminHuman({
+        repository: adminHumanAuthRepository, headers: request.headers, requiredScope,
+        purpose: 'account-deletion', password: value.password, totpCode: value.totpCode,
+        encryptionKey: adminMfaEncryptionKey, rateLimitSecret: adminLoginRateLimitSecret,
+      });
+      await adminAccountDeletion.remove({ role, subjectId: adminAccountDeletionMatch[2]!, actor });
+      response.setHeader('cache-control', 'no-store');
+      json(response, 200, { deleted: true });
+      return;
+    }
+
     const adminPassengerProfileUpdateMatch =
       requestUrl.pathname.match(
         /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)\/profile$/,
@@ -9324,6 +9360,10 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof AdminAccountDeletionError) {
+      json(response, error.status, { error: error.code, message: error.message });
+      return;
+    }
     if (error instanceof AdminOwnerAuthorizationError) {
       json(
         response,

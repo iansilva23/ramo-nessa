@@ -1,0 +1,72 @@
+name: Admin account deletion validation and package
+
+on:
+  push:
+    branches: [feature/admin-account-deletion-20261104]
+  pull_request:
+    branches: [feature/password-recovery-20261104]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: ramonessa, POSTGRES_PASSWORD: ramonessa, POSTGRES_DB: ramonessa}
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U ramonessa" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run typecheck --prefix backend/core && npm run build --prefix backend/core
+      - run: node backend/core/dist/scripts/migrate.js
+      - run: npm test
+        working-directory: backend/core
+      - run: node --test apps/admin/test/admin_passenger_access_web.test.js apps/admin/test/admin_driver_registry_web.test.js apps/admin/test/admin_passenger_profile_web.test.js
+      - name: Package only the tested modules and the two ADM changes
+        if: github.event_name == 'push'
+        run: |
+          out="$PWD/admin-account-release"
+          mkdir "$out"
+          git diff f3cec1db333cb91e71597dc46d0efa224a642081 HEAD -- apps/admin/src/app.js apps/admin/src/api.js > "$out/adm.patch"
+          printf '%s\n' "$GITHUB_SHA" > "$out/source.txt"
+          cd backend/core
+          zip "$out/RamoNessa-Exclusao-ADM.zip" dist/src/server.js dist/src/db/repositories.js \
+            dist/src/admin/admin-account-deletion.js dist/src/admin/admin-human-auth-service.js
+          cd "$out"
+          zip RamoNessa-Exclusao-ADM.zip adm.patch source.txt
+          sha256sum RamoNessa-Exclusao-ADM.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: admin-account-deletion
+          path: admin-account-release/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: admin-account-deletion, path: release}
+      - name: Publish the verified overlay
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          sha256sum -c SHA256SUMS
+          gh release create "admin-account-deletion-${GITHUB_SHA:0:12}" RamoNessa-Exclusao-ADM.zip SHA256SUMS \
+            --target "$GITHUB_SHA" --prerelease --latest=false --title 'Exclusão de contas elegíveis no ADM'

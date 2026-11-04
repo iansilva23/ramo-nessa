@@ -2504,6 +2504,89 @@ function syncDriverAuthActionAvailability() {
     : 'Aprove o perfil, o veículo, a CNH e o CRLV antes de liberar o motorista.';
 }
 
+function accountDeletionButton(role, subjectId, name) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button button--danger';
+  button.textContent = 'Excluir conta definitivamente';
+  button.addEventListener('click', () => openAccountDeletion(role, subjectId, name));
+  return button;
+}
+
+function openAccountDeletion(role, subjectId, name) {
+  if (!state.token || !canManageStaff()) return;
+  const dialog = document.createElement('dialog');
+  dialog.className = 'panel-card';
+  dialog.setAttribute('aria-label', 'Excluir conta definitivamente');
+  dialog.innerHTML = `
+    <form class="stack-form">
+      <h2>Excluir conta definitivamente</h2>
+      <p data-account></p>
+      <p>A conta perde o acesso e os dados de cadastro são liberados. Contas com histórico, documentos ou sessão recente exigem revisão.</p>
+      <label class="field"><span>Digite EXCLUIR</span><input name="confirmation" required autocomplete="off"></label>
+      <label class="field"><span>Sua senha do ADM</span><input type="password" name="password" required autocomplete="current-password"></label>
+      <label class="field"><span>Código novo do autenticador</span><input name="totpCode" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"></label>
+      <p role="alert" data-error hidden></p>
+      <div class="driver-actions">
+        <button type="button" class="button button--ghost-dark" data-cancel>Cancelar</button>
+        <button type="submit" class="button button--danger">Excluir definitivamente</button>
+      </div>
+    </form>
+  `;
+  dialog.querySelector('[data-account]').textContent = `${name} (${subjectId})`;
+  const form = dialog.querySelector('form');
+  const submit = dialog.querySelector('[type="submit"]');
+  const cancel = dialog.querySelector('[data-cancel]');
+  const errorMessageTarget = dialog.querySelector('[data-error]');
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  dialog.addEventListener('cancel', event => {
+    if (submit.disabled) event.preventDefault();
+  });
+  cancel.addEventListener('click', () => dialog.close());
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    const values = new FormData(form);
+    if (values.get('confirmation') !== 'EXCLUIR') {
+      setMessage(errorMessageTarget, 'Digite EXCLUIR para confirmar.', 'danger');
+      return;
+    }
+    submit.disabled = true;
+    cancel.disabled = true;
+    setMessage(errorMessageTarget);
+    try {
+      const result = await api.deleteAccount(state.token, {
+        role, subjectId,
+        confirmation: values.get('confirmation'),
+        password: values.get('password'),
+        totpCode: values.get('totpCode'),
+      });
+      if (result?.deleted !== true) throw new Error('O servidor não confirmou a exclusão.');
+    } catch (error) {
+      form.elements.namedItem('password').value = '';
+      form.elements.namedItem('totpCode').value = '';
+      setMessage(errorMessageTarget, errorMessage(error), 'danger');
+      submit.disabled = false;
+      cancel.disabled = false;
+      return;
+    }
+    form.reset();
+    dialog.close();
+    if (role === 'driver') {
+      await lookupDriver(subjectId);
+      await loadDriverDirectory({ reset: true, announce: false });
+    } else {
+      renderPassengerDetailEmpty('Selecione outro passageiro.');
+      await loadPassengerDirectory({ reset: true, announce: false });
+    }
+    setMessage(globalMessage, 'Conta excluída definitivamente.', 'success');
+  });
+
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
 function renderDriver(driver) {
   const target = byId('driver-result');
   target.replaceChildren();
@@ -2563,6 +2646,9 @@ function renderDriver(driver) {
       );
     });
     actions.append(button);
+    if (canManageStaff()) {
+      actions.append(accountDeletionButton('driver', driver.driverId, title.textContent));
+    }
     target.append(actions);
     syncDriverAuthActionAvailability();
   }
@@ -6528,6 +6614,9 @@ function renderPassengerDetail(payload) {
     ),
   );
   content.append(identity, grid);
+  if (canManageStaff() && hasScope('passengers:auth:write')) {
+    content.append(accountDeletionButton('passenger', passenger.passengerId, name.textContent));
+  }
 
   const canEditProfile = hasScope('passengers:auth:write');
   const editForm = byId('passenger-profile-edit-form');
