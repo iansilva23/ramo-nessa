@@ -2509,92 +2509,19 @@ function accountDeletionButton(role, subjectId, name) {
   button.type = 'button';
   button.className = 'button button--danger';
   button.textContent = 'Excluir conta definitivamente';
-  button.addEventListener('click', () => openAccountDeletion(role, subjectId, name));
+  button.addEventListener('click', () => {
+    void deleteAccount(role, subjectId, name, button);
+  });
   return button;
 }
 
-function openAccountDeletion(role, subjectId, name) {
-  if (!state.token || !canManageStaff()) return;
-  const dialog = document.createElement('dialog');
-  dialog.className = 'panel-card';
-  dialog.setAttribute('aria-label', 'Excluir conta definitivamente');
-  const form = document.createElement('form');
-  form.className = 'stack-form';
-  const title = document.createElement('h2');
-  title.textContent = 'Excluir conta definitivamente';
-  const account = document.createElement('p');
-  account.textContent = `${name} (${subjectId})`;
-  const notice = document.createElement('p');
-  notice.textContent = 'A conta perde o acesso e os dados de cadastro são liberados. Contas com histórico, documentos ou sessão recente exigem revisão.';
-  const errorMessageTarget = document.createElement('p');
-  errorMessageTarget.setAttribute('role', 'alert');
-  errorMessageTarget.hidden = true;
-  const field = (label, props) => {
-    const wrapper = document.createElement('label');
-    wrapper.className = 'field';
-    const text = document.createElement('span');
-    text.textContent = label;
-    const input = document.createElement('input');
-    Object.assign(input, props, { required: true });
-    wrapper.append(text, input);
-    return wrapper;
-  };
-  const actions = document.createElement('div');
-  actions.className = 'driver-actions';
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'button button--ghost-dark';
-  cancel.textContent = 'Cancelar';
-  const submit = document.createElement('button');
-  submit.type = 'submit';
-  submit.className = 'button button--danger';
-  submit.textContent = 'Excluir definitivamente';
-  actions.append(cancel, submit);
-  form.append(
-    title, account, notice,
-    field('Digite EXCLUIR', { name: 'confirmation', autocomplete: 'off' }),
-    field('Sua senha do ADM', { name: 'password', type: 'password', autocomplete: 'current-password' }),
-    field('Código novo do autenticador', {
-      name: 'totpCode', maxLength: 6, pattern: '[0-9]{6}', inputMode: 'numeric', autocomplete: 'one-time-code',
-    }),
-    errorMessageTarget, actions,
-  );
-  dialog.append(form);
-  dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.addEventListener('cancel', event => {
-    if (submit.disabled) event.preventDefault();
-  });
-  cancel.addEventListener('click', () => dialog.close());
-
-  form.addEventListener('submit', async event => {
-    event.preventDefault();
-    if (submit.disabled) return;
-    const values = new FormData(form);
-    if (values.get('confirmation') !== 'EXCLUIR') {
-      setMessage(errorMessageTarget, 'Digite EXCLUIR para confirmar.', 'danger');
-      return;
-    }
-    submit.disabled = true;
-    cancel.disabled = true;
-    setMessage(errorMessageTarget);
-    try {
-      const result = await api.deleteAccount(state.token, {
-        role, subjectId,
-        confirmation: values.get('confirmation'),
-        password: values.get('password'),
-        totpCode: values.get('totpCode'),
-      });
-      if (result?.deleted !== true) throw new Error('O servidor não confirmou a exclusão.');
-    } catch (error) {
-      form.elements.namedItem('password').value = '';
-      form.elements.namedItem('totpCode').value = '';
-      setMessage(errorMessageTarget, errorMessage(error), 'danger');
-      submit.disabled = false;
-      cancel.disabled = false;
-      return;
-    }
-    form.reset();
-    dialog.close();
+async function deleteAccount(role, subjectId, name, button) {
+  if (!state.token || !canManageStaff() || button.disabled) return;
+  if (!window.confirm(`Excluir definitivamente a conta de ${name} (${subjectId})? O acesso será encerrado agora.`)) return;
+  button.disabled = true;
+  try {
+    const result = await api.deleteAccount(state.token, { role, subjectId });
+    if (result?.deleted !== true) throw new Error('O servidor não confirmou a exclusão.');
     if (role === 'driver') {
       await lookupDriver(subjectId);
       await loadDriverDirectory({ reset: true, announce: false });
@@ -2603,10 +2530,11 @@ function openAccountDeletion(role, subjectId, name) {
       await loadPassengerDirectory({ reset: true, announce: false });
     }
     setMessage(globalMessage, 'Conta excluída definitivamente.', 'success');
-  });
-
-  document.body.append(dialog);
-  dialog.showModal();
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderDriver(driver) {

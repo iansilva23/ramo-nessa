@@ -844,10 +844,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
-    deleteAccount(token, { role, subjectId, confirmation, password, totpCode }) {
+    deleteAccount(token, { role, subjectId }) {
       return request(
         `/v1/admin/accounts/${encodeURIComponent(role)}/${encodeURIComponent(subjectId)}/delete`,
-        { method: 'POST', token, body: { confirmation, password, totpCode } },
+        { method: 'POST', token, body: { confirmed: true } },
       );
     },
 

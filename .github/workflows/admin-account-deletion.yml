@@ -39,12 +39,14 @@ jobs:
           out="$PWD/admin-account-release"
           mkdir "$out"
           git diff f3cec1db333cb91e71597dc46d0efa224a642081 HEAD -- apps/admin/src/app.js apps/admin/src/api.js > "$out/adm.patch"
+          git diff 7cbfaef1dabf1e3ff41ab34b4dccd92a2e8763f7 HEAD -- apps/admin/src/app.js apps/admin/src/api.js > "$out/adm-from-v1.patch"
           printf '%s\n' "$GITHUB_SHA" > "$out/source.txt"
           cd backend/core
           zip "$out/RamoNessa-Exclusao-ADM.zip" dist/src/server.js dist/src/db/repositories.js \
-            dist/src/admin/admin-account-deletion.js dist/src/admin/admin-human-auth-service.js
+            dist/src/admin/admin-account-deletion.js dist/src/admin/admin-human-auth-service.js \
+            migrations/104_admin_account_closure.sql
           cd "$out"
-          zip RamoNessa-Exclusao-ADM.zip adm.patch source.txt
+          zip RamoNessa-Exclusao-ADM.zip adm.patch adm-from-v1.patch source.txt
           sha256sum RamoNessa-Exclusao-ADM.zip > SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push'

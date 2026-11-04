@@ -167,7 +167,6 @@ import {
 import {
   AdminHumanAuthenticationError,
   authenticateAdminHumanSession,
-  reauthenticateAdminHuman,
   loginAdminHuman,
   resolveAdminLoginRateLimitSecret,
   revokeAdminHumanSession,
@@ -5548,20 +5547,16 @@ const server = createServer(async (request, response) => {
       const body = await readJson(request);
       const value = body != null && typeof body === 'object' && !Array.isArray(body)
         ? body as Record<string, unknown> : {};
-      if (value.confirmation !== 'EXCLUIR') {
+      if (value.confirmed !== true) {
         throw new AdminAccountDeletionError(422, 'ACCOUNT_DELETE_CONFIRMATION_REQUIRED',
-          'Digite EXCLUIR para confirmar a exclusão definitiva.');
+          'Confirme a exclusão definitiva.');
       }
       if (adminAccountDeletion == null) {
         throw new AdminAccountDeletionError(503, 'ACCOUNT_DELETE_UNAVAILABLE',
           'Exclusão indisponível neste ambiente.');
       }
-      await reauthenticateAdminHuman({
-        repository: adminHumanAuthRepository, headers: request.headers, requiredScope,
-        purpose: 'account-deletion', password: value.password, totpCode: value.totpCode,
-        encryptionKey: adminMfaEncryptionKey, rateLimitSecret: adminLoginRateLimitSecret,
-      });
-      await adminAccountDeletion.remove({ role, subjectId: adminAccountDeletionMatch[2]!, actor });
+      const sessions = await adminAccountDeletion.remove({ role, subjectId: adminAccountDeletionMatch[2]!, actor });
+      for (const session of sessions) realtimeServer.disconnectBrowserSession(session);
       response.setHeader('cache-control', 'no-store');
       json(response, 200, { deleted: true });
       return;
