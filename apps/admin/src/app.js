@@ -2518,26 +2518,48 @@ function openAccountDeletion(role, subjectId, name) {
   const dialog = document.createElement('dialog');
   dialog.className = 'panel-card';
   dialog.setAttribute('aria-label', 'Excluir conta definitivamente');
-  dialog.innerHTML = `
-    <form class="stack-form">
-      <h2>Excluir conta definitivamente</h2>
-      <p data-account></p>
-      <p>A conta perde o acesso e os dados de cadastro são liberados. Contas com histórico, documentos ou sessão recente exigem revisão.</p>
-      <label class="field"><span>Digite EXCLUIR</span><input name="confirmation" required autocomplete="off"></label>
-      <label class="field"><span>Sua senha do ADM</span><input type="password" name="password" required autocomplete="current-password"></label>
-      <label class="field"><span>Código novo do autenticador</span><input name="totpCode" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"></label>
-      <p role="alert" data-error hidden></p>
-      <div class="driver-actions">
-        <button type="button" class="button button--ghost-dark" data-cancel>Cancelar</button>
-        <button type="submit" class="button button--danger">Excluir definitivamente</button>
-      </div>
-    </form>
-  `;
-  dialog.querySelector('[data-account]').textContent = `${name} (${subjectId})`;
-  const form = dialog.querySelector('form');
-  const submit = dialog.querySelector('[type="submit"]');
-  const cancel = dialog.querySelector('[data-cancel]');
-  const errorMessageTarget = dialog.querySelector('[data-error]');
+  const form = document.createElement('form');
+  form.className = 'stack-form';
+  const title = document.createElement('h2');
+  title.textContent = 'Excluir conta definitivamente';
+  const account = document.createElement('p');
+  account.textContent = `${name} (${subjectId})`;
+  const notice = document.createElement('p');
+  notice.textContent = 'A conta perde o acesso e os dados de cadastro são liberados. Contas com histórico, documentos ou sessão recente exigem revisão.';
+  const errorMessageTarget = document.createElement('p');
+  errorMessageTarget.setAttribute('role', 'alert');
+  errorMessageTarget.hidden = true;
+  const field = (label, props) => {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'field';
+    const text = document.createElement('span');
+    text.textContent = label;
+    const input = document.createElement('input');
+    Object.assign(input, props, { required: true });
+    wrapper.append(text, input);
+    return wrapper;
+  };
+  const actions = document.createElement('div');
+  actions.className = 'driver-actions';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'button button--ghost-dark';
+  cancel.textContent = 'Cancelar';
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.className = 'button button--danger';
+  submit.textContent = 'Excluir definitivamente';
+  actions.append(cancel, submit);
+  form.append(
+    title, account, notice,
+    field('Digite EXCLUIR', { name: 'confirmation', autocomplete: 'off' }),
+    field('Sua senha do ADM', { name: 'password', type: 'password', autocomplete: 'current-password' }),
+    field('Código novo do autenticador', {
+      name: 'totpCode', maxLength: 6, pattern: '[0-9]{6}', inputMode: 'numeric', autocomplete: 'one-time-code',
+    }),
+    errorMessageTarget, actions,
+  );
+  dialog.append(form);
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
   dialog.addEventListener('cancel', event => {
     if (submit.disabled) event.preventDefault();
