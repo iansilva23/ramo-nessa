@@ -30,10 +30,7 @@ test('PostgreSQL bounds recovery sends and commits one password change with sess
       createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
     };
     assert.equal(await sessions.createForPassengerPassword(session, 'old-password-hash'), true);
-    await pool.query(`
-      INSERT INTO auth_recovery_contacts(identity_id, channel, destination_hash)
-      VALUES ($1, 'email', $2)
-    `, [identity, challenge.destination_hash]);
+    assert.equal(await store.confirmed(identity, 'email', challenge.destination_hash), false);
     await store.create(challenge);
     await store.setProof(challenge.id, 'proof');
     const claims = await Promise.all([
@@ -64,6 +61,10 @@ test('PostgreSQL bounds recovery sends and commits one password change with sess
     assert.equal(await sessions.createForPassengerPassword(
       { ...session, id: randomUUID(), tokenHash: randomUUID() }, 'old-password-hash',
     ), false);
+    await pool.query(`
+      INSERT INTO auth_recovery_contacts(identity_id, channel, destination_hash)
+      VALUES ($1, 'email', $2)
+    `, [identity, challenge.destination_hash]);
     await pool.query("UPDATE auth_identities SET email_normalized = 'changed-ci@example.test' WHERE id = $1", [identity]);
     assert.equal(await store.confirmed(identity, 'email', challenge.destination_hash), false);
     await store.create(challenge);

@@ -115,8 +115,6 @@ export class PostgresPasswordRecoveryStore {
       UPDATE auth_recovery_challenges c SET proof = $2, checking = false
       WHERE c.id = $1 AND c.session_id IS NULL AND c.checking AND c.consumed_at IS NULL
         AND c.expires_at > now() AND c.proof NOT LIKE 'reset:%'
-        AND EXISTS (SELECT 1 FROM auth_recovery_contacts
-          WHERE identity_id = c.identity_id AND channel = c.channel AND destination_hash = c.destination_hash)
       RETURNING id
     `, [id, proof]);
     return result.rowCount === 1;
@@ -182,13 +180,6 @@ export class PostgresPasswordRecoveryStore {
           ON CONFLICT (identity_id, channel) DO UPDATE SET destination_hash = EXCLUDED.destination_hash
         `, [account.id, challenge.channel, challenge.destination_hash]);
       } else {
-        const confirmed = await client.query(`
-          SELECT 1 FROM auth_recovery_contacts WHERE identity_id = $1 AND channel = $2 AND destination_hash = $3
-        `, [account.id, challenge.channel, challenge.destination_hash]);
-        if (confirmed.rowCount !== 1) {
-          await client.query('ROLLBACK');
-          return false;
-        }
         await client.query(role === 'driver'
           ? 'UPDATE driver_login_credentials SET password_hash = $2, version = version + 1, updated_at = now() WHERE identity_id = $1'
           : 'UPDATE auth_identities SET password_hash = $2, updated_at = now() WHERE id = $1', [account.id, password]);

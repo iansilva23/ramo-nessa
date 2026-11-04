@@ -136,43 +136,41 @@ export async function handlePasswordRecoveryRoute(input: {
     }
     if (account && destination && password) {
       const destinationHash = digest(d.secret, 'contact', channel, destination);
-      if (session || await store.confirmed(account.id, channel, destinationHash)) {
-        const send = async () => {
-          const allowed = await takeLimit('delivery', [
-            [`destination:${channel}:${destination}`, 3, 15 * 60_000],
-            [`destination-cooldown:${channel}:${destination}`, 1, 60_000],
-            [`identity:${account.id}`, 4, 15 * 60_000],
-            [`channel-burst:${channel}`, Math.min(20, provider.dailyLimit), 15 * 60_000],
-            [`channel-daily:${channel}`, provider.dailyLimit, 24 * 60 * 60_000],
-          ]);
-          if (allowed.allowed) {
-            const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-            await store.create({
-              id, identity_id: account.id, channel, session_id: session?.id ?? null,
-              destination_hash: destinationHash,
-              credential_hash: digest(d.secret, 'credential', account.id, password),
-            });
-            const reference = await provider.send({ id, destination, code });
-            await store.setProof(id, reference ?? digest(d.secret, 'code', id, code));
-          }
-          return allowed;
-        };
-        const logFailure = () => console.warn(JSON.stringify({
-          event: 'password_recovery.delivery_failed', channel, mode: session ? 'confirmation' : 'recovery',
-        }));
-        if (session) {
-          try {
-            const sent = await send();
-            if (!sent.allowed) return limited(sent.retryAfterMs);
-          } catch {
-            logFailure();
-            return reply(503, { error: 'RECOVERY_CHANNEL_UNAVAILABLE',
-              message: 'O envio não foi confirmado. Confira o contato antes de pedir outro código.' });
-          }
-        } else {
-          // Public replies must not disclose whether the account or contact exists.
-          void send().catch(logFailure);
+      const send = async () => {
+        const allowed = await takeLimit('delivery', [
+          [`destination:${channel}:${destination}`, 3, 15 * 60_000],
+          [`destination-cooldown:${channel}:${destination}`, 1, 60_000],
+          [`identity:${account.id}`, 4, 15 * 60_000],
+          [`channel-burst:${channel}`, Math.min(20, provider.dailyLimit), 15 * 60_000],
+          [`channel-daily:${channel}`, provider.dailyLimit, 24 * 60 * 60_000],
+        ]);
+        if (allowed.allowed) {
+          const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+          await store.create({
+            id, identity_id: account.id, channel, session_id: session?.id ?? null,
+            destination_hash: destinationHash,
+            credential_hash: digest(d.secret, 'credential', account.id, password),
+          });
+          const reference = await provider.send({ id, destination, code });
+          await store.setProof(id, reference ?? digest(d.secret, 'code', id, code));
         }
+        return allowed;
+      };
+      const logFailure = () => console.warn(JSON.stringify({
+        event: 'password_recovery.delivery_failed', channel, mode: session ? 'confirmation' : 'recovery',
+      }));
+      if (session) {
+        try {
+          const sent = await send();
+          if (!sent.allowed) return limited(sent.retryAfterMs);
+        } catch {
+          logFailure();
+          return reply(503, { error: 'RECOVERY_CHANNEL_UNAVAILABLE',
+            message: 'O envio não foi confirmado. Confira o contato antes de pedir outro código.' });
+        }
+      } else {
+        // Public replies must not disclose whether the account or contact exists.
+        void send().catch(logFailure);
       }
     }
     return reply(202, { challengeId: id });

@@ -9,7 +9,7 @@ import { handlePasswordRecoveryRoute } from '../src/auth/password-recovery-route
 import type { PostgresPasswordRecoveryStore } from '../src/auth/password-recovery-store.js';
 import { recoveryDeliveryFromEnv, type RecoveryChannel } from '../src/auth/recovery-delivery.js';
 
-test('recovery never sends to an unconfirmed contact and accepts the selected channel only', async () => {
+test('recovery sends to the registered contact without preconfirmation and uses only the selected channel', async () => {
   const password = 'current-pass123';
   const account = {
     id: 'test-id', subject_id: 'test-subject', subject_type: 'driver' as const,
@@ -49,7 +49,7 @@ test('recovery never sends to an unconfirmed contact and accepts the selected ch
     },
     async authorizeReset(id: string, proof: string) {
       const challenge = challenges.get(id);
-      if (!challenge || !verified.has(challenge.channel)) return false;
+      if (!challenge) return false;
       challenge.proof = proof;
       return true;
     },
@@ -112,26 +112,15 @@ test('recovery never sends to an unconfirmed contact and accepts the selected ch
     return result;
   }
 
-  const noContact = await call('request', { identifier: 'test-driver', channel: 'email' });
   const noAccount = await call('request', { identifier: 'nobody', channel: 'email' });
-  assert.equal(noContact.status, 202);
   assert.equal(noAccount.status, 202);
-  assert.deepEqual(Object.keys(noContact.body), Object.keys(noAccount.body));
   assert.equal(deliveries.length, 0);
-
   await assert.rejects(call('contact-status', {}), { code: 'AUTH_REQUIRED' });
   await assert.rejects(call('confirm-request', { identifier: 'test-driver', channel: 'email' }), { code: 'AUTH_REQUIRED' });
   assert.equal((await call('contact-status', {}, true)).status, 200);
 
-  const proof = await call('confirm-request', { channel: 'whatsapp', password }, true);
-  assert.equal(proof.status, 202);
-  assert.deepEqual(deliveries.slice(), [{ destination: account.phone_e164, channel: 'whatsapp', code: '271828' }]);
-  assert.equal((await call('confirm-complete', { ...proof.body, code: '271828' }, true)).status, 200);
-  assert.equal((await call('request', { identifier: 'test-driver', channel: 'email' })).status, 202);
-  assert.equal(deliveries.length, 1);
-
   const reset = await call('request', { identifier: 'test-driver', channel: 'whatsapp' });
-  assert.equal(deliveries.length, 2);
+  assert.equal(deliveries.length, 1);
   const payload = { ...reset.body, code: '271828', password: 'new-secure-pass123' };
   assert.equal((await call('complete', payload, false, 'passenger')).status, 422);
   assert.equal((await call('complete', { ...payload, code: '000000' })).status, 422);
@@ -141,21 +130,12 @@ test('recovery never sends to an unconfirmed contact and accepts the selected ch
     && rules.some(rule => rule.limit === 4 && rule.windowMs === 900_000)));
   assert.ok(limits.some(rules => rules.some(rule => rule.limit === 3 && rule.windowMs === 900_000)
     && rules.some(rule => rule.limit === 1 && rule.windowMs === 60_000)));
-  const confirmEmail = await call('confirm-request', {
-    channel: 'email', password: payload.password,
-  }, true);
-  assert.equal(confirmEmail.status, 202);
-  const confirmationEmail = deliveries[2]!;
-  assert.equal(confirmationEmail.channel, 'email');
-  assert.equal(confirmationEmail.destination, account.email_normalized);
-  assert.equal((await call('confirm-complete', { ...confirmEmail.body, code: confirmationEmail.code }, true)).status, 200);
-
   const emailReset = await call('request', { identifier: '(88) 99999-0000', channel: 'email' });
-  assert.equal(deliveries.length, 4);
+  assert.equal(deliveries.length, 2);
   const credential = { ...emailReset.body, password: 'another-secure-pass123' };
   assert.equal((await call('reset', { ...credential, resetToken: 'a'.repeat(43) })).status, 422);
   assert.equal((await call('verify', { ...emailReset.body, code: 'bad' })).status, 422);
-  const otp = { ...emailReset.body, code: deliveries[3]!.code };
+  const otp = { ...emailReset.body, code: deliveries[1]!.code };
   const verifiedOtp = await call('verify', otp);
   assert.equal(verifiedOtp.status, 200);
   assert.equal((await call('verify', otp)).status, 422);
@@ -170,7 +150,7 @@ test('recovery never sends to an unconfirmed contact and accepts the selected ch
   const blocked = await call('request', { identifier: 'test-driver', channel: 'whatsapp' });
   assert.equal(blocked.status, 429);
   assert.equal(blocked.body['retryAfterSeconds'], 12);
-  assert.equal(deliveries.length, 4);
+  assert.equal(deliveries.length, 2);
 });
 
 test('new recovery providers use separate configuration and documented request bodies', async t => {

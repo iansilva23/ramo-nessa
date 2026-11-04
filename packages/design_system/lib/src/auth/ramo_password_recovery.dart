@@ -28,6 +28,7 @@ class _RecoveryError implements Exception {
 }
 
 class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
+  static const _supportContact = String.fromEnvironment('RAMO_RECOVERY_SUPPORT_CONTACT');
   final _client = http.Client();
   final _identifier = TextEditingController();
   final _password = TextEditingController();
@@ -321,7 +322,7 @@ class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
         children: [
           Text(_confirming
               ? 'Escolha o contato que quer confirmar para recuperar a senha.'
-              : 'Informe os dados da sua conta e escolha um canal que você já confirmou no Perfil.'),
+              : 'Informe os dados da sua conta e escolha como receber o código.'),
           const SizedBox(height: 18),
           if (_confirming)
             TextField(
@@ -354,7 +355,7 @@ class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
         children: [
           Text(_confirming
               ? 'O envio por ${_label(channel!)} foi aceito. Digite o código recebido.'
-              : 'Se o contato estiver confirmado na sua conta, o código chegará por ${_label(channel!)}.'),
+              : 'Se o contato estiver cadastrado na sua conta, o código chegará por ${_label(channel!)}.'),
           const SizedBox(height: 20),
           TextField(
             key: const ValueKey('recovery-code'),
@@ -381,9 +382,6 @@ class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
             onPressed: _loading ? null : _chooseAgain,
             child: const Text('Voltar e escolher outro canal'),
           ),
-          if (!_confirming)
-            Text('Não chegou? Confira o spam ou se o contato foi confirmado no Perfil. Sem acesso aos contatos, procure o suporte.',
-                style: TextStyle(color: colors.onSurfaceVariant)),
         ],
       );
     }
@@ -499,6 +497,33 @@ class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
                   ),
                   child: _form(step),
                 ),
+                if (!_confirming && !_done)
+                  ExpansionTile(
+                    leading: const Icon(Icons.support_agent_rounded),
+                    title: const Text('Preciso de ajuda com minha conta'),
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Text(
+                          'Confira o spam do e-mail e tente o outro canal cadastrado. '
+                          'Se perdeu o acesso aos dois ou cadastrou um contato errado, '
+                          'procure o suporte do Ramo Nessa. Nunca compartilhe senha ou código.',
+                        ),
+                      ),
+                      if (_supportContact.isNotEmpty)
+                        ListTile(
+                          title: const Text('Contato do suporte'),
+                          subtitle: SelectableText(_supportContact),
+                          trailing: IconButton(
+                            tooltip: 'Copiar contato',
+                            icon: const Icon(Icons.copy_rounded),
+                            onPressed: () => Clipboard.setData(
+                              const ClipboardData(text: _supportContact),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ),
           ),
