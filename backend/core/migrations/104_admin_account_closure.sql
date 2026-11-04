@@ -9,20 +9,24 @@ LANGUAGE plpgsql AS $$
 DECLARE
   linked_role text;
   linked_id text;
+  constraint_name text;
 BEGIN
   IF TG_TABLE_NAME = 'driver_support_tickets' THEN
     linked_role := 'passenger';
     linked_id := NEW.passenger_id;
+    constraint_name := 'driver_support_tickets_passenger_fkey';
   ELSE
     linked_role := NEW.subject_type;
     linked_id := NEW.subject_id;
+    constraint_name := 'legal_document_acceptances_subject_type_subject_id_fkey';
   END IF;
   IF linked_id IS NOT NULL THEN
     PERFORM 1 FROM public.auth_identities
       WHERE subject_type = linked_role AND subject_id = linked_id
       FOR KEY SHARE;
     IF NOT FOUND THEN
-      RAISE EXCEPTION 'Conta inexistente para este registro.' USING ERRCODE = '23503';
+      RAISE EXCEPTION 'Conta inexistente para este registro.'
+        USING ERRCODE = '23503', CONSTRAINT = constraint_name;
     END IF;
   END IF;
   RETURN NEW;
