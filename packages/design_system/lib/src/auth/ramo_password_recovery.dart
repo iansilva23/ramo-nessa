@@ -356,6 +356,13 @@ class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
           Text(_confirming
               ? 'O envio por ${_label(channel!)} foi aceito. Digite o código recebido.'
               : 'Se o contato estiver cadastrado na sua conta, o código chegará por ${_label(channel!)}.'),
+          if (channel == 'email') ...[
+            const SizedBox(height: 8),
+            Text(
+              'Não encontrou o código na caixa de entrada? Confira também as pastas de spam e lixo eletrônico.',
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+          ],
           const SizedBox(height: 20),
           TextField(
             key: const ValueKey('recovery-code'),
