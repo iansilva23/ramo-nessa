@@ -39,6 +39,11 @@ class DriverPasswordLoginScreen extends StatelessWidget {
     heroImageUrl: DriverCoreConfig.baseUri
         ?.resolve('/v1/content/app-auth-branding/hero')
         .toString(),
+    onRecoverPassword: DriverCoreConfig.baseUri == null ? null : () {
+      Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => RamoPasswordRecovery(baseUri: DriverCoreConfig.baseUri!, driver: true),
+      ));
+    },
     onLogin: (values) async {
       await _save(
         await passwordService.loginWithPassword(

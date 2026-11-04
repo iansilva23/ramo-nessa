@@ -539,6 +539,20 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                   );
                 },
               ),
+              if (RamoCoreConfig.baseUri != null && (widget.accessToken?.length ?? 0) >= 20)
+                _ProfileOption(
+                  key: const Key('passenger-recovery-contacts'),
+                  icon: Icons.verified_user_outlined,
+                  title: 'Contatos para recuperar senha',
+                  subtitle: 'Confirme seu e-mail e WhatsApp',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => RamoPasswordRecovery(
+                      baseUri: RamoCoreConfig.baseUri!,
+                      driver: false,
+                      accessToken: widget.accessToken,
+                    ),
+                  )),
+                ),
               _ProfileOption(
                 key: const Key('passenger-settings'),
                 icon: Icons.settings_outlined,

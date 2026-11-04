@@ -1,3 +1,4 @@
+import { PostgresPasswordRecoveryStore } from '../auth/password-recovery-store.js';
 import {PostgresPasswordRegistrationStore,MemoryPasswordRegistrationStore} from '../auth/password-registration.js';
 import {InMemoryDriverPasswordAuthStore, PostgresDriverPasswordAuthStore, type DriverPasswordAuthStore} from '../auth/driver-password-auth-store.js';
 import {DriverNavigationControlStore} from '../routing/driver-navigation-control.js';
@@ -83,6 +84,7 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  passwordRecoveryStore: PostgresPasswordRecoveryStore | null;
   passwordRegistrationStore: import('../auth/password-registration.js').PasswordRegistrationStore;
   driverPasswordAuthStore: DriverPasswordAuthStore;
   driverNavigationControlStore: DriverNavigationControlStore|null;
@@ -137,6 +139,7 @@ export function createRepositories(): RepositoryBundle {
 
     return {
       driverPasswordAuthStore: new PostgresDriverPasswordAuthStore(pool),
+      passwordRecoveryStore: new PostgresPasswordRecoveryStore(pool),
       passwordRegistrationStore: new PostgresPasswordRegistrationStore(pool),
       driverNavigationControlStore: new DriverNavigationControlStore(pool),
       boardingStore: new PostgresBoardingStore(pool),
@@ -211,6 +214,7 @@ export function createRepositories(): RepositoryBundle {
 
   return {
     driverPasswordAuthStore: driverPasswords,
+    passwordRecoveryStore: null,
     passwordRegistrationStore: new MemoryPasswordRegistrationStore(driverAuthIdentities,driverPasswords),
     driverNavigationControlStore: null,
     boardingStore: null,

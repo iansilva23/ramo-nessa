@@ -250,6 +250,7 @@ export async function loginPassengerWithPassword(input: {
     repository: input.sessions,
     subjectId: identity.subjectId,
     subjectType: 'passenger',
+    passengerPasswordHash: encoded,
     now,
   });
 

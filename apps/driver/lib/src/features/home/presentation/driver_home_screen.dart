@@ -3535,6 +3535,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           builder: (_) => DriverSecurityScreen(
                             api: _api,
                             profile: _profile,
+                            accessToken: _accessToken,
                             configureLogin: DriverCoreConfig.baseUri == null || _accessToken.length < 20 ? null : () {
                               Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DriverPasswordSetupScreen(
                                 service: HttpPasswordAuthService(baseUrl: DriverCoreConfig.baseUri!, subjectType: 'driver'),
