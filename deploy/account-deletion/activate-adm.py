@@ -16,6 +16,13 @@ import zipfile
 
 ROOT = Path('/opt/ramo-nessa-security')
 RECOVERY = ROOT / 'password-recovery-hzv0tb5u'
+PREVIOUS_ADM = ROOT / 'admin-account-deletion-cyqhtagb'
+PREVIOUS_ADM_SOURCE = '7cbfaef1dabf1e3ff41ab34b4dccd92a2e8763f7'
+PREVIOUS_ADM_ASSET = (
+    'admin-account-deletion-7cbfaef1dabf/RamoNessa-Exclusao-ADM.zip',
+    'fe2294534c26c54e032f938db2f13833310235582965b17654e823dfd9c16de3',
+)
+MIGRATION = 'migrations/104_admin_account_closure.sql'
 RECOVERY_INSTALLER_HASH = 'd91d287e630c08d7ccee65afc65fbec7258f86ba7017919ce35a8a8f3c93fdc1'
 RECOVERY_SOURCE = '45e9ba1cdd00ded076489b4567245c202c0bf5a6'
 RECOVERY_ASSET = (
@@ -173,20 +180,66 @@ def rollback(review, h, plan):
     verify(review, h, plan, False)
 
 
+def migrate_account_closure(h, core, migration):
+    script = """
+import {createHash} from 'node:crypto';
+import {createPostgresPool} from '/app/dist/src/db/postgres.js';
+const filename = '104_admin_account_closure.sql';
+const sql = MIGRATION_CONTENT;
+const checksum = createHash('sha256').update(sql).digest('hex');
+const pool = createPostgresPool(process.env.DATABASE_URL);
+const client = await pool.connect();
+try {
+  await client.query('BEGIN');
+  await client.query("SET LOCAL lock_timeout='8s'");
+  await client.query("SET LOCAL statement_timeout='30s'");
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['ramo-nessa-schema-migrations']);
+  const base = await client.query('SELECT 1 FROM schema_migrations WHERE filename=$1', ['103_password_recovery.sql']);
+  if (!base.rowCount) throw Error('Migration 103 missing');
+  const old = await client.query('SELECT checksum FROM schema_migrations WHERE filename=$1', [filename]);
+  if (old.rowCount) {
+    if (old.rows[0].checksum !== checksum) throw Error('Migration checksum mismatch');
+  } else {
+    await client.query(sql);
+    await client.query('INSERT INTO schema_migrations(filename,checksum) VALUES($1,$2)', [filename,checksum]);
+  }
+  await client.query('COMMIT');
+  console.log('ACCOUNT_CLOSURE_SCHEMA_OK');
+} catch {
+  await client.query('ROLLBACK');
+  process.exitCode = 1;
+} finally { client.release(); await pool.end(); }
+"""
+    result = h.run(['docker', 'exec', '-i', core, 'node', '--input-type=module', '-'],
+                   input=script.replace('MIGRATION_CONTENT', json.dumps(migration)).encode(), timeout=45)
+    require(result.strip() == b'ACCOUNT_CLOSURE_SCHEMA_OK', 'O banco não confirmou a migration 104.')
+
+
 def install(review, h, source, checksum):
     require(re.fullmatch(r'[0-9a-f]{40}', source) and re.fullmatch(r'[0-9a-f]{64}', checksum), 'Dados de release inválidos.')
     active = json.loads(h.private_file(RECOVERY / 'plan.private.json'))
     require(active.get('source') == RECOVERY_SOURCE, 'A âncora pertence a outra release.')
     core = review.snapshot(h, h.NAMES[0], 'core')
     gateway = review.snapshot(h, h.NAMES[1], 'gateway')
-    require(core['container']['Image'] == active['image']
-            and gateway['container']['Image'] == active['gateway']['container']['Image']
-            and review.web_mount(gateway['container']) == active['newWeb'],
-            'A versão em uso difere da recuperação publicada.')
+    previous_plan = PREVIOUS_ADM / 'plan.private.json'
+    previous = json.loads(h.private_file(previous_plan)) if previous_plan.is_file() else {}
+    mounted_admin = admin_mount(gateway['container'])
+    on_previous_adm = (
+        previous.get('source') == PREVIOUS_ADM_SOURCE
+        and core['container']['Image'] == previous.get('image')
+        and gateway['container']['Image'] == previous.get('gatewayImage')
+        and mounted_admin == (previous.get('nextAdmin') if previous.get('oldAdmin') else None)
+    )
+    on_recovery = (
+        core['container']['Image'] == active['image']
+        and gateway['container']['Image'] == active['gateway']['container']['Image']
+    )
+    require((on_recovery or on_previous_adm) and review.web_mount(gateway['container']) == active['newWeb'],
+            'A versão em uso difere das duas versões validadas para a atualização.')
     require(shutil.disk_usage(ROOT).free >= 2 * 1024**3, 'São necessários 2 GB livres.')
     require(all(not (m['Destination'] == '/app' or m['Destination'].startswith('/app/dist'))
                 for m in core['container']['Mounts']), 'O Core está sobreposto por um mount.')
-    active_admin_mount = admin_mount(gateway['container'])
+    active_admin_mount = mounted_admin
     old_admin = Path(active_admin_mount) if active_admin_mount else None
     if old_admin is not None:
         require(old_admin.is_dir() and not old_admin.is_symlink()
@@ -199,24 +252,29 @@ def install(review, h, source, checksum):
     with tempfile.TemporaryDirectory(prefix='rn-admin-payload-') as tmp:
         tmp = Path(tmp)
         download(tmp / 'release.zip', (f'admin-account-deletion-{source[:12]}/RamoNessa-Exclusao-ADM.zip', checksum))
-        download(tmp / 'recovery.zip', RECOVERY_ASSET)
-        download(tmp / 'password.zip', PASSWORD_ASSET)
+        if on_previous_adm:
+            download(tmp / 'previous.zip', PREVIOUS_ADM_ASSET)
+        else:
+            download(tmp / 'recovery.zip', RECOVERY_ASSET)
+            download(tmp / 'password.zip', PASSWORD_ASSET)
         build = h.DIRECTORY / 'build'
         build.mkdir()
-        with zipfile.ZipFile(tmp / 'release.zip') as package,              zipfile.ZipFile(tmp / 'recovery.zip') as recovery,              zipfile.ZipFile(tmp / 'password.zip') as password:
-            require(set(package.namelist()) == {*FILES, 'adm.patch', 'source.txt'}
+        with zipfile.ZipFile(tmp / 'release.zip') as package:
+            require(set(package.namelist()) == {*FILES, MIGRATION, 'adm.patch', 'adm-from-v1.patch', 'source.txt'}
                     and package.read('source.txt').decode().strip() == source, 'Pacote inesperado.')
-            for name in (*BASE_RECOVERY_FILES, BASE_ADMIN_FILE):
-                baseline = (password if name == BASE_ADMIN_FILE else recovery).read(name)
-                require(h.run(['docker', 'exec', core['name'], 'cat', '/app/' + name]) == baseline,
-                        'Um módulo ativo mudou desde a versão validada.')
-            for name in FILES:
+            expected_files = FILES if on_previous_adm else (*BASE_RECOVERY_FILES, BASE_ADMIN_FILE)
+            for name in expected_files:
+                archive = 'previous.zip' if on_previous_adm else ('password.zip' if name == BASE_ADMIN_FILE else 'recovery.zip')
+                with zipfile.ZipFile(tmp / archive) as baseline:
+                    require(h.run(['docker', 'exec', core['name'], 'cat', '/app/' + name]) == baseline.read(name),
+                            'Um módulo ativo mudou desde a versão validada.')
+            for name in (*FILES, MIGRATION):
                 destination = build / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(package.read(name))
                 destination.chmod(0o644)
             patch = tmp / 'adm.patch'
-            patch.write_bytes(package.read('adm.patch'))
+            patch.write_bytes(package.read('adm-from-v1.patch' if on_previous_adm else 'adm.patch'))
 
         release_root = Path('/opt/ramo-nessa-web/releases') / h.DIRECTORY.name
         next_admin = release_root / 'apps/admin'
@@ -247,7 +305,7 @@ def install(review, h, source, checksum):
     tag = 'ramo-nessa-admin-delete-base:' + h.DIRECTORY.name
     target = tag.replace('-base:', ':')
     h.run(['docker', 'image', 'tag', image['Id'], tag])
-    (build / 'Dockerfile').write_text(f'FROM {tag}\n' + ''.join(f'COPY {name} /app/{name}\n' for name in FILES))
+    (build / 'Dockerfile').write_text(f'FROM {tag}\n' + ''.join(f'COPY {name} /app/{name}\n' for name in (*FILES, MIGRATION)))
     h.run(['docker', 'build', '--pull=false', '--network=none', '-t', target, str(build)], timeout=180)
     candidate = h.inspect(target, True)
     require(candidate['Config'] == image['Config'] and
@@ -315,6 +373,8 @@ def install(review, h, source, checksum):
     shutil.copyfile(Path(__file__).resolve(), h.DIRECTORY / 'activate.py')
     h.inactive()
     print(f'Retorno: sudo python3 {h.DIRECTORY}/activate.py rollback {h.DIRECTORY}', flush=True)
+    migrate_account_closure(h, core['name'], (build / MIGRATION).read_text())
+    print('Banco atualizado. Ativando o Core e o ADM.', flush=True)
     try:
         up(review, h, plan, 'core', 'after')
         up(review, h, plan, 'gateway', 'after')
@@ -325,7 +385,7 @@ def install(review, h, source, checksum):
         except BaseException:
             raise InstallError('Falha na ativação. O retorno automático não foi confirmado.') from None
         raise InstallError('A instalação falhou e a versão anterior foi restaurada.') from None
-    print(json.dumps({'status': 'ADM_ACCOUNT_DELETION_ACTIVATED', 'source': source,
+    print(json.dumps({'status': 'ADM_ACCOUNT_DELETION_IMMEDIATE_ACTIVATED', 'source': source,
                       'anchor': str(h.DIRECTORY), 'accountsDeleted': 0}), flush=True)
 
 
