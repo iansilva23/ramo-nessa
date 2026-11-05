@@ -9,6 +9,7 @@ class _BoardingCodeDialogState extends State<BoardingCodeDialog>{
  final _controller=TextEditingController();
  @override void dispose(){_controller.dispose();super.dispose();}
  @override Widget build(BuildContext context)=>AlertDialog(
+  scrollable:true,
   title:Text(widget.delivery?'Código de coleta':'Código de embarque'),
   content:Column(mainAxisSize:MainAxisSize.min,children:[
    Text('Peça os três números no encontro. Restam ${widget.remainingAttempts} tentativas.'),
