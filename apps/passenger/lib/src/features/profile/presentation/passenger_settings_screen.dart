@@ -78,10 +78,10 @@ class PassengerSettingsScreen extends StatelessWidget {
                         contentPadding: const EdgeInsets.all(16),
                         leading: const CircleAvatar(child: Icon(Icons.settings_rounded)),
                         title: const Text('Configurações do aplicativo'),
-                        subtitle: Text(kIsWeb
+                        subtitle: const Text(kIsWeb
                             ? 'Localização e notificações neste navegador.'
                             : 'Permissões, notificações, bateria e dados do sistema.'),
-                        trailing: Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
+                        trailing: const Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
                         onTap: () => _openSettings(context),
                       ),
                       const Divider(height: 1, indent: 72),
@@ -90,7 +90,7 @@ class PassengerSettingsScreen extends StatelessWidget {
                         leading: const CircleAvatar(child: Icon(Icons.location_on_rounded)),
                         title: const Text('Configurações de localização'),
                         subtitle: const Text('GPS e serviços de localização do aparelho.'),
-                        trailing: Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
+                        trailing: const Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
                         onTap: () => _openSettings(context, location: true),
                       ),
                     ],
