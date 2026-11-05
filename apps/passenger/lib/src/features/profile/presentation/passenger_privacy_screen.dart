@@ -184,7 +184,11 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Privacidade e LGPD')),
-      body: RefreshIndicator(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -195,11 +199,14 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
             RamoSpacing.xxl,
           ),
           children: [
-            Text(
+            Semantics(
+              header: true,
+              child: Text(
               'Seus dados, suas escolhas',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
+            ),
             ),
             const SizedBox(height: RamoSpacing.xs),
             Text(
@@ -208,6 +215,21 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
+            if (_error != null && overview != null) ...[
+              const SizedBox(height: RamoSpacing.md),
+              Semantics(
+                liveRegion: true,
+                child: _PrivacyNotice(
+                  icon: Icons.error_outline_rounded,
+                  text: 'Não foi possível atualizar seus dados. Tente novamente.',
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Tentar novamente'),
+              ),
+            ],
             if (_loading) ...[
               const SizedBox(height: RamoSpacing.xxl),
               const Center(child: CircularProgressIndicator()),
@@ -264,10 +286,12 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
               const SizedBox(height: RamoSpacing.xl),
               _sectionTitle(context, 'Exercer um direito'),
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 key: const Key('privacy-request-type'),
                 initialValue: _requestType,
                 decoration: const InputDecoration(
-                  labelText: 'Tipo de solicitação',
+                  labelText: 'Solicitação',
                 ),
                 items: _requestTypes.entries
                     .map(
@@ -294,14 +318,18 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
                 maxLines: 6,
                 maxLength: 1000,
                 decoration: const InputDecoration(
-                  labelText: 'Observação opcional',
+                  labelText: 'Observação',
                   hintText:
                       'Explique o que você precisa, sem informar senhas ou códigos.',
                 ),
               ),
               SizedBox(
-                height: 50,
+                width: double.infinity,
                 child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 50),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
                   key: const Key('privacy-request-submit'),
                   onPressed:
                       _sendingRequest ? null : _submitRequest,
@@ -334,6 +362,9 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
                 ),
             ],
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );
@@ -437,17 +468,13 @@ class _PrivacyRequestCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    typeLabel,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                Text(statusLabel),
-              ],
-            ),
+            Text(typeLabel,
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: RamoSpacing.xs),
+            Text(statusLabel,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                )),
             const SizedBox(height: RamoSpacing.xs),
             Text(
               'Enviada em $createdLabel',
@@ -503,3 +530,4 @@ class _PrivacyNotice extends StatelessWidget {
     );
   }
 }
+
