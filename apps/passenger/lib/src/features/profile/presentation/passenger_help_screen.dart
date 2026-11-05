@@ -18,7 +18,9 @@ class PassengerHelpScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Ajuda')),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: ListView(
         padding: const EdgeInsets.fromLTRB(
           RamoSpacing.lg,
           RamoSpacing.lg,
@@ -30,6 +32,7 @@ class PassengerHelpScreen extends StatelessWidget {
           if (supportService != null) ...[
             const SizedBox(height: RamoSpacing.lg),
             FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
               key: const Key('passenger-open-support'),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -48,14 +51,13 @@ class PassengerHelpScreen extends StatelessWidget {
             title: 'Como pedir uma corrida?',
             body:
                 'Na tela Início, confirme a origem, escolha o destino, selecione '
-                'a categoria e a forma de pagamento. A busca pelo motorista só '
-                'começa depois das validações e do pagamento exigido pela operação.',
+                'a categoria e siga a confirmação e o pagamento mostrados no aplicativo.',
           ),
           const _HelpItem(
             title: 'Como acompanho o motorista?',
             body:
                 'Depois que um motorista aceitar, a tela da corrida mostra o '
-                'status e a posição disponível em tempo real ou próximo do tempo real.',
+                'a etapa atual, a localização disponível e as informações do motorista.',
           ),
           const _HelpItem(
             title: 'Onde vejo minhas corridas?',
@@ -65,8 +67,8 @@ class PassengerHelpScreen extends StatelessWidget {
           const _HelpItem(
             title: 'E se nenhum motorista aceitar?',
             body:
-                'O aplicativo informa que não encontrou motorista. Quando houver '
-                'pagamento antecipado, o estorno é processado conforme a forma de pagamento usada.',
+                'Você pode tentar a busca novamente ou cancelar. Se houver pagamento, '
+                'acompanhe a devolução pelo aplicativo ou fale com o suporte.',
           ),
           const _HelpItem(
             title: 'Como protejo minha conta?',
@@ -82,6 +84,7 @@ class PassengerHelpScreen extends StatelessWidget {
           ),
         ],
       ),
+        )))),
     );
   }
 }
@@ -91,31 +94,25 @@ class _HelpHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(RamoSpacing.lg),
-      decoration: BoxDecoration(
-        color: RamoColors.brandBlack,
-        borderRadius: BorderRadius.circular(RamoRadius.lg),
-      ),
-      child: const Row(
-        children: [
-          Icon(
-            Icons.support_agent_rounded,
-            color: RamoColors.brandYellow,
-            size: 34,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(RamoRadius.lg),
           ),
-          SizedBox(width: RamoSpacing.md),
-          Expanded(
-            child: Text(
-              'Encontre rapidamente as orientações mais importantes para usar o Ramo Nessa.',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+          child: Icon(Icons.support_agent_rounded,
+              color: Theme.of(context).colorScheme.onPrimaryContainer, size: 30),
+        ),
+        const SizedBox(height: RamoSpacing.lg),
+        Semantics(header: true, child: Text('Conte com a gente',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900))),
+        const SizedBox(height: RamoSpacing.sm),
+        Text('Encontre respostas ou converse com nossa equipe pelo suporte.',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      ],
     );
   }
 }
@@ -131,13 +128,15 @@ class _HelpItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
+    return Card(
+      margin: const EdgeInsets.only(bottom: RamoSpacing.sm),
+      child: ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
       title: Text(
         title,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      childrenPadding: const EdgeInsets.only(bottom: RamoSpacing.md),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       children: [
         Align(
           alignment: Alignment.centerLeft,
@@ -147,6 +146,8 @@ class _HelpItem extends StatelessWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }
+

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 
 import 'driver_password_auth_service.dart';
 
@@ -137,7 +138,9 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Usuário e senha')),
-    body: _loading
+    body: SafeArea(child: Center(child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 760),
+      child: RamoReveal(child: _loading
         ? const Center(child: CircularProgressIndicator())
         : ListView(
             padding: const EdgeInsets.all(24),
@@ -162,6 +165,7 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
                 enableSuggestions: false,
                 decoration: const InputDecoration(
                   labelText: 'Usuário',
+                  helperMaxLines: 4,
                   helperText: '3 a 32 caracteres. Letras, números, ponto, hífen ou sublinhado.',
                 ),
               ),
@@ -184,6 +188,7 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
                   autofillHints: const [AutofillHints.newPassword],
                   decoration: InputDecoration(
                     labelText: 'Senha',
+                    helperMaxLines: 3,
                     helperText: 'Pelo menos 10 caracteres, com letra e número.',
                     suffixIcon: IconButton(
                       tooltip: _hidden ? 'Mostrar senha' : 'Ocultar senha',
@@ -235,5 +240,6 @@ class _DriverPasswordSetupScreenState extends State<DriverPasswordSetupScreen> {
                 ),
             ],
           ),
+    )))),
   );
 }

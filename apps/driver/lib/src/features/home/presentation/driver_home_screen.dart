@@ -10,6 +10,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -52,6 +53,7 @@ import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
 import 'widgets/driver_campaign_notice.dart';
 import 'widgets/driver_map_panel_extent.dart';
+import 'offer_tone_lifecycle.dart';
 import 'widgets/driver_web_heading_compass.dart';
 
 part 'widgets/driver_ride_design.dart';
@@ -144,6 +146,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   String? _lastAlertedOfferId;
+  late final AudioPlayer _offerTonePlayer = AudioPlayer();
+  late final OfferToneLifecycle _offerTone = OfferToneLifecycle(
+    startLoop: () async {
+      await _offerTonePlayer.setReleaseMode(ReleaseMode.loop);
+      await _offerTonePlayer.play(AssetSource('audio/nova_corrida.mp3'));
+    },
+    stopAudio: _offerTonePlayer.stop,
+  );
+
+  Future<void> _disposeOfferTone() async {
+    await _offerTone.dispose();
+    try {
+      await _offerTonePlayer.dispose();
+    } catch (_) {
+      // Som indisponível não deve interromper o app.
+    }
+  }
+
   AcceptedDriverRide? _activeRide;
   String? _celebratingCampaignRideId;
   DateTime? _campaignCelebrationUntil;
@@ -287,7 +307,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _androidScreenLocked = locked;
         if (!locked) _lockOfflineConfirmed = false;
         unawaited(_updateActivityNotification());
-        if (locked) _androidLockPending = true;
+        if (locked) {
+          _androidLockPending = true;
+          _offerTone.stop();
+        }
         unawaited(_syncAndroidScreenLock());
       },
       onError: (Object _) {
@@ -639,6 +662,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
+    unawaited(_disposeOfferTone());
     _activityNotificationTimer?.cancel();
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       unawaited(
@@ -907,7 +931,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   }
 
   void _announceOffer(DriverOffer? offer) {
-    if (_androidScreenLocked || _androidLockPending) return;
+    if (_androidScreenLocked || _androidLockPending || _offerAction) return;
+    _offerTone.synchronize(offer?.id, offer?.expiresAt);
     if (offer == null ||
         !offer.expiresAt.isAfter(DateTime.now()) ||
         _lastAlertedOfferId == offer.id) {
@@ -917,21 +942,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _completedPresentation = null;
     _collapsedRidePanel = null;
     unawaited(HapticFeedback.mediumImpact());
-    unawaited(_playOfferAlert());
-  }
-
-  Future<void> _playOfferAlert() async {
-    try {
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        await const MethodChannel(
-          'br.com.ramonessa.driver/ride-alerts',
-        ).invokeMethod<void>('playOfferAlert');
-      } else {
-        await SystemSound.play(SystemSoundType.alert);
-      }
-    } catch (_) {
-      // A device without sound support still shows the offer and its deadline.
-    }
   }
 
   void _startRealtime() {
@@ -1208,7 +1218,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() {
         _supply = updated;
         _changingStatus = false;
-        if (!online) _offer = null;
+        if (!online) {
+          _offer = null;
+          _offerTone.stop();
+        }
       });
 
       if (updated.online) {
@@ -1307,6 +1320,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
 
+    _offerTone.stop();
     setState(() => _offerAction = true);
     try {
       final ride = await api.acceptOffer(offer.id);
@@ -1341,12 +1355,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       }
     } on DriverApiException catch (error) {
       if (!mounted) return;
+      if (!_androidScreenLocked && !_androidLockPending && _supply?.online == true) {
+        _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
+      }
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
+      if (!_androidScreenLocked && !_androidLockPending && _supply?.online == true) {
+        _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
+      }
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos aceitar a corrida agora.';
@@ -1817,7 +1837,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Ocorrência da corrida')),
+            appBar: AppBar(
+              toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+              title: const Text('Ocorrência da corrida', maxLines: 2, softWrap: true),
+            ),
             body: SafeArea(
               child: SingleChildScrollView(
                 child: RamoRideOccurrencePanel(
@@ -1871,6 +1894,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: reason,
                     decoration: const InputDecoration(
                       labelText: 'Motivo do cancelamento',
@@ -1927,7 +1952,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     dialogContext,
                   ).pop((reason: reason, note: note.isEmpty ? null : note));
                 },
-                child: const Text('Confirmar cancelamento'),
+                child: const Text('Confirmar'),
               ),
             ],
           );
@@ -2145,6 +2170,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final offer = _offer;
     if (api == null || offer == null || _offerAction) return;
 
+    _offerTone.stop();
     setState(() => _offerAction = true);
     try {
       await api.rejectOffer(offer.id);
@@ -2157,12 +2183,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       });
     } on DriverApiException catch (error) {
       if (!mounted) return;
+      if (!_androidScreenLocked && !_androidLockPending && _supply?.online == true) {
+        _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
+      }
       setState(() {
         _offerAction = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
+      if (!_androidScreenLocked && !_androidLockPending && _supply?.online == true) {
+        _offerTone.synchronize(_offer?.id, _offer?.expiresAt);
+      }
       setState(() {
         _offerAction = false;
         _message = 'Não conseguimos recusar a corrida agora.';
@@ -3823,7 +3855,7 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
                       size: 36,
                       color: suspended
                           ? RamoColors.danger
-                          : RamoColors.brandBlack,
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -3909,7 +3941,7 @@ class _ApprovalStatusRow extends StatelessWidget {
         ? RamoColors.success
         : blocked
         ? RamoColors.danger
-        : RamoColors.brandBlack;
+        : Theme.of(context).colorScheme.onSurface;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -4624,7 +4656,9 @@ class _DriverPersonalDataScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Dados pessoais')),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: ListView(
         padding: const EdgeInsets.all(RamoSpacing.lg),
         children: [
           ListTile(
@@ -4654,7 +4688,7 @@ class _DriverPersonalDataScreen extends StatelessWidget {
             subtitle: Text(driverId),
           ),
         ],
-      ),
+      ))))),
     );
   }
 }
@@ -4686,7 +4720,9 @@ class _DriverVehicleDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Veículo')),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: ListView(
         padding: const EdgeInsets.all(RamoSpacing.lg),
         children: [
           ListTile(
@@ -4734,7 +4770,7 @@ class _DriverVehicleDetailsScreen extends StatelessWidget {
             subtitle: Text(fourByFour ? 'Aprovado' : 'Não habilitado'),
           ),
         ],
-      ),
+      ))))),
     );
   }
 }

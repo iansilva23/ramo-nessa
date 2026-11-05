@@ -91,7 +91,9 @@ class _AgencyToursScreenState extends State<AgencyToursScreen> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: RefreshIndicator(
+      child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -150,7 +152,7 @@ class _AgencyToursScreenState extends State<AgencyToursScreen> {
               ),
           ],
         ),
-      ),
+      )))),
     );
   }
 }
@@ -296,8 +298,8 @@ class _TourCard extends StatelessWidget {
                         tour.priceCents == null
                             ? 'Consulte'
                             : _money(tour.priceCents!),
-                        style: const TextStyle(
-                          color: RamoColors.brandBlack,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w900,
                           fontSize: 25,
                         ),
@@ -388,7 +390,7 @@ class AgencyTourDetailScreen extends StatelessWidget {
                   Icon(
                     icon,
                     size: 19,
-                    color: RamoColors.brandBlack,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   const SizedBox(width: 9),
                   Expanded(child: Text(item)),
@@ -452,16 +454,20 @@ class AgencyTourDetailScreen extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         top: false,
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: FilledButton.icon(
+        child: Center(heightFactor: 1, child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: onReserve,
           icon: const Icon(Icons.chat_rounded),
           label: const Text('Reservar pelo WhatsApp'),
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(56),
           ),
-        ),
+        )))),
       ),
-      body: CustomScrollView(
+      body: SafeArea(top: false, bottom: false, child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 300,
@@ -489,6 +495,7 @@ class AgencyTourDetailScreen extends StatelessWidget {
                   ),
                   Positioned(
                     left: 20,
+                    right: 20,
                     bottom: 22,
                     child: _TourBadge(label: tour.badge),
                   ),
@@ -605,7 +612,7 @@ class AgencyTourDetailScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
+      )))),
     );
   }
 }

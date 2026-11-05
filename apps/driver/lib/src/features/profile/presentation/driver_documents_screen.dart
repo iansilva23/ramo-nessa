@@ -193,7 +193,9 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Documentos')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -204,6 +206,20 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+            Semantics(header: true, child: Text('Tudo pronto para dirigir',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900))),
+            const SizedBox(height: RamoSpacing.sm),
+            Text('Envie seus documentos e acompanhe cada etapa da análise.',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: RamoSpacing.lg),
+            if (_loading && snapshot != null) const LinearProgressIndicator(),
+            if (_error != null && snapshot != null) ...[
+              Semantics(liveRegion: true, child: Text(_error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error))),
+              TextButton.icon(onPressed: _loading ? null : _load,
+                  icon: const Icon(Icons.refresh_rounded), label: const Text('Atualizar documentos')),
+              const SizedBox(height: RamoSpacing.md),
+            ],
             if (_loading && snapshot == null)
               const Padding(
                 padding: EdgeInsets.only(top: 80),
@@ -238,7 +254,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                           : Icons.rule_folder_rounded,
                       color: snapshot.documentsApproved
                           ? RamoColors.brandYellow
-                          : RamoColors.brandBlack,
+                          : Theme.of(context).colorScheme.onSurface,
                       size: 30,
                     ),
                     const SizedBox(width: RamoSpacing.md),
@@ -253,7 +269,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                             style: TextStyle(
                               color: snapshot.documentsApproved
                                   ? Colors.white
-                                  : RamoColors.brandBlack,
+                                  : Theme.of(context).colorScheme.onSurface,
                               fontWeight: FontWeight.w900,
                               fontSize: 17,
                             ),
@@ -310,7 +326,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                     SizedBox(width: RamoSpacing.sm),
                     Expanded(
                       child: Text(
-                        'Envie CNH e CRLV em JPG, PNG ou PDF. '
+                        'Envie CNH e CRLV em JPG, PNG ou PDF, até 20 MB por arquivo. '
                         'Seus arquivos são privados. A equipe confere os '
                         'documentos e a validade antes de aprovar o cadastro.',
                       ),
@@ -322,6 +338,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
           ],
         ),
       ),
+        )))),
     );
   }
 }
@@ -348,93 +365,46 @@ class _DocumentCard extends StatelessWidget {
     final current = item;
 
     return Container(
-      padding: const EdgeInsets.all(RamoSpacing.md),
+      padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(RamoRadius.md),
+        borderRadius: BorderRadius.circular(RamoRadius.lg),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Icon(statusIcon, color: statusColor),
-          ),
-          const SizedBox(width: RamoSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  current == null
-                      ? 'Não enviado'
-                      : current.statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (current?.expiresOn != null) ...[
-                  const SizedBox(height: 6),
-                  Text('Validade: ${current!.expiresOn}'),
-                ],
-                if (current?.rejectionReason?.trim().isNotEmpty == true) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Motivo: ${current!.rejectionReason}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-                if (current != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Enviado em ${_dateLabel(current.submittedAt)}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: RamoSpacing.md),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onUpload,
-                    icon: uploading
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(Icons.upload_file_rounded),
-                    label: Text(
-                      uploading
-                          ? 'Enviando…'
-                          : current == null
-                              ? 'Enviar documento'
-                              : current.effectiveStatus == 'rejected' ||
-                                      current.effectiveStatus == 'expired'
-                                  ? 'Enviar novamente'
-                                  : 'Substituir documento',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Icon(statusIcon, color: statusColor, size: 26),
+          const SizedBox(width: RamoSpacing.sm),
+          Expanded(child: Text(title,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
+        ]),
+        const SizedBox(height: RamoSpacing.sm),
+        Text(current == null ? 'Não enviado' : current.statusLabel,
+            style: TextStyle(color: statusColor, fontWeight: FontWeight.w800)),
+        if (current?.expiresOn != null) ...[
+          const SizedBox(height: 6), Text('Validade: ${current!.expiresOn}'),
         ],
-      ),
+        if (current?.rejectionReason?.trim().isNotEmpty == true) ...[
+          const SizedBox(height: 6),
+          Text('Motivo: ${current!.rejectionReason}',
+              style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        ],
+        if (current != null) ...[
+          const SizedBox(height: 6),
+          Text('Enviado em ${_dateLabel(current.submittedAt)}',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
+        const SizedBox(height: RamoSpacing.lg),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+          onPressed: onUpload,
+          icon: uploading
+              ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.upload_file_rounded),
+          label: Text(uploading ? 'Enviando…' : current == null ? 'Enviar documento'
+              : current.effectiveStatus == 'rejected' || current.effectiveStatus == 'expired'
+                  ? 'Enviar novamente' : 'Substituir documento'),
+        ),
+      ]),
     );
   }
 
@@ -445,3 +415,4 @@ class _DocumentCard extends StatelessWidget {
     return '$day/$month/${local.year}';
   }
 }
+

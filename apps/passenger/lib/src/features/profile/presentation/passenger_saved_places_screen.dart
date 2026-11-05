@@ -135,7 +135,9 @@ class _PassengerSavedPlacesScreenState
 
     return Scaffold(
       appBar: AppBar(title: const Text('Meus endereços')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -237,6 +239,7 @@ class _PassengerSavedPlacesScreenState
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -262,7 +265,7 @@ class _SavedSlotTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(icon, color: RamoColors.brandBlack),
+        child: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
       ),
       title: Text(title),
       subtitle: Text(
@@ -306,9 +309,9 @@ class _CustomSavedPlaceTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const Icon(
+        child: Icon(
           Icons.star_rounded,
-          color: RamoColors.brandBlack,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
       title: Text(place.label),
@@ -518,7 +521,7 @@ class _SavedPlaceEditorScreenState
 
     return Scaffold(
       appBar: AppBar(title: Text(_title)),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: RamoReveal(child: ListView(
         padding: const EdgeInsets.fromLTRB(
           RamoSpacing.lg,
           RamoSpacing.lg,
@@ -667,7 +670,8 @@ class _SavedPlaceEditorScreenState
                 : const Text('Salvar endereço'),
           ),
         ],
-      ),
+      ))))),
     );
   }
 }
+

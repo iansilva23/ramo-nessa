@@ -25,7 +25,7 @@ void main() {
   await tester.pumpWidget(MaterialApp(home:DriverWalletScreen(api:api)));
   await tester.pumpAndSettle();
   final button=find.ancestor(of:find.text('Solicitar antecipação'),matching:find.byWidgetPredicate((widget)=>widget is FilledButton));
-  await tester.ensureVisible(button);await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(button, 180, scrollable: find.byType(Scrollable).first);await tester.pumpAndSettle();
   expect(tester.widget<FilledButton>(button).onPressed,isNotNull);
   await tester.tap(button);await tester.pumpAndSettle();
   expect(find.text('Mínimo: R\$ 50,00'),findsOneWidget);

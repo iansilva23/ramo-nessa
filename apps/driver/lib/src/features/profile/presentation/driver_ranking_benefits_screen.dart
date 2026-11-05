@@ -127,7 +127,8 @@ class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScree
     );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ranking & Benefícios'),
+        title: const Text('Ranking & Benefícios', maxLines: 2, softWrap: true),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
         actions: [
           if (widget.api != null) IconButton(
             tooltip: 'Atualizar ranking', onPressed: _loading ? null : _load,
@@ -135,10 +136,12 @@ class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScree
           ),
         ],
       ),
-      body: _loading
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: _loading
           ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Carregando ranking'))
           : _error != null
-              ? Center(child: Padding(
+              ? SingleChildScrollView(child: Padding(
                   padding: const EdgeInsets.all(RamoSpacing.xl),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.cloud_off_rounded, size: 44),
@@ -155,6 +158,7 @@ class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScree
                     onSelect: (id) => setState(() => _selectedId = id),
                   ),
                 ),
+      )))),
     );
   }
 }
@@ -391,3 +395,4 @@ class _ComingSoonBenefit extends StatelessWidget {
     );
   }
 }
+

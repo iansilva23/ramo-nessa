@@ -129,8 +129,15 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Falar com o suporte')),
-      body: RefreshIndicator(
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Falar com o suporte', maxLines: 2, softWrap: true),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -141,6 +148,16 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+            Text('Como podemos ajudar?',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                )),
+            const SizedBox(height: 8),
+            Text('Envie sua dúvida e acompanhe a resposta nos seus chamados.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                )),
+            const SizedBox(height: 24),
             if (widget.previewMode) ...[
               const Text(
                 'Demonstração: estes chamados são temporários, ficam apenas '
@@ -164,6 +181,7 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
                     ),
                     const SizedBox(height: RamoSpacing.md),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _category,
                       decoration: const InputDecoration(
                         labelText: 'Categoria',
@@ -208,7 +226,7 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
                       maxLines: 8,
                       maxLength: 2000,
                       decoration: const InputDecoration(
-                        labelText: 'Descreva o que aconteceu',
+                        labelText: 'Mensagem',
                       ),
                     ),
                     if (_error != null)
@@ -278,6 +296,9 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
                 ),
               ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

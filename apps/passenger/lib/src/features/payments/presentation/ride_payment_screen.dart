@@ -972,10 +972,13 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
           title: Text(
             _ride.driverConsentRequired
                 ? (_canPay ? 'Pagamento' : 'Confirmar corrida')
                 : 'Preço e pagamento',
+            maxLines: 2,
+            softWrap: true,
           ),
           leading: widget.onRecoveryClose != null
               ? BackButton(onPressed: widget.onRecoveryClose)
@@ -987,7 +990,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               : null,
         ),
         body: SafeArea(
-          child: ListView(
+          child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: ListView(
             padding: const EdgeInsets.all(RamoSpacing.lg),
             children: [
               Container(
@@ -1316,7 +1321,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ],
               const SizedBox(height: RamoSpacing.lg),
             ],
-          ),
+          )))),
         ),
       ),
     );
@@ -1341,7 +1346,9 @@ class _PromotionConfirmedScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1373,7 +1380,7 @@ class _PromotionConfirmedScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }
@@ -1623,7 +1630,9 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
             : BackButton(onPressed: widget.onRecoveryClose),
       ),
       body: SafeArea(
-        child: ListView(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: ListView(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           children: [
             Text(
@@ -1731,7 +1740,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
               ),
             ],
           ],
-        ),
+        )))),
       ),
     );
   }
@@ -1957,7 +1966,9 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Pagamento com cartão')),
       body: SafeArea(
-        child: Padding(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2053,7 +2064,7 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }
@@ -2076,7 +2087,9 @@ class _CashAuthorizedScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2115,7 +2128,7 @@ class _CashAuthorizedScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }
@@ -2145,7 +2158,9 @@ class _PaymentConfirmedScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2183,7 +2198,7 @@ class _PaymentConfirmedScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }
@@ -2248,7 +2263,21 @@ class _PaymentOption extends StatelessWidget {
               horizontal: RamoSpacing.md,
               vertical: 13,
             ),
-            child: Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 360 ||
+                    MediaQuery.textScalerOf(context).scale(1) > 1.2;
+                final indicator = AnimatedSwitcher(
+                  duration: RamoMotion.standard,
+                  child: trailing ?? Icon(
+                    Icons.chevron_right_rounded,
+                    key: ValueKey(enabled),
+                    size: 23,
+                    color: scheme.onSurface,
+                  ),
+                );
+                return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   width: 42,
@@ -2260,9 +2289,7 @@ class _PaymentOption extends StatelessWidget {
                   child: Icon(
                     icon,
                     size: 22,
-                    color: enabled
-                        ? RamoColors.brandBlack
-                        : scheme.onSurfaceVariant,
+                    color: scheme.onSurface,
                   ),
                 ),
                 const SizedBox(width: RamoSpacing.md),
@@ -2281,31 +2308,25 @@ class _PaymentOption extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.24,
                         ),
                       ),
+                      if (compact && trailing != null) ...[
+                        const SizedBox(height: RamoSpacing.xs),
+                        indicator,
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(width: RamoSpacing.sm),
-                AnimatedSwitcher(
-                  duration: RamoMotion.standard,
-                  child:
-                      trailing ??
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        key: ValueKey(enabled),
-                        size: 23,
-                        color: enabled
-                            ? RamoColors.brandBlack
-                            : scheme.onSurfaceVariant,
-                      ),
-                ),
+                if (!compact || trailing == null) ...[
+                  const SizedBox(width: RamoSpacing.sm),
+                  indicator,
+                ],
               ],
+                );
+              },
             ),
           ),
         ),

@@ -25,6 +25,8 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
   bool _loading = true;
   bool _submitting = false;
   String? _error;
+  String? _loadError;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -40,29 +42,30 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
-      _error = null;
+      _loadError = null;
     });
 
     try {
       final snapshot = await widget.api.supportTickets();
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _snapshot = snapshot;
         _loading = false;
       });
     } on DriverApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
-        _error = error.message;
+        _loadError = error.message;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
-        _error = 'Não conseguimos carregar seus chamados agora.';
+        _loadError = 'Não conseguimos carregar seus chamados agora.';
       });
     }
   }
@@ -142,7 +145,11 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Suporte')),
-      body: RefreshIndicator(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -153,6 +160,16 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+            Text('Como podemos ajudar?',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                )),
+            const SizedBox(height: 8),
+            Text('Envie sua dúvida e acompanhe a resposta nos seus chamados.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                )),
+            const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(RamoSpacing.lg),
               decoration: BoxDecoration(
@@ -171,6 +188,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                   ),
                   const SizedBox(height: RamoSpacing.md),
                   DropdownButtonFormField<String>(
+                      isExpanded: true,
                     initialValue: _category,
                     decoration: const InputDecoration(
                       labelText: 'Categoria',
@@ -223,7 +241,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                     maxLines: 8,
                     maxLength: 2000,
                     decoration: const InputDecoration(
-                      labelText: 'Descreva o problema',
+                      labelText: 'Mensagem',
                     ),
                   ),
                   if (_error != null) ...[
@@ -268,6 +286,18 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                 padding: EdgeInsets.all(RamoSpacing.xl),
                 child: Center(child: CircularProgressIndicator()),
               )
+            else if (_loadError != null) ...[
+              Semantics(
+                liveRegion: true,
+                child: Text(_loadError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+              TextButton.icon(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Tentar novamente'),
+              ),
+            ]
             else if (tickets.isEmpty)
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.xl),
@@ -351,7 +381,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                             padding:
                                 const EdgeInsets.all(RamoSpacing.md),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius:
                                   BorderRadius.circular(RamoRadius.md),
                             ),
@@ -377,6 +407,9 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                 ),
               ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

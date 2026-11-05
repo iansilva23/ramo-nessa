@@ -191,8 +191,13 @@ class _PassengerRideChatScreenState extends State<PassengerRideChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mensagem com motorista')),
-      body: Column(
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Mensagem com motorista', maxLines: 2, softWrap: true),
+      ),
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Column(
         children: [
           if (_hasEarlier)
             TextButton(
@@ -294,7 +299,7 @@ class _PassengerRideChatScreenState extends State<PassengerRideChatScreen> {
                       maxLength: 1000,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
-                        hintText: 'Mensagem para o motorista',
+                        hintText: 'Escreva uma mensagem',
                         counterText: '',
                       ),
                       onSubmitted: (_) => _send(),
@@ -317,6 +322,8 @@ class _PassengerRideChatScreenState extends State<PassengerRideChatScreen> {
           ),
         ],
       ),
+      ))),
     );
   }
 }
+

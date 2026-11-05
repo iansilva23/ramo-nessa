@@ -36,7 +36,7 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
    title:const Text('Cancelar corrida?'),
    content:const Text('Dentro do prazo gratuito não há taxa. Se já houve pagamento, a equipe fará a devolução manual. Você poderá informar seu Pix depois.'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Continuar esperando')),
-    FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmar cancelamento'))]));
+    FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmar'))]));
   if(confirm!=true||!mounted)return;
   setState((){_busy=true;_error=null;});
   try{await widget.api.cancellationRequest(widget.rideId,method:'POST',body:{'reason':'Desistência do passageiro'});widget.onChanged();await _load();}
@@ -76,7 +76,7 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
       items:const [DropdownMenuItem(value:'cpf',child:Text('CPF')),DropdownMenuItem(value:'email',child:Text('E-mail')),
        DropdownMenuItem(value:'phone',child:Text('Telefone')),DropdownMenuItem(value:'random',child:Text('Aleatória'))],
       onChanged:_busy?null:(v)=>setState(()=>_type=v??'cpf')),
-     TextField(controller:_key,maxLength:254,decoration:const InputDecoration(labelText:'Chave Pix',helperText:'Telefone com +55 e DDD. CPF sem pontuação.')),
+     TextField(controller:_key,maxLength:254,decoration:const InputDecoration(labelText:'Chave Pix',helperMaxLines:3,helperText:'Telefone com +55 e DDD. CPF sem pontuação.')),
      TextField(controller:_holder,maxLength:120,decoration:const InputDecoration(labelText:'Nome do titular')),
      FilledButton(onPressed:_busy?null:_savePix,child:const Text('Salvar dados para devolução')),
     ],

@@ -172,7 +172,9 @@ class _PassengerCouponsScreenState
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cupons')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -283,6 +285,7 @@ class _PassengerCouponsScreenState
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -384,4 +387,5 @@ class _MessageBox extends StatelessWidget {
     );
   }
 }
+
 

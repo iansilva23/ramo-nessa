@@ -444,7 +444,9 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Carteira')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -485,25 +487,25 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                         ),
                   ),
                   const SizedBox(height: RamoSpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _WalletMetric(
-                          label: 'Em processamento',
-                          value: formatCents(pending),
-                        ),
-                      ),
-                      if (debt > 0) ...[
-                        const SizedBox(width: RamoSpacing.sm),
-                        Expanded(
-                          child: _WalletMetric(
-                            label: 'Taxa pendente',
-                            value: formatCents(debt),
-                          ),
-                        ),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final stacked = constraints.maxWidth < 320 ||
+                        MediaQuery.textScalerOf(context).scale(1) > 1.2;
+                    final processing = _WalletMetric(label: 'Em processamento', value: formatCents(pending));
+                    final pendingFee = _WalletMetric(label: 'Taxa pendente', value: formatCents(debt));
+                    if (stacked) {
+                      return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [processing, if (debt > 0) ...[
+                        const SizedBox(height: RamoSpacing.sm), pendingFee,
+                      ]],
+                      );
+                    }
+                    return Row(children: [
+                      Expanded(child: processing), if (debt > 0) ...[
+                        const SizedBox(width: RamoSpacing.sm), Expanded(child: pendingFee),
                       ],
-                    ],
-                  ),
+                    ]);
+                  }),
                 ],
               ),
             ),
@@ -560,51 +562,27 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: RamoColors.brandYellow,
-                    foregroundColor: RamoColors.brandBlack,
-                    child: Icon(Icons.pix_rounded),
-                  ),
-                  const SizedBox(width: RamoSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Chave Pix para repasses',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _payoutDestination?.configured == true
-                              ? '${_payoutDestination!.typeLabel} · '
-                                  '${_payoutDestination!.pixKeyMasked}'
-                              : 'Nenhuma chave cadastrada',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _savingPix ? null : _configurePix,
-                    child: _savingPix
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            _payoutDestination?.configured == true
-                                ? 'Alterar'
-                                : 'Cadastrar',
-                          ),
-                  ),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Row(children: [
+                  Icon(Icons.pix_rounded),
+                  SizedBox(width: RamoSpacing.sm),
+                  Expanded(child: Text('Chave Pix para repasses',
+                      style: TextStyle(fontWeight: FontWeight.w900))),
+                ]),
+                const SizedBox(height: RamoSpacing.sm),
+                Text(_payoutDestination?.configured == true
+                    ? '${_payoutDestination!.typeLabel} · ${_payoutDestination!.pixKeyMasked}'
+                    : 'Nenhuma chave cadastrada',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(height: RamoSpacing.sm),
+                OutlinedButton(
+                  onPressed: _savingPix ? null : _configurePix,
+                  child: _savingPix
+                      ? const SizedBox.square(dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(_payoutDestination?.configured == true ? 'Alterar' : 'Cadastrar'),
+                ),
+              ]),
             ),
             if (_error != null) ...[
               const SizedBox(height: RamoSpacing.md),
@@ -617,6 +595,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ],
             const SizedBox(height: RamoSpacing.xl),
             FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
               onPressed: available >= (_finance?.anticipationMinimumCents ?? 8000) &&
                       !_requestingPayout &&
                       _payoutDestination?.configured == true
@@ -643,6 +622,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
               onPressed: _openStatement,
               icon: const Icon(Icons.receipt_long_rounded),
               label: const Text('Ver extrato de ganhos'),
@@ -686,6 +666,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -749,7 +730,7 @@ class _WalletInfoTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(icon, color: RamoColors.brandBlack),
+        child: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
       ),
       title: Text(
         title,
@@ -759,3 +740,4 @@ class _WalletInfoTile extends StatelessWidget {
     );
   }
 }
+

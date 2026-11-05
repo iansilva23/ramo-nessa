@@ -161,7 +161,9 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
         : active;
     final colors = Theme.of(context).colorScheme;
     return SafeArea(
-      child: RefreshIndicator(
+      child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -295,6 +297,8 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
           ],
         ),
       ),
+      ))),
     );
   }
 }
+

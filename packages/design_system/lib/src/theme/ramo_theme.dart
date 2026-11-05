@@ -237,7 +237,7 @@ abstract final class RamoTheme {
         (states) => IconThemeData(
           color: states.contains(WidgetState.selected)
               ? RamoColors.brandBlack
-              : RamoColors.muted,
+              : foreground.withValues(alpha: 0.72),
           size: states.contains(WidgetState.selected) ? 24 : 22,
         ),
       ),
@@ -245,7 +245,7 @@ abstract final class RamoTheme {
         (states) => TextStyle(
           color: states.contains(WidgetState.selected)
               ? foreground
-              : RamoColors.muted,
+              : foreground.withValues(alpha: 0.72),
           fontSize: 11.5,
           fontWeight: states.contains(WidgetState.selected)
               ? FontWeight.w800

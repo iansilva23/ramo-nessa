@@ -558,7 +558,9 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.fromLTRB(
             RamoSpacing.md,
             RamoSpacing.sm,
@@ -723,7 +725,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }
@@ -901,10 +903,10 @@ class _SearchHint extends StatelessWidget {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.map_outlined,
                 size: 30,
-                color: RamoColors.brandBlack,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: RamoSpacing.sm),

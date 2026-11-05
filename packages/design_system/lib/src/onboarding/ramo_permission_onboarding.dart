@@ -123,11 +123,17 @@ class _RamoPermissionOnboardingGateState
     bool busy = false,
     bool? granted,
     String failureHelp = 'Não autorizado. Você pode tentar novamente ou ajustar nas configurações do aparelho.',
-  }) => Container(
+  }) => AnimatedContainer(
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: const Color(0xFF1C1D1F),
       borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: granted == true ? const Color(0xFF76611B) : Colors.transparent,
+      ),
     ),
     child: Row(
       children: [
@@ -146,10 +152,24 @@ class _RamoPermissionOnboardingGateState
             Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
             const SizedBox(height: 4),
             Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFFA5A5A5), height: 1.4)),
+            if (granted == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Semantics(
+                  liveRegion: true,
+                  child: const Text(
+                    'Permissão concedida',
+                    style: TextStyle(fontSize: 11, color: Color(0xFFFFCC00)),
+                  ),
+                ),
+              ),
             if (granted == false) ...[
               const SizedBox(height: 5),
-              Text(failureHelp,
-                style: const TextStyle(fontSize: 11, color: Color(0xFFFFC46E))),
+              Semantics(
+                liveRegion: true,
+                child: Text(failureHelp,
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFFFC46E))),
+              ),
             ],
           ],
         )),
@@ -160,7 +180,7 @@ class _RamoPermissionOnboardingGateState
           TextButton(
             onPressed: busy ? null : onPressed,
             child: busy
-                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Aguardando permissão'))
                 : Text(action, style: const TextStyle(color: Color(0xFFFFCC00), fontWeight: FontWeight.w700)),
           ),
       ],

@@ -101,3 +101,45 @@ Future<gm.BitmapDescriptor> buildRamoMapMarker({
 
 String ramoVehicleMarkerAsset(String? category) =>
     RamoMapMarkerAssets.vehicle(category);
+
+Future<gm.BitmapDescriptor?> buildRamoNavigationArrow() async {
+  const size = 40.0;
+  const density = 3;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder)..scale(density.toDouble());
+  final arrow = Path()
+    ..moveTo(20, 4)
+    ..lineTo(33, 33)
+    ..lineTo(20, 27)
+    ..lineTo(7, 33)
+    ..close();
+  canvas.drawPath(arrow, Paint()..color = const Color(0xFF1A73E8));
+  canvas.drawPath(
+    arrow,
+    Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeJoin = StrokeJoin.round,
+  );
+  final picture = recorder.endRecording();
+  try {
+    final pixels = (size * density).round();
+    final image = await picture.toImage(pixels, pixels);
+    try {
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) return null;
+      return gm.BitmapDescriptor.bytes(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        width: size,
+        height: size,
+      );
+    } finally {
+      image.dispose();
+    }
+  } catch (_) {
+    return null;
+  } finally {
+    picture.dispose();
+  }
+}
