@@ -1891,6 +1891,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: reason,
                     decoration: const InputDecoration(
                       labelText: 'Motivo do cancelamento',
@@ -4651,7 +4653,9 @@ class _DriverPersonalDataScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Dados pessoais')),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: ListView(
         padding: const EdgeInsets.all(RamoSpacing.lg),
         children: [
           ListTile(
@@ -4681,7 +4685,7 @@ class _DriverPersonalDataScreen extends StatelessWidget {
             subtitle: Text(driverId),
           ),
         ],
-      ),
+      ))))),
     );
   }
 }
@@ -4713,7 +4717,9 @@ class _DriverVehicleDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Veículo')),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: ListView(
         padding: const EdgeInsets.all(RamoSpacing.lg),
         children: [
           ListTile(
@@ -4761,7 +4767,7 @@ class _DriverVehicleDetailsScreen extends StatelessWidget {
             subtitle: Text(fourByFour ? 'Aprovado' : 'Não habilitado'),
           ),
         ],
-      ),
+      ))))),
     );
   }
 }

@@ -217,7 +217,8 @@ class _PendingPaymentRecoveryState extends State<_PendingPaymentRecovery> {
       ? widget.buildNext(_next!)
       : Scaffold(
           appBar: AppBar(
-            title: const Text('Consultando pagamento'),
+            toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+            title: const Text('Consultando pagamento', maxLines: 2, softWrap: true),
             leading: BackButton(onPressed: widget.onClose),
           ),
           body: const Center(
