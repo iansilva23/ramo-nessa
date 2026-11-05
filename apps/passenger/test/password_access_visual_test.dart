@@ -138,9 +138,9 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
-          'security': PassengerSecurityScreen(
+          'security': const PassengerSecurityScreen(
             service: null, accessToken: null, previewMode: true,
-            account: const PassengerAccount(subjectId: 'capture', phoneE164: '+5500000000000', email: 'conta@example.test'),
+            account: PassengerAccount(subjectId: 'capture', phoneE164: '+5500000000000', email: 'conta@example.test'),
           ),
           'privacy': PassengerPrivacyScreen(service: _PrivacyCaptureService()),
           'settings': const PassengerSettingsScreen(),
