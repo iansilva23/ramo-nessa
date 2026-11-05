@@ -15,9 +15,11 @@ Future<void> loadFonts() async {
   final candidates = [File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'), File('/System/Library/Fonts/Supplemental/Arial.ttf')];
   for (final file in candidates) {
     if (!file.existsSync()) continue;
-    final loader = FontLoader('SecondaryCapture')
-      ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
-    await loader.load();
+    for (final family in ['SecondaryCapture', 'Roboto', 'Ahem', 'sans-serif']) {
+      final loader = FontLoader(family)
+        ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+      await loader.load();
+    }
     break;
   }
   final root = Platform.environment['FLUTTER_ROOT'];
@@ -96,6 +98,8 @@ void main() {
     if(state=='error') {
      await tester.scrollUntilVisible(find.text('Tentar novamente'),180,scrollable:find.byType(Scrollable).last);
     }
+    await tester.pumpAndSettle();
+    if(state=='error') expect(find.text('Não conseguimos consultar a avaliação. Tente novamente.'), findsOneWidget);
     await capture(tester,'driver','rating-$state-$variant');
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();

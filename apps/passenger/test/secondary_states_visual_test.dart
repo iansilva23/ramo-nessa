@@ -16,9 +16,11 @@ Future<void> loadFonts() async {
   final candidates = [File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'), File('/System/Library/Fonts/Supplemental/Arial.ttf')];
   for (final file in candidates) {
     if (!file.existsSync()) continue;
-    final loader = FontLoader('SecondaryCapture')
-      ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
-    await loader.load();
+    for (final family in ['SecondaryCapture', 'Roboto', 'Ahem', 'sans-serif']) {
+      final loader = FontLoader(family)
+        ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+      await loader.load();
+    }
     break;
   }
   final root = Platform.environment['FLUTTER_ROOT'];
@@ -75,6 +77,8 @@ void main() {
    for(final blocked in [false,true]) {
     await tester.pumpWidget(host(Scaffold(body:SingleChildScrollView(padding:const EdgeInsets.all(20),child:
       PassengerBoardingCard(key:ValueKey(blocked),api:_Boarding(blocked),rideId:'synthetic',delivery:false))),dark));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds:350));
     await tester.pump(const Duration(milliseconds:350));
     expect(find.text('007'),findsOneWidget);
     await capture(tester,'passenger','boarding-$blocked-$variant');
@@ -84,15 +88,23 @@ void main() {
     final api=_Cancel(status);
     await tester.pumpWidget(host(Scaffold(body:SingleChildScrollView(padding:const EdgeInsets.all(20),child:
       PassengerCancellationPanel(key:ValueKey(status),api:api,rideId:'synthetic',onChanged:(){},now:()=>api.now))),dark));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds:350));
     await tester.pump(const Duration(milliseconds:350));
     if(status=='awaiting_pix') {
       await tester.scrollUntilVisible(find.text('Salvar dados para devolução'),180,scrollable:find.byType(Scrollable).first);
-      await tester.pump(const Duration(milliseconds:350));
+      await tester.pump();
+    await tester.pump(const Duration(milliseconds:350));
+    await tester.pump(const Duration(milliseconds:350));
     }
     await capture(tester,'passenger','cancel-$status-$variant');
     if(status=='active') {
-     await tester.tap(find.byKey(const ValueKey('passenger-free-cancel')));
+     await tester.ensureVisible(find.byKey(const ValueKey('passenger-free-cancel')));
      await tester.pump(const Duration(milliseconds:350));
+     await tester.tap(find.byKey(const ValueKey('passenger-free-cancel')));
+     await tester.pump();
+    await tester.pump(const Duration(milliseconds:350));
+    await tester.pump(const Duration(milliseconds:350));
      expect(find.text('Cancelar corrida?'),findsOneWidget);
      await capture(tester,'passenger','cancel-confirm-$variant');
     }
