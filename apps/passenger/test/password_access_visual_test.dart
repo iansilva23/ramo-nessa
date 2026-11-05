@@ -168,6 +168,7 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'tour-detail': AgencyTourDetailScreen(tour: (await _ToursCaptureService().listTours()).first, onReserve: () {}),
           'search': const DestinationSearchScreen(),
           'vehicles': VehicleSelectionScreen(
             originLabel: 'Preá', destinationLabel: 'Jijoca', routeSummary: '12 km · 20 min',
