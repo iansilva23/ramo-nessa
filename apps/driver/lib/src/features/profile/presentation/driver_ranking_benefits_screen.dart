@@ -135,10 +135,12 @@ class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScree
           ),
         ],
       ),
-      body: _loading
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: _loading
           ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Carregando ranking'))
           : _error != null
-              ? Center(child: Padding(
+              ? SingleChildScrollView(child: Padding(
                   padding: const EdgeInsets.all(RamoSpacing.xl),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.cloud_off_rounded, size: 44),
@@ -155,6 +157,7 @@ class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScree
                     onSelect: (id) => setState(() => _selectedId = id),
                   ),
                 ),
+      )))),
     );
   }
 }
@@ -391,3 +394,4 @@ class _ComingSoonBenefit extends StatelessWidget {
     );
   }
 }
+

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 import '../data/passenger_growth_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
 
@@ -84,13 +85,22 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
         await widget.paymentService!.savePromotionCode(b['code'] as String);
         _notice('Cupom salvo. Confira sua aplicação e o preço na próxima corrida.');
       }), child: const Text('Usar na próxima corrida')),
-    ])));
+    ])))))));
   }
   @override
   Widget build(BuildContext context) {
     final benefits = (_data?['benefits'] as List? ?? []).whereType<Map<String, dynamic>>().toList();
     final messages = (_data?['messages'] as List? ?? []).whereType<Map<String, dynamic>>().toList();
-    return Scaffold(appBar: AppBar(title: const Text('Meus benefícios')), body: RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(20), children: [
+    return Scaffold(appBar: AppBar(title: const Text('Meus benefícios')), body: SafeArea(child: Center(child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 760),
+      child: RamoReveal(child: RefreshIndicator(onRefresh: _load, child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(20), children: [
+      Semantics(header: true, child: Text('Mais para sua próxima corrida',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900))),
+      const SizedBox(height: 8),
+      Text('Seus cupons, novidades e preferências em um só lugar.',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      const SizedBox(height: 24),
       if (_busy) const LinearProgressIndicator(),
       if (_error != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
       if (_data == null && !_busy) TextButton(onPressed: _load, child: const Text('Tentar novamente')),
@@ -119,10 +129,10 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           maxLength: 5,
           keyboardType: TextInputType.datetime,
           decoration: const InputDecoration(
-            labelText: 'Aniversário (opcional)',
+            labelText: 'Aniversário',
             hintText: 'DD/MM',
             helperText: 'Somente dia e mês. Para apagar, deixe vazio e salve.',
-            helperMaxLines: 2,
+            helperMaxLines: 4,
           ),
         ),
         // Reserve space for helper text and the max-length counter before
@@ -132,7 +142,8 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           key: ValueKey('audience:$_audience'),
           initialValue: _audience,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Seu perfil (opcional)'),
+          itemHeight: null,
+          decoration: const InputDecoration(labelText: 'Seu perfil'),
           items: const [
             DropdownMenuItem(value: 'unspecified', child: Text('Prefiro não informar')),
             DropdownMenuItem(value: 'resident', child: Text('Morador')),
@@ -145,7 +156,8 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           key: ValueKey('zone:$_zone'),
           initialValue: _zone ?? '',
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Região de interesse (opcional)'),
+          itemHeight: null,
+          decoration: const InputDecoration(labelText: 'Região de interesse'),
           items: const [
             DropdownMenuItem(value: '', child: Text('Prefiro não informar')),
             DropdownMenuItem(value: 'prea', child: Text('Preá')),
@@ -155,14 +167,15 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           ],
           onChanged: _busy ? null : (v) => setState(() => _zone = v == '' ? null : v),
         ),
-        const SizedBox(height: 16), FilledButton(onPressed: _busy ? null : _save, child: const Text('Salvar preferências')),
+        const SizedBox(height: 16), FilledButton(style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)), onPressed: _busy ? null : _save, child: const Text('Salvar preferências')),
         const SizedBox(height: 24), Text('Indique amigos', style: Theme.of(context).textTheme.titleLarge),
         const Text('Benefícios dependem de uma campanha ativa e das condições. A indicação é validada após a primeira corrida paga e concluída.'),
         if (_code != null) SelectableText(_code!),
         TextButton(onPressed: _busy ? null : () => _action(() async { final code = await widget.service.referralCode(); if (!mounted) return; setState(() => _code = code); await Clipboard.setData(ClipboardData(text: code)); _notice('Seu código foi copiado.'); }), child: const Text('Copiar meu código')),
-        TextField(controller: _referral, enabled: !_busy, maxLength: 18, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Código de quem indicou você', helperText: 'Registre antes de concluir sua primeira corrida.')),
+        TextField(controller: _referral, enabled: !_busy, maxLength: 18, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Código de indicação', helperText: 'Registre antes de concluir sua primeira corrida.', helperMaxLines: 4)),
         TextButton(onPressed: _busy ? null : () => _action(() async { await widget.service.applyReferral(_referral.text); _notice('Indicação registrada.'); }), child: const Text('Registrar indicação')),
       ],
     ])));
   }
 }
+

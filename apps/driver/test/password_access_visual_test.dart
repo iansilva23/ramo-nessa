@@ -3,6 +3,9 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_documents_screen.dart';
+import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_ranking_benefits_screen.dart';
+
 import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_security_screen.dart';
 import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_privacy_screen.dart';
 import 'package:ramo_nessa_driver/src/features/profile/data/driver_privacy_service.dart';
@@ -138,6 +141,8 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'documents': DriverDocumentsScreen(api: _SupportCaptureApi()),
+          'ranking': const DriverRankingBenefitsScreen(),
           'security': DriverSecurityScreen(api: _SupportCaptureApi()),
           'privacy': DriverPrivacyScreen(service: _PrivacyCaptureService()),
           'settings': const DriverSettingsScreen(),
@@ -168,6 +173,24 @@ void main() {
           );
           await tester.pumpAndSettle();
           await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
+          final bottom = switch (screen.key) {
+            'documents' => find.textContaining('até 20 MB por arquivo'),
+            'ranking' => find.text('Continue fazendo um ótimo trabalho. Novidades estão chegando.'),
+            'help' => find.text('Problemas com notificações ou GPS?'),
+            'benefits' => find.text('Registrar indicação'),
+            _ => null,
+          };
+          if (bottom != null) {
+            await tester.scrollUntilVisible(bottom, 220,
+                scrollable: find.byType(Scrollable).first);
+            await tester.pumpAndSettle();
+            if (screen.key == 'help') {
+              await tester.tap(bottom);
+              await tester.pumpAndSettle();
+            }
+            await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}-bottom');
+          }
+
         }
       }
 
@@ -207,6 +230,11 @@ void main() {
 }
 
 class _SupportCaptureApi extends Fake implements DriverApi {
+  @override
+  Future<DriverDocumentsSnapshot> documents() async => const DriverDocumentsSnapshot(
+    items: [], requiredDocumentTypes: ['driver_license', 'vehicle_registration'],
+    documentsApproved: false,
+  );
   @override
   Future<DriverSecuritySnapshot> security() async => DriverSecuritySnapshot(
     sessionId: 'capture', subjectType: 'driver',
