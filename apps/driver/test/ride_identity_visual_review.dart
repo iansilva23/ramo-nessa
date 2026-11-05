@@ -14,6 +14,16 @@ Future<void> fonts()async{
 
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();setUpAll(fonts);
+ setUp(() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+   const MethodChannel('br.com.ramonessa.driver/screen-lock'), (call) async => null,
+  );
+ });
+ tearDown(() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+   const MethodChannel('br.com.ramonessa.driver/screen-lock'), null,
+  );
+ });
  for(final width in [320,390,900]){
   testWidgets('driver identification visual $width',(tester)async{
    tester.view.physicalSize=Size(width.toDouble(),900);tester.view.devicePixelRatio=1;
