@@ -3,6 +3,16 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_passenger/src/features/home/presentation/destination_search_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/home/presentation/vehicle_selection_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/driver_confirmation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/tours/presentation/agency_tours_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/tours/data/agency_tour_service.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_profile_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_saved_places_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_saved_place_service.dart';
@@ -158,6 +168,16 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'search': const DestinationSearchScreen(),
+          'vehicles': VehicleSelectionScreen(
+            originLabel: 'Preá', destinationLabel: 'Jijoca', routeSummary: '12 km · 20 min',
+            availableServices: const [ServiceType.car, ServiceType.moto],
+            initialService: ServiceType.car, buggyMinPassengers: 1, buggyMaxPassengers: 4,
+            onQuote: (_) async => PricingQuote.fromJson({'kind': 'exact', 'ruleId': 'capture', 'totalAmountCents': 15000}),
+            onContinue: (_) async => null,
+          ),
+          'payment': RidePaymentScreen(ride: _captureRide(), paymentService: _PaymentCaptureService(), networkTilesEnabled: false),
+          'tours': Scaffold(body: AgencyToursScreen(service: _ToursCaptureService())),
           'profile': Scaffold(body: PassengerProfileScreen(authService: null, accessToken: null,
               onOpenActivity: () {}, previewMode: true)),
           'activity': const Scaffold(body: PassengerActivityScreen(service: null)),
@@ -200,6 +220,18 @@ void main() {
           );
           await tester.pumpAndSettle();
           await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
+          if (screen.key == 'payment') {
+            final confirm = find.text('Confirmar e pagar');
+            await tester.scrollUntilVisible(confirm, 180, scrollable: find.byType(Scrollable).first);
+            await tester.pumpAndSettle();
+            await tester.tap(confirm);
+            await tester.pumpAndSettle();
+            final pix = find.byKey(const Key('payment-option-pix'));
+            await tester.scrollUntilVisible(pix, 180, scrollable: find.byType(Scrollable).first);
+            await tester.pumpAndSettle();
+            await shot('payment-options-${narrow ? 'phone' : 'desktop-dark'}');
+          }
+
           final bottom = switch (screen.key) {
             'wallet' => find.text('Histórico de recargas'),
             'coupons' => find.text('Ativar cupom'),
@@ -347,7 +379,22 @@ class _BenefitsCaptureService extends Fake implements PassengerGrowthService {
   void close() {}
 }
 
-class _PaymentCaptureService extends Fake implements PassengerPaymentService {
+class _PaymentCaptureService extends Fake implements PassengerPaymentService, DriverConfirmationService {
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async => const PassengerPaymentPolicy(
+    cashEnabled: false, allowedMethods: {'pix'}, paymentRequiredBeforeDispatch: true,
+    passengerWalletEnabled: false, pixPriceAdjustmentBps: 0, cardPriceAdjustmentBps: 0,
+  );
+  @override
+  Future<void> requestDriverConfirmation(String rideId) async {}
+  @override
+  Future<DriverConfirmation> driverConfirmation(String rideId) async => DriverConfirmation(
+    ride: _captureRide(), status: 'READY_TO_PAY',
+    driver: const ConfirmedDriver(name: 'Motorista de teste', vehicle: 'Carro de teste', plate: 'ABC1D23', arrivalSeconds: 180),
+  );
+  @override
+  Future<void> releaseDriverReservation(String rideId) async {}
+
   @override
   Future<int> walletBalanceCents() async => 15000;
   @override
@@ -367,4 +414,19 @@ class _SearchCaptureService extends Fake implements PlaceSearchService {}
 class _TrackingCaptureService extends Fake implements PassengerRideTrackingService {
   @override
   Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async => [];
+}
+
+PreparedRide _captureRide() => PreparedRide(
+  id: 'capture', state: 'AWAITING_PAYMENT', baseAmountCents: 15000,
+  pickupCompensationCents: 0, totalAmountCents: 15000,
+  holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)), driverConsentRequired: true,
+);
+class _ToursCaptureService extends Fake implements AgencyTourService {
+  @override
+  Future<List<AgencyTour>> listTours() async => [AgencyTour.fromJson({
+    'slug': 'capture', 'enabled': true, 'title': 'Passeio de teste pela região',
+    'shortDescription': 'Conteúdo simulado para revisar a apresentação dos passeios.',
+    'description': 'Este conteúdo não será publicado.', 'priceCents': 15000,
+    'duration': '4 horas', 'departure': 'Ponto de encontro de teste',
+  }, baseUrl: Uri.parse('https://example.invalid'))];
 }

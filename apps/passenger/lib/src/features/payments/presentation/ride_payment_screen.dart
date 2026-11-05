@@ -987,6 +987,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               : null,
         ),
         body: SafeArea(
+          child: Center(child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: RamoReveal(
           child: ListView(
             padding: const EdgeInsets.all(RamoSpacing.lg),
             children: [
@@ -995,7 +998,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.lg),
-                ),
+                    ),
+          )),
+        ),
                 child: Row(
                   children: [
                     const Icon(Icons.route_rounded, size: 24),
@@ -1341,6 +1346,9 @@ class _PromotionConfirmedScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(
         child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
@@ -1350,7 +1358,9 @@ class _PromotionConfirmedScreen extends StatelessWidget {
                 Icons.redeem_rounded,
                 size: 82,
                 color: RamoColors.signal,
-              ),
+                  ),
+        )),
+      ),
               const SizedBox(height: RamoSpacing.lg),
               Text(
                 'Corrida promocional confirmada',
@@ -1623,6 +1633,9 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
             : BackButton(onPressed: widget.onRecoveryClose),
       ),
       body: SafeArea(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(
         child: ListView(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           children: [
@@ -1632,7 +1645,9 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
               textAlign: TextAlign.center,
-            ),
+                ),
+        )),
+      ),
             const SizedBox(height: RamoSpacing.sm),
             Text(
               widget.driverReserved
@@ -1957,6 +1972,9 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Pagamento com cartão')),
       body: SafeArea(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(
         child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
@@ -1979,7 +1997,9 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
                             : Icons.credit_card_rounded,
                         key: ValueKey(
                           '$failed-${(_verified || widget.result.paymentConfirmed)}',
-                        ),
+                            ),
+        )),
+      ),
                         size: 82,
                         color: failed
                             ? Theme.of(context).colorScheme.error
@@ -2076,6 +2096,9 @@ class _CashAuthorizedScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(
         child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
@@ -2085,7 +2108,9 @@ class _CashAuthorizedScreen extends StatelessWidget {
                 Icons.payments_rounded,
                 size: 82,
                 color: RamoColors.signal,
-              ),
+                  ),
+        )),
+      ),
               const SizedBox(height: RamoSpacing.lg),
               Text(
                 'Pagamento em dinheiro',
@@ -2145,6 +2170,9 @@ class _PaymentConfirmedScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(
         child: Padding(
           padding: const EdgeInsets.all(RamoSpacing.xl),
           child: Column(
@@ -2154,7 +2182,9 @@ class _PaymentConfirmedScreen extends StatelessWidget {
                 Icons.check_circle_rounded,
                 size: 82,
                 color: RamoColors.signal,
-              ),
+                  ),
+        )),
+      ),
               const SizedBox(height: RamoSpacing.lg),
               Text(
                 'Pagamento confirmado',
@@ -2364,3 +2394,4 @@ class _CheckoutEmailDialogState extends State<_CheckoutEmailDialog> {
     ],
   );
 }
+
