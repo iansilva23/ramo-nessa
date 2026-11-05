@@ -563,10 +563,10 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Row(children: [
-                  const Icon(Icons.pix_rounded),
-                  const SizedBox(width: RamoSpacing.sm),
-                  const Expanded(child: Text('Chave Pix para repasses',
+                const Row(children: [
+                  Icon(Icons.pix_rounded),
+                  SizedBox(width: RamoSpacing.sm),
+                  Expanded(child: Text('Chave Pix para repasses',
                       style: TextStyle(fontWeight: FontWeight.w900))),
                 ]),
                 const SizedBox(height: RamoSpacing.sm),
