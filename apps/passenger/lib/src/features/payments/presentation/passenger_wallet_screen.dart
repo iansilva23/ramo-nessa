@@ -127,8 +127,13 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
     final balance = _balanceCents;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Carteira Ramo Nessa')),
-      body: RefreshIndicator(
+      appBar: AppBar(
+        title: const Text('Carteira Ramo Nessa', maxLines: 2, softWrap: true),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+      ),
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -159,6 +164,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                   ),
                   const SizedBox(height: RamoSpacing.md),
                   FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
                     onPressed: _creating ? null : _newTopup,
                     icon: _creating
                         ? const SizedBox.square(
@@ -211,9 +217,9 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
                     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Icon(
+                    child: Icon(
                       Icons.pix_rounded,
-                      color: RamoColors.brandBlack,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   title: Text(
@@ -227,6 +233,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -373,11 +380,9 @@ class _PixWalletTopupScreenState extends State<_PixWalletTopupScreen> {
                           ? Icons.error_outline_rounded
                           : Icons.pix_rounded,
                   size: 96,
-                  color: status.paid
-                      ? RamoColors.brandBlack
-                      : status.terminalFailure
-                          ? Theme.of(context).colorScheme.error
-                          : RamoColors.brandBlack,
+                  color: status.terminalFailure
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             const SizedBox(height: RamoSpacing.lg),
@@ -387,6 +392,7 @@ class _PixWalletTopupScreenState extends State<_PixWalletTopupScreen> {
               widget.result.qrCode.trim().isNotEmpty
             )
               FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
                 onPressed: _copyPix,
                 icon: const Icon(Icons.copy_rounded),
                 label: const Text('Copiar código Pix'),
@@ -592,10 +598,11 @@ class _TopupStatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w900,
-          color: RamoColors.brandBlack,
+          color: status == 'paid' ? RamoColors.brandBlack
+              : Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -615,3 +622,4 @@ String _formatDate(DateTime value) {
   final minute = local.minute.toString().padLeft(2, '0');
   return '$day/$month/${local.year} · $hour:$minute';
 }
+
