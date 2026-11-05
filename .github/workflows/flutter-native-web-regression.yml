@@ -2,7 +2,7 @@ name: Native Compatibility - Web and Permissions
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/ride-access-integration-20261104]
+    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/ride-access-integration-20261104, feature/settings-ux-20261105]
     paths:
       - '.github/workflows/flutter-native-web-regression.yml'
       - 'apps/passenger/**'
