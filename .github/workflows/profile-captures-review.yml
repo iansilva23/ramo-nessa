@@ -13,8 +13,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
-          run-id: 42045478880
-          name: access-shots-passenger
+          run-id: 42069666106
+          pattern: access-shots-*
+          merge-multiple: true
           path: review-input
       - name: Recover already generated screenshots for visual review
         env:
@@ -43,8 +44,8 @@ jobs:
               with urllib.request.urlopen(request, timeout=60) as response:
                   return response.read()
           names = [p.name for p in Path('review-input').glob('*.png') if
-                   any(k in p.name for k in ('settings-', 'support-', 'notifications-'))]
-          assert len(names) == 6, names
+                   any(k in p.name for k in ('security-', 'privacy-'))]
+          assert len(names) == 8, names
           for name in names:
               raw = (Path('review-input') / name).read_bytes()
               result = json.loads(api('/git/blobs', {
