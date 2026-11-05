@@ -506,11 +506,11 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pageWidth = MediaQuery.sizeOf(context).width.clamp(0.0, 760.0);
+    final availableWidth = pageWidth - RamoSpacing.lg * 2;
+    final stacked = availableWidth < 340 || MediaQuery.textScalerOf(context).scale(1) > 1.2;
     return SizedBox(
-      width: (MediaQuery.sizeOf(context).width -
-              RamoSpacing.lg * 2 -
-              RamoSpacing.sm) /
-          2,
+      width: stacked ? availableWidth : (availableWidth - RamoSpacing.sm) / 2,
       child: Container(
         padding: const EdgeInsets.all(RamoSpacing.md),
         decoration: BoxDecoration(
@@ -531,8 +531,6 @@ class _MetricCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 18,
