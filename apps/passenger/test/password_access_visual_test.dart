@@ -7,6 +7,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_settings_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_support_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_support_service.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 void main() {
@@ -122,32 +124,41 @@ void main() {
         tester.view.physicalSize = narrow
             ? const Size(320, 740)
             : const Size(1000, 900);
-        await tester.pumpWidget(
-          RepaintBoundary(
-            key: captureKey,
-            child: MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: (narrow ? RamoTheme.light : RamoTheme.dark).copyWith(
-                textTheme: (narrow ? RamoTheme.light : RamoTheme.dark)
-                    .textTheme.apply(
-                      fontFamily: font.existsSync() ? 'AccessCapture' : null,
-                    ),
-              ),
-              builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: TextScaler.linear(narrow ? 1.4 : 1),
-                ),
-                child: child!,
-              ),
-              home: const PassengerSettingsScreen(),
-            ),
+        final screens = <String, Widget>{
+          'settings': const PassengerSettingsScreen(),
+          'support': PassengerSupportScreen(service: _SupportCaptureService()),
+          'notifications': RamoNotificationSettings(
+            readPreference: () async => false,
+            savePreference: (_) async => true,
+            requestNotifications: () async => true,
+            notificationHelp: () => 'Receba avisos de corridas, mensagens e pagamentos.',
           ),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('Configurações'), findsOneWidget);
-        expect(find.text('Configurações do aplicativo'), findsOneWidget);
-        expect(find.text('Configurações de localização'), findsOneWidget);
-        await shot(narrow ? 'settings-phone' : 'settings-desktop-dark');
+        };
+        for (final screen in screens.entries) {
+          await tester.pumpWidget(
+            RepaintBoundary(
+              key: captureKey,
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: (narrow ? RamoTheme.light : RamoTheme.dark).copyWith(
+                  textTheme: (narrow ? RamoTheme.light : RamoTheme.dark)
+                      .textTheme.apply(
+                        fontFamily: font.existsSync() ? 'AccessCapture' : null,
+                      ),
+                ),
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(narrow ? 1.4 : 1),
+                  ),
+                  child: child!,
+                ),
+                home: screen.value,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
+        }
       }
 
     },
@@ -183,4 +194,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+}
+
+class _SupportCaptureService extends Fake implements PassengerSupportService {
+  @override
+  Future<List<PassengerSupportTicket>> listTickets() async => [];
 }
