@@ -2,7 +2,7 @@ name: Native Compatibility - Web and Permissions
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104]
+    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/driver-ride-status-20261104]
     paths:
       - '.github/workflows/flutter-native-web-regression.yml'
       - 'apps/passenger/**'
@@ -92,7 +92,7 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: test -s build/ios/iphonesimulator/Runner.app/Runner
       - name: Compile Web with shared access changes
-        if: github.ref_name == 'feature/access-ux-20261104' && matrix.platform == 'android'
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/driver-ride-status-20261104') && matrix.platform == 'android'
         working-directory: apps/${{ matrix.app }}
         run: flutter build web --release --no-pub
       - name: Upload login and registration screenshots
