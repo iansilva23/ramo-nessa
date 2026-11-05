@@ -86,35 +86,93 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Notificações')),
-        body: ListView(padding: const EdgeInsets.all(24), children: [
-          const Icon(Icons.notifications_rounded,
-              size: 48, color: Color(0xFFFFCC00)),
-          const SizedBox(height: 20),
-          Text(widget.notificationHelp(), style: const TextStyle(height: 1.5)),
-          const SizedBox(height: 16),
-          FilledButton(
-              onPressed: _busy ? null : _activate,
-              child: Text(
-                  _busy ? 'Aguarde...' : 'Ativar ou verificar notificações')),
-          const SizedBox(height: 24),
-          SwitchListTile.adaptive(
-            title: const Text('Todas as notificações'),
-            subtitle: Text(_all
-                ? 'Inclui novidades e promoções autorizadas.'
-                : 'Somente avisos importantes de corridas, mensagens, pagamentos e serviço.'),
-            value: _all,
-            onChanged: _busy ? null : _save,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notificações')),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Icon(Icons.notifications_active_outlined,
+                          size: 32, color: colors.onPrimaryContainer),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Fique por dentro', style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Text(widget.notificationHelp(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.5, color: colors.onSurfaceVariant,
+                    )),
+                const SizedBox(height: 20),
+                if (_busy) ...[
+                  const LinearProgressIndicator(
+                    semanticsLabel: 'Atualizando notificações',
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                FilledButton.icon(
+                  onPressed: _busy ? null : _activate,
+                  icon: const Icon(Icons.notifications_outlined),
+                  label: Text(_busy
+                      ? 'Aguarde...'
+                      : 'Ativar ou verificar notificações'),
+                ),
+                const SizedBox(height: 24),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: SwitchListTile.adaptive(
+                    contentPadding: const EdgeInsets.all(16),
+                    title: const Text('Todas as notificações'),
+                    subtitle: Text(_all
+                        ? 'Inclui novidades e promoções autorizadas.'
+                        : 'Somente avisos importantes de corridas, mensagens, pagamentos e serviço.'),
+                    value: _all,
+                    onChanged: _busy ? null : _save,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Esta escolha vale para este aparelho. Autorizar novidades não substitui as preferências de privacidade e marketing da sua conta.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    height: 1.5, color: colors.onSurfaceVariant,
+                  ),
+                ),
+                if (_feedback != null) ...[
+                  const SizedBox(height: 20),
+                  Semantics(
+                    liveRegion: true,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(_feedback!),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          const Text(
-              'Esta escolha vale para este aparelho. Autorizar novidades não substitui as preferências de privacidade e marketing da sua conta.',
-              style: TextStyle(fontSize: 12, height: 1.5)),
-          if (_feedback != null) ...[
-            const SizedBox(height: 20),
-            Text(_feedback!)
-          ],
-        ]),
-      );
+        ),
+      ),
+    );
+  }
 }
