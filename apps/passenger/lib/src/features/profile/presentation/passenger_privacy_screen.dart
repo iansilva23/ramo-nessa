@@ -219,7 +219,7 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
               const SizedBox(height: RamoSpacing.md),
               Semantics(
                 liveRegion: true,
-                child: _PrivacyNotice(
+                child: const _PrivacyNotice(
                   icon: Icons.error_outline_rounded,
                   text: 'Não foi possível atualizar seus dados. Tente novamente.',
                 ),
