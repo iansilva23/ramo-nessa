@@ -45,6 +45,30 @@ void main() {
             theme: font.existsSync()
                 ? theme.copyWith(
                     textTheme: theme.textTheme.apply(fontFamily: 'AccessCapture'),
+                    filledButtonTheme: FilledButtonThemeData(
+                      style: (theme.filledButtonTheme.style ?? const ButtonStyle())
+                          .copyWith(
+                            textStyle: WidgetStatePropertyAll(
+                              (theme.filledButtonTheme.style?.textStyle
+                                          ?.resolve({}) ??
+                                      theme.textTheme.labelLarge ??
+                                      const TextStyle())
+                                  .copyWith(fontFamily: 'AccessCapture'),
+                            ),
+                          ),
+                    ),
+                    outlinedButtonTheme: OutlinedButtonThemeData(
+                      style: (theme.outlinedButtonTheme.style ?? const ButtonStyle())
+                          .copyWith(
+                            textStyle: WidgetStatePropertyAll(
+                              (theme.outlinedButtonTheme.style?.textStyle
+                                          ?.resolve({}) ??
+                                      theme.textTheme.labelLarge ??
+                                      const TextStyle())
+                                  .copyWith(fontFamily: 'AccessCapture'),
+                            ),
+                          ),
+                    ),
                   )
                 : theme,
             home: RamoPasswordAccessFlow(
