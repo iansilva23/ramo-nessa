@@ -241,7 +241,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                     maxLines: 8,
                     maxLength: 2000,
                     decoration: const InputDecoration(
-                      labelText: 'Descreva o problema',
+                      labelText: 'Mensagem',
                     ),
                   ),
                   if (_error != null) ...[
