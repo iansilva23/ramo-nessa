@@ -41,3 +41,73 @@ jobs:
           if-no-files-found: error
       - name: Verify application source was not changed by review
         run: git diff --exit-code -- apps/*/lib apps/*/pubspec.lock packages/
+
+  profiles:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f8202b55e4fb05f2df0561c87e03d8f7fec1c615
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve committed dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Include surrounding context in lower-page captures
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('test/password_access_visual_test.dart')
+          s = p.read_text()
+          needle = "            if (screen.key == 'help') {"
+          assert needle in s
+          s = s.replace(needle,
+              "            await Scrollable.ensureVisible(tester.element(bottom), alignment: 0.9);\n"
+              "            await tester.pumpAndSettle();\n" + needle, 1)
+          p.write_text(s)
+          PY
+      - name: Render profile and checkout pages without paid providers
+        working-directory: apps/${{ matrix.app }}
+        run: flutter test test/password_access_visual_test.dart
+      - name: Preserve review images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-profile-review-${{ matrix.app }}
+          path: release/access-shots/${{ matrix.app }}-*.png
+          if-no-files-found: error
+      - name: Make generated review images readable for inspection
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REVIEW_APP: ${{ matrix.app }}
+        run: |
+          python3 - <<'PY'
+          import base64,json,os,urllib.request
+          from pathlib import Path
+          app=os.environ['REVIEW_APP']
+          names=('wallet','statement','documents','ranking','help','benefits','profile','activity','saved-places','chat','summary','search','vehicles','payment','tours')
+          for p in sorted(Path('release/access-shots').glob(app+'-*.png')):
+              if not any(p.name.startswith(app+'-'+name+'-') for name in names):
+                  continue
+              payload=json.dumps({'encoding':'utf-8','content':base64.b64encode(p.read_bytes()).decode()}).encode()
+              request=urllib.request.Request('https://api.github.com/repos/'+os.environ['GH_REPO']+'/git/blobs',
+                  data=payload,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+              with urllib.request.urlopen(request,timeout=60) as response:
+                  result=json.load(response)
+              print(json.dumps({'file':p.name,'blob':result['sha']}))
+          PY
+      - name: Verify product source was preserved
+        run: git diff --exit-code -- apps/*/lib packages/
