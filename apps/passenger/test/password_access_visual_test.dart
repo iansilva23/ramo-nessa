@@ -18,22 +18,24 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final font = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
       final theme = RamoTheme.light;
-      if (font.existsSync()) {
-        final loader = FontLoader('AccessCapture');
-        loader.addFont(Future.value(ByteData.sublistView(font.readAsBytesSync())));
-        await loader.load();
-      }
-      final flutterRoot = Platform.environment['FLUTTER_ROOT'];
-      if (flutterRoot != null) {
-        final icons = File(
-          '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
-        );
-        if (icons.existsSync()) {
-          final loader = FontLoader('MaterialIcons');
-          loader.addFont(Future.value(ByteData.sublistView(icons.readAsBytesSync())));
+      await tester.runAsync(() async {
+        if (font.existsSync()) {
+          final loader = FontLoader('AccessCapture');
+          loader.addFont(Future.value(ByteData.sublistView(font.readAsBytesSync())));
           await loader.load();
         }
-      }
+        final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+        if (flutterRoot != null) {
+          final icons = File(
+            '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+          );
+          if (icons.existsSync()) {
+            final loader = FontLoader('MaterialIcons');
+            loader.addFont(Future.value(ByteData.sublistView(icons.readAsBytesSync())));
+            await loader.load();
+          }
+        }
+      });
       const captureKey = Key('capture');
       await tester.pumpWidget(
         RepaintBoundary(
