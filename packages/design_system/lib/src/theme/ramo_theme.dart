@@ -181,7 +181,7 @@ abstract final class RamoTheme {
         thumbColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
               ? RamoColors.brandBlack
-              : foreground.withValues(alpha: 0.72),
+              : RamoColors.muted,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
