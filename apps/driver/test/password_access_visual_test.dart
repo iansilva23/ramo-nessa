@@ -104,7 +104,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       Future<void> shot(String page) async {
-        expect(tester.takeException(), isNull);
+        expect(tester.takeException(), isNull, reason: page);
         await tester.runAsync(() async {
           final boundary = tester.renderObject<RenderRepaintBoundary>(
             find.byKey(captureKey),
