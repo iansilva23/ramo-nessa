@@ -153,11 +153,11 @@ class _RamoPermissionOnboardingGateState
             const SizedBox(height: 4),
             Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFFA5A5A5), height: 1.4)),
             if (granted == true)
-              const Padding(
-                padding: EdgeInsets.only(top: 5),
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
                 child: Semantics(
                   liveRegion: true,
-                  child: Text(
+                  child: const Text(
                     'Permissão concedida',
                     style: TextStyle(fontSize: 11, color: Color(0xFFFFCC00)),
                   ),
