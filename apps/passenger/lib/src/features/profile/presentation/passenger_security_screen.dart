@@ -152,7 +152,8 @@ class _PassengerSecurityScreenState extends State<PassengerSecurityScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
-            child: RefreshIndicator(
+            child: RamoReveal(
+              child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -266,6 +267,7 @@ class _PassengerSecurityScreenState extends State<PassengerSecurityScreen> {
             ),
           ],
         ),
+              ),
             ),
           ),
         ),
