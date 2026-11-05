@@ -1,0 +1,47 @@
+name: Driver offer tone - Android preview
+on:
+  push:
+    branches: [test/driver-offer-tone-preview-20261104]
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_PREVIEW_SIGNING: 'true'
+      RAMO_PRODUCTION_SIGNING: 'false'
+    defaults:
+      run:
+        working-directory: apps/driver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter test test/offer_tone_lifecycle_test.dart
+      - name: Build isolated mock preview APK
+        run: flutter build apk --release --no-pub --dart-define=RAMO_PREVIEW_MODE=true --dart-define=RAMO_CORE_BASE_URL=
+      - name: Verify packaged audio and signature
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          unzip -p "$apk" assets/flutter_assets/assets/audio/nova_corrida.mp3 | cmp - assets/audio/nova_corrida.mp3
+          apksigner=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$apksigner" verify "$apk"
+          cp "$apk" Ramo-Nessa-Motorista-Toque-Preview.apk
+          sha256sum Ramo-Nessa-Motorista-Toque-Preview.apk > APK-SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: motorista-toque-preview-android
+          path: |
+            apps/driver/Ramo-Nessa-Motorista-Toque-Preview.apk
+            apps/driver/APK-SHA256.txt
+          if-no-files-found: error
