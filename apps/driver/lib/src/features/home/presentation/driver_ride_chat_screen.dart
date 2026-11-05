@@ -222,7 +222,10 @@ class _DriverRideChatScreenState extends State<DriverRideChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mensagem com passageiro')),
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Mensagem com passageiro', maxLines: 2, softWrap: true),
+      ),
       body: SafeArea(child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: Column(
