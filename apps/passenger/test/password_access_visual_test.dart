@@ -158,8 +158,8 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
-          'profile': PassengerProfileScreen(authService: null, accessToken: null,
-              onOpenActivity: () {}, previewMode: true),
+          'profile': Scaffold(body: PassengerProfileScreen(authService: null, accessToken: null,
+              onOpenActivity: () {}, previewMode: true)),
           'activity': const Scaffold(body: PassengerActivityScreen(service: null)),
           'saved-places': PassengerSavedPlacesScreen(service: _SavedCaptureService(), searchService: _SearchCaptureService()),
           'chat': PassengerRideChatScreen(service: _TrackingCaptureService(), rideId: 'capture'),
