@@ -129,7 +129,10 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Falar com o suporte')),
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Falar com o suporte', maxLines: 2, softWrap: true),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

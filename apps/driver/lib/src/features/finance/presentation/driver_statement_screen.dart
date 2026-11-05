@@ -93,7 +93,10 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
         MediaQuery.textScalerOf(context).scale(1) > 1.2;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Extrato de ganhos')),
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Extrato de ganhos', maxLines: 2, softWrap: true),
+      ),
       body: SafeArea(child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: RamoReveal(child: RefreshIndicator(

@@ -183,7 +183,10 @@ class _DriverPrivacyScreenState extends State<DriverPrivacyScreen> {
     final overview = _overview;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Privacidade e LGPD')),
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Privacidade e LGPD', maxLines: 2, softWrap: true),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

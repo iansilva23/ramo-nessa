@@ -1837,7 +1837,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Ocorrência da corrida')),
+            appBar: AppBar(
+              toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+              title: const Text('Ocorrência da corrida', maxLines: 2, softWrap: true),
+            ),
             body: SafeArea(
               child: SingleChildScrollView(
                 child: RamoRideOccurrencePanel(
