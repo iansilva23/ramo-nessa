@@ -357,6 +357,15 @@ void main() {
     await tester.tap(find.text('Sim, iniciar trajeto'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
+    expect(
+      find.ancestor(
+        of: find.text('Corrida em andamento'),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Semantics && widget.properties.liveRegion == true,
+        ),
+      ),
+      findsWidgets,
+    );
     expect(find.text('Finalizar corrida'), findsOneWidget);
     expect(find.text('Parar navegação'), findsOneWidget);
     expect(find.text('Abrir no Google Maps'), findsOneWidget);
