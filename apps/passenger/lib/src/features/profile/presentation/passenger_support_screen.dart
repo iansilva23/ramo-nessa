@@ -223,7 +223,7 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
                       maxLines: 8,
                       maxLength: 2000,
                       decoration: const InputDecoration(
-                        labelText: 'Descreva o que aconteceu',
+                        labelText: 'Mensagem',
                       ),
                     ),
                     if (_error != null)
