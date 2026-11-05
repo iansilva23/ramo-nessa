@@ -1061,36 +1061,46 @@ class _PaymentMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 5),
+      contentPadding: const EdgeInsets.symmetric(vertical: 8),
       leading: CircleAvatar(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(icon, color: RamoColors.brandBlack),
+        backgroundColor: scheme.surfaceContainerHighest,
+        child: Icon(icon, color: scheme.onSurface),
       ),
       title: Text(
         title,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      subtitle: Text(subtitle),
-      trailing: onTap != null
-          ? const Icon(Icons.chevron_right_rounded)
-          : Container(
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(subtitle),
+          if (onTap == null) ...[
+            const SizedBox(height: RamoSpacing.xs),
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: enabled
                     ? RamoColors.brandYellow
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                    : scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.pill),
               ),
               child: Text(
                 enabled ? 'Disponível' : 'Indisponível',
-                style: const TextStyle(
-                  color: RamoColors.brandBlack,
+                style: TextStyle(
+                  color: enabled ? RamoColors.brandBlack : scheme.onSurface,
                   fontWeight: FontWeight.w900,
                   fontSize: 11,
                 ),
               ),
             ),
+          ],
+        ],
+      ),
+      trailing: onTap != null
+          ? const Icon(Icons.chevron_right_rounded)
+          : null,
       onTap: onTap,
     );
   }
