@@ -728,7 +728,7 @@ class _WalletInfoTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(icon, color: RamoColors.brandBlack),
+        child: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
       ),
       title: Text(
         title,

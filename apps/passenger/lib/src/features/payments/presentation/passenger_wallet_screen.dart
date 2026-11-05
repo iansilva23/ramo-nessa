@@ -380,11 +380,9 @@ class _PixWalletTopupScreenState extends State<_PixWalletTopupScreen> {
                           ? Icons.error_outline_rounded
                           : Icons.pix_rounded,
                   size: 96,
-                  color: status.paid
-                      ? RamoColors.brandBlack
-                      : status.terminalFailure
-                          ? Theme.of(context).colorScheme.error
-                          : RamoColors.brandBlack,
+                  color: status.terminalFailure
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             const SizedBox(height: RamoSpacing.lg),
@@ -600,10 +598,11 @@ class _TopupStatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w900,
-          color: RamoColors.brandBlack,
+          color: status == 'paid' ? RamoColors.brandBlack
+              : Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
