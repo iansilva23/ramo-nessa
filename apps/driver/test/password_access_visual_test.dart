@@ -50,6 +50,15 @@ void main() {
       await tester.tap(find.byKey(const Key('auth-login-button')));
       await tester.pumpAndSettle();
       await shot('login');
+      final password = find.byKey(const Key('auth-password-field'));
+      expect(tester.widget<TextField>(password).obscureText, isTrue);
+      await tester.tap(find.byTooltip('Mostrar senha'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(password).obscureText, isFalse);
+      await tester.tap(find.byTooltip('Ocultar senha'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(password).obscureText, isTrue);
+
       await tester.tap(find.byKey(const Key('auth-back-button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('auth-create-account-button')));
