@@ -85,8 +85,8 @@ jobs:
           from pathlib import Path
           p = Path('test/secondary_states_visual_test.dart')
           s = p.read_text()
-          old = "    await tester.pump();\\n    await capture(tester,'driver','boarding-"
-          new = "    await tester.pumpAndSettle();\\n    await capture(tester,'driver','boarding-"
+          old = "    await tester.pump();\n    await capture(tester,'driver','boarding-"
+          new = "    await tester.pumpAndSettle();\n    await capture(tester,'driver','boarding-"
           assert old in s
           p.write_text(s.replace(old, new))
           PY
