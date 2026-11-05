@@ -492,12 +492,14 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                         MediaQuery.textScalerOf(context).scale(1) > 1.2;
                     final processing = _WalletMetric(label: 'Em processamento', value: formatCents(pending));
                     final pendingFee = _WalletMetric(label: 'Taxa pendente', value: formatCents(debt));
-                    if (stacked) return Column(
+                    if (stacked) {
+                      return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [processing, if (debt > 0) ...[
                         const SizedBox(height: RamoSpacing.sm), pendingFee,
                       ]],
-                    );
+                      );
+                    }
                     return Row(children: [
                       Expanded(child: processing), if (debt > 0) ...[
                         const SizedBox(width: RamoSpacing.sm), Expanded(child: pendingFee),
