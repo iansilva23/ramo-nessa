@@ -3,6 +3,11 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_security_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_privacy_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_privacy_service.dart';
+import 'package:ramo_nessa_passenger/src/core/auth/password_auth_service.dart';
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,6 +138,11 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'security': const PassengerSecurityScreen(
+            service: null, accessToken: null, previewMode: true,
+            account: PassengerAccount(subjectId: 'capture', phoneE164: '+5500000000000', email: 'conta@example.test'),
+          ),
+          'privacy': PassengerPrivacyScreen(service: _PrivacyCaptureService()),
           'settings': const PassengerSettingsScreen(),
           'support': PassengerSupportScreen(service: _SupportCaptureService()),
           'notifications': RamoNotificationSettings(
@@ -203,3 +213,77 @@ class _SupportCaptureService extends Fake implements PassengerSupportService {
   @override
   Future<List<PassengerSupportTicket>> listTickets() async => [];
 }
+
+
+class _PrivacyCaptureService implements PassengerPrivacyService {
+  bool marketingEnabled = false;
+  bool failOverview = false;
+  String? acceptedDocumentType;
+  int? acceptedVersion;
+  final List<PassengerPrivacyRequest> requests = [];
+
+  @override
+  Future<PassengerPrivacyOverview> overview() async {
+    if (failOverview) throw Exception("Offline");
+    return PassengerPrivacyOverview(
+      legalDocuments: [
+        PassengerLegalDocument(
+          documentType: 'privacy_policy',
+          version: 1,
+          title: 'Política de Privacidade',
+          content:
+              'Documento jurídico publicado pelo Core para validar a tela do passageiro.',
+          effectiveAt: DateTime.utc(2026, 9, 28),
+          accepted: acceptedDocumentType == 'privacy_policy' &&
+              acceptedVersion == 1,
+          acceptedAt: acceptedDocumentType == null
+              ? null
+              : DateTime.utc(2026, 9, 28, 12),
+        ),
+      ],
+      preferences: PassengerPrivacyPreferences(
+        marketingNotificationsEnabled: marketingEnabled,
+        updatedAt: DateTime.utc(2026, 9, 28),
+      ),
+      requests: List.unmodifiable(requests),
+    );
+  }
+
+  @override
+  Future<void> acceptLegalDocument({
+    required String documentType,
+    required int version,
+  }) async {
+    acceptedDocumentType = documentType;
+    acceptedVersion = version;
+  }
+
+  @override
+  Future<PassengerPrivacyRequest> createRequest({
+    required String requestType,
+    String? note,
+  }) async {
+    final request = PassengerPrivacyRequest(
+      id: 'privacy-request-test',
+      requestType: requestType,
+      status: 'open',
+      note: note,
+      createdAt: DateTime.utc(2026, 9, 28, 13),
+      updatedAt: DateTime.utc(2026, 9, 28, 13),
+    );
+    requests.add(request);
+    return request;
+  }
+
+  @override
+  Future<PassengerPrivacyPreferences> updateMarketingNotifications(
+    bool enabled,
+  ) async {
+    marketingEnabled = enabled;
+    return PassengerPrivacyPreferences(
+      marketingNotificationsEnabled: enabled,
+      updatedAt: DateTime.utc(2026, 9, 28, 12, 30),
+    );
+  }
+}
+

@@ -137,7 +137,12 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Segurança')),
-      body: RefreshIndicator(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: RamoReveal(
+              child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -148,32 +153,35 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
             RamoSpacing.xxl,
           ),
           children: [
-            Container(
-              padding: const EdgeInsets.all(RamoSpacing.lg),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+              width: 60,
+              height: 60,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: RamoColors.brandBlack,
+                color: Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(RamoRadius.lg),
               ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.shield_rounded,
-                    color: RamoColors.brandYellow,
-                    size: 34,
-                  ),
-                  SizedBox(width: RamoSpacing.md),
-                  Expanded(
-                    child: Text(
-                      'Sua conta usa uma sessão segura. Você pode configurar usuário e senha.',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: Icon(Icons.shield_outlined,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  size: 30),
             ),
+            ),
+            const SizedBox(height: RamoSpacing.md),
+            Semantics(
+              header: true,
+              child: Text('Sua conta, protegida',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  )),
+            ),
+            const SizedBox(height: RamoSpacing.xs),
+            Text('Confira seus contatos e gerencie o acesso em outros aparelhos.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                )),
+            const SizedBox(height: RamoSpacing.md),
             if (DriverCoreConfig.baseUri != null && (widget.accessToken?.length ?? 0) >= 20)
               ListTile(
                 leading: const Icon(Icons.verified_user_outlined),
@@ -239,13 +247,22 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
             ],
             if (_error != null) ...[
               const SizedBox(height: RamoSpacing.sm),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              Semantics(
+                liveRegion: true,
+                child: Text(_error!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+              TextButton.icon(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Atualizar dados da sessão'),
               ),
             ],
             const SizedBox(height: RamoSpacing.xl),
             FilledButton.icon(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
               onPressed: _revoking ? null : _revokeOthers,
               icon: const Icon(Icons.devices_other_rounded),
               label: _revoking
@@ -266,7 +283,12 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
             ),
           ],
         ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
+

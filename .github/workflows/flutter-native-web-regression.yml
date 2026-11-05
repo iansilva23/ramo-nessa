@@ -2,7 +2,7 @@ name: Native Compatibility - Web and Permissions
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/ride-access-integration-20261104, feature/settings-ux-20261105, feature/support-notifications-ux-20261105]
+    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/ride-access-integration-20261104, feature/settings-ux-20261105, feature/support-notifications-ux-20261105, feature/privacy-security-ux-20261105]
     paths:
       - '.github/workflows/flutter-native-web-regression.yml'
       - 'apps/passenger/**'
@@ -70,7 +70,7 @@ jobs:
           flutter analyze
           flutter test
       - name: Test shared notification and permission flows
-        if: github.ref_name == 'feature/support-notifications-ux-20261105' && matrix.app == 'driver' && matrix.platform == 'android'
+        if: (github.ref_name == 'feature/support-notifications-ux-20261105' || github.ref_name == 'feature/privacy-security-ux-20261105') && matrix.app == 'driver' && matrix.platform == 'android'
         working-directory: packages/design_system
         run: |
           flutter pub get
@@ -98,11 +98,11 @@ jobs:
         working-directory: apps/${{ matrix.app }}
         run: test -s build/ios/iphonesimulator/Runner.app/Runner
       - name: Compile Web with shared access changes
-        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104' || github.ref_name == 'feature/settings-ux-20261105' || github.ref_name == 'feature/support-notifications-ux-20261105') && matrix.platform == 'android'
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104' || github.ref_name == 'feature/settings-ux-20261105' || (github.ref_name == 'feature/support-notifications-ux-20261105' || github.ref_name == 'feature/privacy-security-ux-20261105')) && matrix.platform == 'android'
         working-directory: apps/${{ matrix.app }}
         run: flutter build web --release --no-pub
       - name: Upload login and registration screenshots
-        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104' || github.ref_name == 'feature/settings-ux-20261105' || github.ref_name == 'feature/support-notifications-ux-20261105') && matrix.platform == 'android'
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104' || github.ref_name == 'feature/settings-ux-20261105' || (github.ref_name == 'feature/support-notifications-ux-20261105' || github.ref_name == 'feature/privacy-security-ux-20261105')) && matrix.platform == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: access-shots-${{ matrix.app }}
@@ -110,3 +110,4 @@ jobs:
           if-no-files-found: error
       - name: Check that review did not change source or dependency lock
         run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
+

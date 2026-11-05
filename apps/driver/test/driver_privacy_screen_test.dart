@@ -1,9 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_nessa_driver/src/features/profile/data/driver_privacy_service.dart';
 import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_privacy_screen.dart';
 
 void main() {
+  testWidgets('privacidade permite recuperar falha de atualização', (tester) async {
+    final service = _FakeDriverPrivacyService();
+    await tester.pumpWidget(MaterialApp(home: DriverPrivacyScreen(service: service)));
+    await tester.pumpAndSettle();
+    service.failOverview = true;
+    final refresh = tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator)).show();
+    await tester.pumpAndSettle();
+    await refresh;
+    expect(find.text('Não foi possível atualizar seus dados. Tente novamente.'), findsOneWidget);
+    service.failOverview = false;
+    await tester.tap(find.text('Tentar novamente'));
+    await tester.pumpAndSettle();
+    expect(find.text('Não foi possível atualizar seus dados. Tente novamente.'), findsNothing);
+  });
+
+  testWidgets('privacidade cabe em 320 px com texto ampliado', (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = _FakeDriverPrivacyService();
+    await tester.pumpWidget(MaterialApp(
+      theme: RamoTheme.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.4)),
+        child: child!,
+      ),
+      home: DriverPrivacyScreen(service: service),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final dropdown = find.byKey(const Key('driver-privacy-request-type'));
+    await tester.scrollUntilVisible(dropdown, 200, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Revogação de consentimento').last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final submit = find.byKey(const Key('driver-privacy-request-submit'));
+    await tester.scrollUntilVisible(submit, 180, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(service.requests.single.requestType, 'consent_revocation');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('motorista altera preferência e envia solicitação LGPD',
       (tester) async {
     final service = _FakeDriverPrivacyService();
@@ -89,12 +139,14 @@ void main() {
 
 class _FakeDriverPrivacyService implements DriverPrivacyService {
   bool marketingEnabled = false;
+  bool failOverview = false;
   String? acceptedDocumentType;
   int? acceptedVersion;
   final List<DriverPrivacyRequest> requests = [];
 
   @override
   Future<DriverPrivacyOverview> overview() async {
+    if (failOverview) throw Exception("Offline");
     return DriverPrivacyOverview(
       legalDocuments: [
         DriverLegalDocument(
@@ -156,3 +208,4 @@ class _FakeDriverPrivacyService implements DriverPrivacyService {
     );
   }
 }
+
