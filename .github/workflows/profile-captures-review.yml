@@ -1,0 +1,50 @@
+name: Recover profile review screenshots
+on:
+  push:
+    branches: [audit/profile-captures-20261105]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Recover already generated screenshots for visual review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import io
+          import json
+          import os
+          import urllib.request
+          import zipfile
+
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['GH_REPO']
+          root = 'https://api.github.com/repos/' + repo
+          def api(path, payload=None):
+              data = None if payload is None else json.dumps(payload).encode()
+              request = urllib.request.Request(root + path, data=data, headers={
+                  'Authorization': 'Bearer ' + token,
+                  'Accept': 'application/vnd.github+json',
+                  'Content-Type': 'application/json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              })
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return response.read()
+          archive = zipfile.ZipFile(io.BytesIO(api('/actions/artifacts/13425226318/zip')))
+          names = [n for n in archive.namelist() if n.endswith('.png') and
+                   any(k in n for k in ('settings-', 'support-', 'notifications-'))]
+          assert len(names) == 6, names
+          for name in names:
+              raw = archive.read(name)
+              result = json.loads(api('/git/blobs', {
+                  'encoding': 'base64',
+                  'content': base64.b64encode(raw).decode(),
+              }))
+              print(json.dumps({'file': name, 'blob': result['sha'], 'bytes': len(raw)}))
+          PY
