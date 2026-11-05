@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 245a558e6a0192a145a4d6c7192959241b38c5a0
+          ref: c72b62e6ceaf5c017d9add1b5000c8dfa42d0e95
       - uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: '3.47.5'
