@@ -127,7 +127,12 @@ void main() {
             key: captureKey,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: narrow ? RamoTheme.light : RamoTheme.dark,
+              theme: (narrow ? RamoTheme.light : RamoTheme.dark).copyWith(
+                textTheme: (narrow ? RamoTheme.light : RamoTheme.dark)
+                    .textTheme.apply(
+                      fontFamily: font.existsSync() ? 'AccessCapture' : null,
+                    ),
+              ),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: TextScaler.linear(narrow ? 1.4 : 1),
