@@ -145,7 +145,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           itemHeight: null,
           decoration: const InputDecoration(labelText: 'Seu perfil (opcional)'),
           items: const [
-            DropdownMenuItem(value: 'unspecified', child: Text('Prefiro não informar')),
+            DropdownMenuItem(value: 'unspecified', child: Text('Não informar')),
             DropdownMenuItem(value: 'resident', child: Text('Morador')),
             DropdownMenuItem(value: 'tourist', child: Text('Turista')),
           ],
@@ -157,9 +157,9 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           initialValue: _zone ?? '',
           isExpanded: true,
           itemHeight: null,
-          decoration: const InputDecoration(labelText: 'Região de interesse (opcional)'),
+          decoration: const InputDecoration(labelText: 'Região de interesse', helperText: 'Opcional', helperMaxLines: 2),
           items: const [
-            DropdownMenuItem(value: '', child: Text('Prefiro não informar')),
+            DropdownMenuItem(value: '', child: Text('Não informar')),
             DropdownMenuItem(value: 'prea', child: Text('Preá')),
             DropdownMenuItem(value: 'jijoca', child: Text('Jijoca')),
             DropdownMenuItem(value: 'jericoacoara', child: Text('Jericoacoara')),
@@ -172,7 +172,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
         const Text('Benefícios dependem de uma campanha ativa e das condições. A indicação é validada após a primeira corrida paga e concluída.'),
         if (_code != null) SelectableText(_code!),
         TextButton(onPressed: _busy ? null : () => _action(() async { final code = await widget.service.referralCode(); if (!mounted) return; setState(() => _code = code); await Clipboard.setData(ClipboardData(text: code)); _notice('Seu código foi copiado.'); }), child: const Text('Copiar meu código')),
-        TextField(controller: _referral, enabled: !_busy, maxLength: 18, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Código de indicação', helperText: 'Registre antes de concluir sua primeira corrida.', helperMaxLines: 4)),
+        TextField(controller: _referral, enabled: !_busy, maxLength: 18, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Código recebido', helperText: 'Registre antes de concluir sua primeira corrida.', helperMaxLines: 4)),
         TextButton(onPressed: _busy ? null : () => _action(() async { await widget.service.applyReferral(_referral.text); _notice('Indicação registrada.'); }), child: const Text('Registrar indicação')),
       ],
     ])))))));
