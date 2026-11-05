@@ -127,7 +127,8 @@ class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScree
     );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ranking & Benefícios'),
+        title: const Text('Ranking & Benefícios', maxLines: 2, softWrap: true),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
         actions: [
           if (widget.api != null) IconButton(
             tooltip: 'Atualizar ranking', onPressed: _loading ? null : _load,

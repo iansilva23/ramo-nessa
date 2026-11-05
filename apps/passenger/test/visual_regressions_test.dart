@@ -1,4 +1,4 @@
-import 'dart:convert';
++import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,7 +55,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Seu perfil (opcional)'), findsOneWidget);
-    expect(find.text('Região de interesse (opcional)'), findsOneWidget);
+    expect(find.text('Região de interesse'), findsOneWidget);
+    expect(find.text('Opcional'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -72,3 +73,4 @@ void main() {
     expect(ride('REFUNDED').state, 'REFUNDED');
   });
 }
+

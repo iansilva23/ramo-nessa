@@ -127,7 +127,10 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
     final balance = _balanceCents;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Carteira Ramo Nessa')),
+      appBar: AppBar(
+        title: const Text('Carteira Ramo Nessa', maxLines: 2, softWrap: true),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+      ),
       body: SafeArea(child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: RamoReveal(child: RefreshIndicator(
