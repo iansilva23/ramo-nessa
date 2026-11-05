@@ -70,6 +70,9 @@ jobs:
           from pathlib import Path
           p = Path('test/password_access_visual_test.dart')
           s = p.read_text()
+          s = s.replace("final loader = FontLoader('AccessCapture');",
+              "for (final family in ['AccessCapture', 'Ahem', 'Roboto', 'sans-serif']) { final loader = FontLoader(family);", 1)
+          s = s.replace("await loader.load();", "await loader.load(); }", 1)
           needle = "            if (screen.key == 'help') {"
           assert needle in s
           s = s.replace(needle,
