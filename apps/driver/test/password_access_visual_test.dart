@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -15,12 +16,61 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      final font = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
+      final theme = RamoTheme.light;
+      await tester.runAsync(() async {
+        if (font.existsSync()) {
+          final loader = FontLoader('AccessCapture');
+          loader.addFont(Future.value(ByteData.sublistView(font.readAsBytesSync())));
+          await loader.load();
+        }
+        final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+        if (flutterRoot != null) {
+          final icons = File(
+            '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+          );
+          if (icons.existsSync()) {
+            final loader = FontLoader('MaterialIcons');
+            loader.addFont(Future.value(ByteData.sublistView(icons.readAsBytesSync())));
+            await loader.load();
+          }
+        }
+      });
       const captureKey = Key('capture');
       await tester.pumpWidget(
         RepaintBoundary(
           key: captureKey,
           child: MaterialApp(
-            theme: RamoTheme.light,
+            debugShowCheckedModeBanner: false,
+            theme: font.existsSync()
+                ? theme.copyWith(
+                    textTheme: theme.textTheme.apply(fontFamily: 'AccessCapture'),
+                    filledButtonTheme: FilledButtonThemeData(
+                      style: (theme.filledButtonTheme.style ?? const ButtonStyle())
+                          .copyWith(
+                            textStyle: WidgetStatePropertyAll(
+                              (theme.filledButtonTheme.style?.textStyle
+                                          ?.resolve({}) ??
+                                      theme.textTheme.labelLarge ??
+                                      const TextStyle())
+                                  .copyWith(fontFamily: 'AccessCapture'),
+                            ),
+                          ),
+                    ),
+                    outlinedButtonTheme: OutlinedButtonThemeData(
+                      style: (theme.outlinedButtonTheme.style ?? const ButtonStyle())
+                          .copyWith(
+                            textStyle: WidgetStatePropertyAll(
+                              (theme.outlinedButtonTheme.style?.textStyle
+                                          ?.resolve({}) ??
+                                      theme.textTheme.labelLarge ??
+                                      const TextStyle())
+                                  .copyWith(fontFamily: 'AccessCapture'),
+                            ),
+                          ),
+                    ),
+                  )
+                : theme,
             home: RamoPasswordAccessFlow(
               driver: true,
               onLogin: (_) async {},
@@ -50,6 +100,15 @@ void main() {
       await tester.tap(find.byKey(const Key('auth-login-button')));
       await tester.pumpAndSettle();
       await shot('login');
+      final password = find.byKey(const Key('auth-password-field'));
+      expect(tester.widget<TextField>(password).obscureText, isTrue);
+      await tester.tap(find.byTooltip('Mostrar senha'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(password).obscureText, isFalse);
+      await tester.tap(find.byTooltip('Ocultar senha'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(password).obscureText, isTrue);
+
       await tester.tap(find.byKey(const Key('auth-back-button')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('auth-create-account-button')));

@@ -2,7 +2,7 @@ name: Native Compatibility - Web and Permissions
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013]
+    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/ride-access-integration-20261104]
     paths:
       - '.github/workflows/flutter-native-web-regression.yml'
       - 'apps/passenger/**'
@@ -91,5 +91,16 @@ jobs:
         if: matrix.platform == 'ios-simulator'
         working-directory: apps/${{ matrix.app }}
         run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Compile Web with shared access changes
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104') && matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build web --release --no-pub
+      - name: Upload login and registration screenshots
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104') && matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: access-shots-${{ matrix.app }}
+          path: release/access-shots/${{ matrix.app }}-*.png
+          if-no-files-found: error
       - name: Check that review did not change source or dependency lock
         run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
