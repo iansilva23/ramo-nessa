@@ -1,0 +1,43 @@
+name: Review existing app flows visually
+on:
+  push:
+    branches: [audit/app-flow-visual-20261105]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve committed dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Render ride identification with synthetic data
+        working-directory: apps/${{ matrix.app }}
+        run: flutter test --update-goldens test/ride_identity_visual_review.dart
+      - name: Render passenger home and local guide
+        if: matrix.app == 'passenger'
+        working-directory: apps/passenger
+        run: flutter test --update-goldens test/visual_home_review.dart test/local_guide_visual_review.dart
+      - name: Preserve review images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-flow-review-${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/ride-identity-artifacts/*.png
+            apps/${{ matrix.app }}/guide-test-artifacts/*.png
+            apps/${{ matrix.app }}/test/goldens/*.png
+          if-no-files-found: error
+      - name: Verify application source was not changed by review
+        run: git diff --exit-code -- apps/*/lib apps/*/pubspec.lock packages/
