@@ -141,7 +141,8 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
-            child: RefreshIndicator(
+            child: RamoReveal(
+              child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -282,6 +283,7 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
             ),
           ],
         ),
+              ),
             ),
           ),
         ),
