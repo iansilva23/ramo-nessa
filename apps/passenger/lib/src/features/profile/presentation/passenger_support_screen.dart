@@ -178,6 +178,7 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
                     ),
                     const SizedBox(height: RamoSpacing.md),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _category,
                       decoration: const InputDecoration(
                         labelText: 'Categoria',

@@ -188,6 +188,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                   ),
                   const SizedBox(height: RamoSpacing.md),
                   DropdownButtonFormField<String>(
+                      isExpanded: true,
                     initialValue: _category,
                     decoration: const InputDecoration(
                       labelText: 'Categoria',
