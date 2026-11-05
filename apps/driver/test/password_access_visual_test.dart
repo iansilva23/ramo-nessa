@@ -151,9 +151,9 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
-          'password-setup': DriverPasswordSetupScreen(service: _SetupCaptureService(), accessToken: 'synthetic'),
-          'password-configured': DriverPasswordSetupScreen(service: _SetupCaptureService(configured: true), accessToken: 'synthetic'),
-          'password-load-error': DriverPasswordSetupScreen(service: _SetupCaptureService(fail: true), accessToken: 'synthetic'),
+          'password-setup': DriverPasswordSetupScreen(key: const ValueKey('password-setup'), service: _SetupCaptureService(), accessToken: 'synthetic'),
+          'password-configured': DriverPasswordSetupScreen(key: const ValueKey('password-configured'), service: _SetupCaptureService(configured: true), accessToken: 'synthetic'),
+          'password-load-error': DriverPasswordSetupScreen(key: const ValueKey('password-load-error'), service: _SetupCaptureService(fail: true), accessToken: 'synthetic'),
           'summary': DriverRideSummaryScreen(api: _SupportCaptureApi()),
           'chat': DriverRideChatScreen(api: _SupportCaptureApi(), rideId: 'capture'),
           'wallet': DriverWalletScreen(api: _SupportCaptureApi()),
@@ -189,6 +189,15 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
+          if (screen.key == 'password-configured') {
+            expect(find.text('Seu acesso está configurado'), findsOneWidget);
+          }
+          if (screen.key == 'password-load-error') {
+            final error = find.byKey(const Key('driver-setup-error'));
+            await tester.scrollUntilVisible(error, 180, scrollable: find.byType(Scrollable).first);
+            await tester.pumpAndSettle();
+            expect(find.textContaining('Falha simulada'), findsOneWidget);
+          }
           await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
           final bottom = switch (screen.key) {
             'wallet' => find.text('Ver extrato de ganhos'),
