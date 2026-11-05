@@ -40,7 +40,11 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final font = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
+      final font = [
+        File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+        File('/System/Library/Fonts/Supplemental/Arial.ttf'),
+      ].firstWhere((file) => file.existsSync(),
+          orElse: () => File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'));
       final theme = RamoTheme.light;
       await tester.runAsync(() async {
         if (font.existsSync()) {
