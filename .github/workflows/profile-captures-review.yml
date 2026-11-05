@@ -48,7 +48,7 @@ jobs:
           for name in names:
               raw = (Path('review-input') / name).read_bytes()
               result = json.loads(api('/git/blobs', {
-                  'encoding': 'base64',
+                  'encoding': 'utf-8',
                   'content': base64.b64encode(raw).decode(),
               }))
               print(json.dumps({'file': name, 'blob': result['sha'], 'bytes': len(raw)}))
