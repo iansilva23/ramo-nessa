@@ -44,12 +44,47 @@ Future<void> capture(WidgetTester tester, String role, String name) async {
     picture.dispose();
   });
 }
+      ThemeData captureTheme(ThemeData value) {
+        const family = 'SecondaryCapture';
+        return value.copyWith(
+          textTheme: value.textTheme.apply(fontFamily: family),
+          primaryTextTheme: value.primaryTextTheme.apply(fontFamily: family),
+          appBarTheme: value.appBarTheme.copyWith(
+            titleTextStyle: value.appBarTheme.titleTextStyle
+                ?.copyWith(fontFamily: family),
+          ),
+          listTileTheme: value.listTileTheme.copyWith(
+            titleTextStyle: value.listTileTheme.titleTextStyle
+                ?.copyWith(fontFamily: family),
+            subtitleTextStyle: value.listTileTheme.subtitleTextStyle
+                ?.copyWith(fontFamily: family),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: (value.filledButtonTheme.style ?? const ButtonStyle()).copyWith(
+              textStyle: WidgetStatePropertyAll(
+                (value.filledButtonTheme.style?.textStyle?.resolve({}) ??
+                    value.textTheme.labelLarge ?? const TextStyle())
+                    .copyWith(fontFamily: family),
+              ),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: (value.outlinedButtonTheme.style ?? const ButtonStyle()).copyWith(
+              textStyle: WidgetStatePropertyAll(
+                (value.outlinedButtonTheme.style?.textStyle?.resolve({}) ??
+                    value.textTheme.labelLarge ?? const TextStyle())
+                    .copyWith(fontFamily: family),
+              ),
+            ),
+          ),
+        );
+      }
+
 Widget host(Widget child, bool dark, {double keyboard = 0}) => RepaintBoundary(
  key: captureKey,
  child: MaterialApp(
   debugShowCheckedModeBanner: false,
-  theme: (dark ? RamoTheme.dark : RamoTheme.light).copyWith(
-    textTheme: (dark ? RamoTheme.dark : RamoTheme.light).textTheme.apply(fontFamily: 'SecondaryCapture')),
+  theme: captureTheme(dark ? RamoTheme.dark : RamoTheme.light),
   builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(dark ? 1 : 1.4),viewInsets: EdgeInsets.only(bottom: keyboard)),child: child!),
   home: child));
 

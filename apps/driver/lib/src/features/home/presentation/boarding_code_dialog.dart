@@ -12,9 +12,9 @@ class _BoardingCodeDialogState extends State<BoardingCodeDialog>{
   scrollable:true,
   title:Text(widget.delivery?'Código de coleta':'Código de embarque'),
   content:Column(mainAxisSize:MainAxisSize.min,children:[
-   Text('Peça os três números no encontro. Restam ${widget.remainingAttempts} tentativas.'),
+   Text('Peça os três números no encontro. ${widget.remainingAttempts == 1 ? 'Resta 1 tentativa.' : 'Restam ${widget.remainingAttempts} tentativas.'}'),
    TextField(controller:_controller,autofocus:true,keyboardType:TextInputType.number,maxLength:3,
-    inputFormatters:[FilteringTextInputFormatter.digitsOnly,LengthLimitingTextInputFormatter(3)],decoration:const InputDecoration(labelText:'Código de 3 dígitos'),onChanged:(_)=>setState((){})),
+    inputFormatters:[FilteringTextInputFormatter.digitsOnly,LengthLimitingTextInputFormatter(3)],decoration:const InputDecoration(labelText:'Código'),onChanged:(_)=>setState((){})),
   ]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Voltar')),
    FilledButton(onPressed:RegExp(r'^\d{3}$').hasMatch(_controller.text)?()=>Navigator.pop(context,_controller.text):null,child:const Text('Validar e iniciar'))]);
 }
