@@ -203,6 +203,8 @@ Future<void> _submitTicket(WidgetTester tester) async {
   );
   final submit = find.byKey(const Key('passenger-support-submit'));
   await tester.ensureVisible(submit);
+  await tester.pump(const Duration(milliseconds: 300));
+  expect(submit.hitTestable(), findsOneWidget);
   await tester.tap(submit);
 }
 
