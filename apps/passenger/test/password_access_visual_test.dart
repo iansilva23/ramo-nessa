@@ -179,7 +179,7 @@ void main() {
           'payment': RidePaymentScreen(ride: _captureRide(), paymentService: _PaymentCaptureService(), networkTilesEnabled: false),
           'tours': Scaffold(body: AgencyToursScreen(service: _ToursCaptureService())),
           'profile': Scaffold(body: PassengerProfileScreen(authService: null, accessToken: null,
-              onOpenActivity: () {}, previewMode: true)),
+              onOpenActivity: () {}, previewMode: true, paymentService: _PaymentCaptureService())),
           'activity': const Scaffold(body: PassengerActivityScreen(service: null)),
           'saved-places': PassengerSavedPlacesScreen(service: _SavedCaptureService(), searchService: _SearchCaptureService()),
           'chat': PassengerRideChatScreen(service: _TrackingCaptureService(), rideId: 'capture'),
@@ -230,6 +230,28 @@ void main() {
             await tester.scrollUntilVisible(pix, 180, scrollable: find.byType(Scrollable).first);
             await tester.pumpAndSettle();
             await shot('payment-options-${narrow ? 'phone' : 'desktop-dark'}');
+          }
+
+          if (screen.key == 'profile') {
+            for (final entry in {
+              'personal-data': const Key('passenger-personal-data'),
+              'payment-methods': const Key('passenger-payment-methods'),
+            }.entries) {
+              final option = find.byKey(entry.value);
+              await tester.scrollUntilVisible(option, 150, scrollable: find.byType(Scrollable).first);
+              await tester.tap(option);
+              await tester.pumpAndSettle();
+              await shot('${entry.key}-${narrow ? 'phone' : 'desktop-dark'}');
+              await tester.pageBack();
+              await tester.pumpAndSettle();
+            }
+          }
+          if (screen.key == 'saved-places') {
+            await tester.tap(find.text('Casa'));
+            await tester.pumpAndSettle();
+            await shot('saved-place-editor-${narrow ? 'phone' : 'desktop-dark'}');
+            await tester.pageBack();
+            await tester.pumpAndSettle();
           }
 
           final bottom = switch (screen.key) {
