@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 42045478880
+          name: access-shots-passenger
+          path: review-input
       - name: Recover already generated screenshots for visual review
         env:
           GH_TOKEN: ${{ github.token }}
@@ -21,7 +27,7 @@ jobs:
           import json
           import os
           import urllib.request
-          import zipfile
+          from pathlib import Path
 
           token = os.environ['GH_TOKEN']
           repo = os.environ['GH_REPO']
@@ -36,12 +42,11 @@ jobs:
               })
               with urllib.request.urlopen(request, timeout=60) as response:
                   return response.read()
-          archive = zipfile.ZipFile(io.BytesIO(api('/actions/artifacts/13425226318/zip')))
-          names = [n for n in archive.namelist() if n.endswith('.png') and
-                   any(k in n for k in ('settings-', 'support-', 'notifications-'))]
+          names = [p.name for p in Path('review-input').glob('*.png') if
+                   any(k in p.name for k in ('settings-', 'support-', 'notifications-'))]
           assert len(names) == 6, names
           for name in names:
-              raw = archive.read(name)
+              raw = (Path('review-input') / name).read_bytes()
               result = json.loads(api('/git/blobs', {
                   'encoding': 'base64',
                   'content': base64.b64encode(raw).decode(),
