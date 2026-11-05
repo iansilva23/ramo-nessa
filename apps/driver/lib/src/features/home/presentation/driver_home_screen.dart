@@ -1952,7 +1952,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     dialogContext,
                   ).pop((reason: reason, note: note.isEmpty ? null : note));
                 },
-                child: const Text('Confirmar cancelamento'),
+                child: const Text('Confirmar'),
               ),
             ],
           );

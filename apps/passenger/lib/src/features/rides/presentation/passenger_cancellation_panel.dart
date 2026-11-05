@@ -36,7 +36,7 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
    title:const Text('Cancelar corrida?'),
    content:const Text('Dentro do prazo gratuito não há taxa. Se já houve pagamento, a equipe fará a devolução manual. Você poderá informar seu Pix depois.'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Continuar esperando')),
-    FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmar cancelamento'))]));
+    FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmar'))]));
   if(confirm!=true||!mounted)return;
   setState((){_busy=true;_error=null;});
   try{await widget.api.cancellationRequest(widget.rideId,method:'POST',body:{'reason':'Desistência do passageiro'});widget.onChanged();await _load();}
