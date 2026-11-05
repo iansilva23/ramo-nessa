@@ -3,6 +3,13 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_profile_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_saved_places_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_saved_place_service.dart';
+import 'package:ramo_nessa_passenger/src/features/map/data/place_search_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/presentation/passenger_activity_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/presentation/passenger_ride_chat_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_wallet_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_coupons_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
@@ -147,6 +154,11 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'profile': PassengerProfileScreen(authService: null, accessToken: null,
+              onOpenActivity: () {}, previewMode: true),
+          'activity': const Scaffold(body: PassengerActivityScreen(service: null)),
+          'saved-places': PassengerSavedPlacesScreen(service: _SavedCaptureService(), searchService: _SearchCaptureService()),
+          'chat': PassengerRideChatScreen(service: _TrackingCaptureService(), rideId: 'capture'),
           'wallet': PassengerWalletScreen(service: _PaymentCaptureService()),
           'coupons': PassengerCouponsScreen(service: _PaymentCaptureService()),
           'help': PassengerHelpScreen(supportService: _SupportCaptureService()),
@@ -341,4 +353,14 @@ class _PaymentCaptureService extends Fake implements PassengerPaymentService {
   ];
   @override
   Future<PassengerPromotionPreference?> promotionPreference() async => null;
+}
+
+class _SavedCaptureService extends Fake implements PassengerSavedPlaceService {
+  @override
+  Future<List<PassengerSavedPlace>> list() async => [];
+}
+class _SearchCaptureService extends Fake implements PlaceSearchService {}
+class _TrackingCaptureService extends Fake implements PassengerRideTrackingService {
+  @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async => [];
 }

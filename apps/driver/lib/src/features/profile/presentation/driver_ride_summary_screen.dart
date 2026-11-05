@@ -236,7 +236,9 @@ class _DriverRideSummaryScreenState
 
     return Scaffold(
       appBar: AppBar(title: const Text('Atividade')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -488,6 +490,7 @@ class _DriverRideSummaryScreenState
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -586,3 +589,4 @@ class _DetailRow extends StatelessWidget {
     );
   }
 }
+

@@ -135,7 +135,9 @@ class _PassengerSavedPlacesScreenState
 
     return Scaffold(
       appBar: AppBar(title: const Text('Meus endereços')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -237,6 +239,7 @@ class _PassengerSavedPlacesScreenState
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -671,3 +674,4 @@ class _SavedPlaceEditorScreenState
     );
   }
 }
+

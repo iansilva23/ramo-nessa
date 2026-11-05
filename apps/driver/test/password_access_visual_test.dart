@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_ride_summary_screen.dart';
+import 'package:ramo_nessa_driver/src/features/home/presentation/driver_ride_chat_screen.dart';
 import 'package:ramo_nessa_driver/src/features/finance/presentation/driver_wallet_screen.dart';
 import 'package:ramo_nessa_driver/src/features/finance/presentation/driver_statement_screen.dart';
 import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_documents_screen.dart';
@@ -143,6 +145,8 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'summary': DriverRideSummaryScreen(api: _SupportCaptureApi()),
+          'chat': DriverRideChatScreen(api: _SupportCaptureApi(), rideId: 'capture'),
           'wallet': DriverWalletScreen(api: _SupportCaptureApi()),
           'statement': DriverStatementScreen(api: _SupportCaptureApi()),
           'documents': DriverDocumentsScreen(api: _SupportCaptureApi()),
@@ -236,6 +240,11 @@ void main() {
 }
 
 class _SupportCaptureApi extends Fake implements DriverApi {
+  @override
+  Future<DriverActivitySnapshot> activity({DateTime? from, DateTime? to}) async => DriverActivitySnapshot.fromJson({});
+  @override
+  Future<List<DriverRideChatMessage>> rideMessages(String rideId) async => [];
+
   @override
   Future<DriverFinanceSummary> financeSummary() async => const DriverFinanceSummary(
     availableBalanceCents: 25850, payoutPendingCents: 5000, cashCommissionDebtCents: 2000,
