@@ -40,41 +40,49 @@ void main() {
           }
         }
       });
+      ThemeData captureTheme(ThemeData value) {
+        if (!font.existsSync()) return value;
+        const family = 'AccessCapture';
+        return value.copyWith(
+          textTheme: value.textTheme.apply(fontFamily: family),
+          primaryTextTheme: value.primaryTextTheme.apply(fontFamily: family),
+          appBarTheme: value.appBarTheme.copyWith(
+            titleTextStyle: value.appBarTheme.titleTextStyle
+                ?.copyWith(fontFamily: family),
+          ),
+          listTileTheme: value.listTileTheme.copyWith(
+            titleTextStyle: value.listTileTheme.titleTextStyle
+                ?.copyWith(fontFamily: family),
+            subtitleTextStyle: value.listTileTheme.subtitleTextStyle
+                ?.copyWith(fontFamily: family),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: (value.filledButtonTheme.style ?? const ButtonStyle()).copyWith(
+              textStyle: WidgetStatePropertyAll(
+                (value.filledButtonTheme.style?.textStyle?.resolve({}) ??
+                    value.textTheme.labelLarge ?? const TextStyle())
+                    .copyWith(fontFamily: family),
+              ),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: (value.outlinedButtonTheme.style ?? const ButtonStyle()).copyWith(
+              textStyle: WidgetStatePropertyAll(
+                (value.outlinedButtonTheme.style?.textStyle?.resolve({}) ??
+                    value.textTheme.labelLarge ?? const TextStyle())
+                    .copyWith(fontFamily: family),
+              ),
+            ),
+          ),
+        );
+      }
       const captureKey = Key('capture');
       await tester.pumpWidget(
         RepaintBoundary(
           key: captureKey,
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: font.existsSync()
-                ? theme.copyWith(
-                    textTheme: theme.textTheme.apply(fontFamily: 'AccessCapture'),
-                    filledButtonTheme: FilledButtonThemeData(
-                      style: (theme.filledButtonTheme.style ?? const ButtonStyle())
-                          .copyWith(
-                            textStyle: WidgetStatePropertyAll(
-                              (theme.filledButtonTheme.style?.textStyle
-                                          ?.resolve({}) ??
-                                      theme.textTheme.labelLarge ??
-                                      const TextStyle())
-                                  .copyWith(fontFamily: 'AccessCapture'),
-                            ),
-                          ),
-                    ),
-                    outlinedButtonTheme: OutlinedButtonThemeData(
-                      style: (theme.outlinedButtonTheme.style ?? const ButtonStyle())
-                          .copyWith(
-                            textStyle: WidgetStatePropertyAll(
-                              (theme.outlinedButtonTheme.style?.textStyle
-                                          ?.resolve({}) ??
-                                      theme.textTheme.labelLarge ??
-                                      const TextStyle())
-                                  .copyWith(fontFamily: 'AccessCapture'),
-                            ),
-                          ),
-                    ),
-                  )
-                : theme,
+            theme: captureTheme(theme),
             home: RamoPasswordAccessFlow(
               driver: true,
               onLogin: (_) async {},
@@ -141,12 +149,7 @@ void main() {
               key: captureKey,
               child: MaterialApp(
                 debugShowCheckedModeBanner: false,
-                theme: (narrow ? RamoTheme.light : RamoTheme.dark).copyWith(
-                  textTheme: (narrow ? RamoTheme.light : RamoTheme.dark)
-                      .textTheme.apply(
-                        fontFamily: font.existsSync() ? 'AccessCapture' : null,
-                      ),
-                ),
+                theme: captureTheme(narrow ? RamoTheme.light : RamoTheme.dark),
                 builder: (context, child) => MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                     textScaler: TextScaler.linear(narrow ? 1.4 : 1),
