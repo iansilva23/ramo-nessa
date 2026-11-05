@@ -298,8 +298,8 @@ class _TourCard extends StatelessWidget {
                         tour.priceCents == null
                             ? 'Consulte'
                             : _money(tour.priceCents!),
-                        style: const TextStyle(
-                          color: RamoColors.brandBlack,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w900,
                           fontSize: 25,
                         ),

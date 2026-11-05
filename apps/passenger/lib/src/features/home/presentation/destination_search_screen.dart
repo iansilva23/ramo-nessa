@@ -903,10 +903,10 @@ class _SearchHint extends StatelessWidget {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.map_outlined,
                 size: 30,
-                color: RamoColors.brandBlack,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: RamoSpacing.sm),

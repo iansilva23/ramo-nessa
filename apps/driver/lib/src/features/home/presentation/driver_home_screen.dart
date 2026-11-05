@@ -3855,7 +3855,7 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
                       size: 36,
                       color: suspended
                           ? RamoColors.danger
-                          : RamoColors.brandBlack,
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -3941,7 +3941,7 @@ class _ApprovalStatusRow extends StatelessWidget {
         ? RamoColors.success
         : blocked
         ? RamoColors.danger
-        : RamoColors.brandBlack;
+        : Theme.of(context).colorScheme.onSurface;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
