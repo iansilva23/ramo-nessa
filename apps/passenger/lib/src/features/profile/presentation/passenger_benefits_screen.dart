@@ -129,7 +129,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           maxLength: 5,
           keyboardType: TextInputType.datetime,
           decoration: const InputDecoration(
-            labelText: 'Aniversário',
+            labelText: 'Aniversário (opcional)',
             hintText: 'DD/MM',
             helperText: 'Somente dia e mês. Para apagar, deixe vazio e salve.',
             helperMaxLines: 4,
@@ -143,7 +143,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           initialValue: _audience,
           isExpanded: true,
           itemHeight: null,
-          decoration: const InputDecoration(labelText: 'Seu perfil'),
+          decoration: const InputDecoration(labelText: 'Seu perfil (opcional)'),
           items: const [
             DropdownMenuItem(value: 'unspecified', child: Text('Prefiro não informar')),
             DropdownMenuItem(value: 'resident', child: Text('Morador')),
@@ -157,7 +157,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
           initialValue: _zone ?? '',
           isExpanded: true,
           itemHeight: null,
-          decoration: const InputDecoration(labelText: 'Região de interesse'),
+          decoration: const InputDecoration(labelText: 'Região de interesse (opcional)'),
           items: const [
             DropdownMenuItem(value: '', child: Text('Prefiro não informar')),
             DropdownMenuItem(value: 'prea', child: Text('Preá')),
