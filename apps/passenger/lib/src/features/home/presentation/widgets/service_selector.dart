@@ -77,7 +77,19 @@ class _ServiceRow extends StatelessWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(RamoRadius.md),
           ),
-          child: Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 400 ||
+                  MediaQuery.textScalerOf(context).scale(1) > 1.2;
+              final price = priceLabel == null ? null : Text(
+                priceLabel!,
+                key: Key('category-price-${service.backendKey}'),
+                textAlign: compact ? TextAlign.left : TextAlign.right,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              );
+              return Row(
             children: [
               AnimatedContainer(
                 duration: RamoMotion.fast,
@@ -105,7 +117,6 @@ class _ServiceRow extends StatelessWidget {
                         Flexible(
                           child: Text(
                             service.label,
-                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: -0.4,
@@ -118,27 +129,20 @@ class _ServiceRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       service.description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
+                    if (compact && price != null) ...[
+                      const SizedBox(height: RamoSpacing.xs),
+                      price,
+                    ],
                   ],
                 ),
               ),
               const SizedBox(width: RamoSpacing.xs),
-              if (priceLabel != null) ...[
-                Flexible(
-                  child: Text(
-                    priceLabel!,
-                    key: Key('category-price-${service.backendKey}'),
-                    textAlign: TextAlign.right,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                ),
+              if (!compact && price != null) ...[
+                Flexible(child: price),
                 const SizedBox(width: RamoSpacing.sm),
               ],
               AnimatedSwitcher(
@@ -157,6 +161,8 @@ class _ServiceRow extends StatelessWidget {
                       ),
               ),
             ],
+              );
+            },
           ),
         ),
       ),

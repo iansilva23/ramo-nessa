@@ -383,7 +383,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                 key: const Key('passenger-payment-methods'),
                 icon: Icons.credit_card_rounded,
                 title: 'Formas de pagamento',
-                subtitle: 'Pix, cartão, carteira e disponibilidade',
+                subtitle: 'Consulte as opções e a disponibilidade',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -697,8 +697,6 @@ class _ProfileHero extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -714,8 +712,6 @@ class _ProfileHero extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     account.email!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white70),
                   ),
                 ],
@@ -857,7 +853,7 @@ class _PassengerPersonalDataScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Dados pessoais')),
-      body: ListView(
+      body: SafeArea(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: RamoReveal(child: ListView(
         padding: const EdgeInsets.all(RamoSpacing.lg),
         children: [
           TextField(
@@ -878,7 +874,7 @@ class _PassengerPersonalDataScreenState
             initialValue: widget.account.phoneE164,
             enabled: false,
             decoration: const InputDecoration(
-              labelText: 'WhatsApp verificado',
+              labelText: 'WhatsApp cadastrado',
             ),
           ),
           if (_error != null) ...[
@@ -900,7 +896,7 @@ class _PassengerPersonalDataScreenState
                 : const Text('Salvar alterações'),
           ),
         ],
-      ),
+      ))))),
     );
   }
 }
@@ -971,8 +967,11 @@ class _PassengerPaymentMethodsScreenState
     final policy = _policy;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Formas de pagamento')),
-      body: RefreshIndicator(
+      appBar: AppBar(
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.2 ? 88 : 64,
+        title: const Text('Formas de pagamento', maxLines: 2, softWrap: true),
+      ),
+      body: SafeArea(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -1040,7 +1039,7 @@ class _PassengerPaymentMethodsScreenState
             ],
           ],
         ),
-      ),
+      ))))),
     );
   }
 }
@@ -1062,36 +1061,46 @@ class _PaymentMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 5),
+      contentPadding: const EdgeInsets.symmetric(vertical: 8),
       leading: CircleAvatar(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(icon, color: RamoColors.brandBlack),
+        backgroundColor: scheme.surfaceContainerHighest,
+        child: Icon(icon, color: scheme.onSurface),
       ),
       title: Text(
         title,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      subtitle: Text(subtitle),
-      trailing: onTap != null
-          ? const Icon(Icons.chevron_right_rounded)
-          : Container(
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(subtitle),
+          if (onTap == null) ...[
+            const SizedBox(height: RamoSpacing.xs),
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: enabled
                     ? RamoColors.brandYellow
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                    : scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.pill),
               ),
               child: Text(
                 enabled ? 'Disponível' : 'Indisponível',
-                style: const TextStyle(
-                  color: RamoColors.brandBlack,
+                style: TextStyle(
+                  color: enabled ? RamoColors.brandBlack : scheme.onSurface,
                   fontWeight: FontWeight.w900,
                   fontSize: 11,
                 ),
               ),
             ),
+          ],
+        ],
+      ),
+      trailing: onTap != null
+          ? const Icon(Icons.chevron_right_rounded)
+          : null,
       onTap: onTap,
     );
   }

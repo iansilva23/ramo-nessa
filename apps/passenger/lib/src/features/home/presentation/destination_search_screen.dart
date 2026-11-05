@@ -558,7 +558,9 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.fromLTRB(
             RamoSpacing.md,
             RamoSpacing.sm,
@@ -723,7 +725,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }

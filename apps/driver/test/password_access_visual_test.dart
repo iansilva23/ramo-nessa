@@ -1,3 +1,5 @@
+import 'package:ramo_nessa_driver/src/core/auth/driver_password_setup_screen.dart';
+import 'package:ramo_nessa_driver/src/core/auth/driver_password_auth_service.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -149,6 +151,9 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'password-setup': DriverPasswordSetupScreen(key: const ValueKey('password-setup'), service: _SetupCaptureService(), accessToken: 'synthetic'),
+          'password-configured': DriverPasswordSetupScreen(key: const ValueKey('password-configured'), service: _SetupCaptureService(configured: true), accessToken: 'synthetic'),
+          'password-load-error': DriverPasswordSetupScreen(key: const ValueKey('password-load-error'), service: _SetupCaptureService(fail: true), accessToken: 'synthetic'),
           'summary': DriverRideSummaryScreen(api: _SupportCaptureApi()),
           'chat': DriverRideChatScreen(api: _SupportCaptureApi(), rideId: 'capture'),
           'wallet': DriverWalletScreen(api: _SupportCaptureApi()),
@@ -184,6 +189,15 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
+          if (screen.key == 'password-configured') {
+            expect(find.text('Seu acesso está configurado'), findsOneWidget);
+          }
+          if (screen.key == 'password-load-error') {
+            final error = find.byKey(const Key('driver-setup-error'));
+            await tester.scrollUntilVisible(error, 180, scrollable: find.byType(Scrollable).first);
+            await tester.pumpAndSettle();
+            expect(find.textContaining('Falha simulada'), findsOneWidget);
+          }
           await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
           final bottom = switch (screen.key) {
             'wallet' => find.text('Ver extrato de ganhos'),
@@ -353,3 +367,14 @@ class _PrivacyCaptureService implements DriverPrivacyService {
   }
 }
 
+
+class _SetupCaptureService extends Fake implements DriverPasswordAuthService {
+  _SetupCaptureService({this.configured = false, this.fail = false});
+  final bool configured;
+  final bool fail;
+  @override
+  Future<DriverLoginCredentials> loginCredentials(String accessToken) async {
+    if (fail) throw Exception('Falha simulada ao carregar o acesso.');
+    return DriverLoginCredentials(configured: configured, username: configured ? 'motorista.teste' : null, email: configured ? 'teste@example.test' : null);
+  }
+}
