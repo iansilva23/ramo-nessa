@@ -89,10 +89,14 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
   @override
   Widget build(BuildContext context) {
     final statement = _statement;
+    final compact = MediaQuery.sizeOf(context).width < 380 ||
+        MediaQuery.textScalerOf(context).scale(1) > 1.2;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Extrato de ganhos')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -103,6 +107,12 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+            if (_error != null && statement != null) ...[
+              Semantics(liveRegion: true, child: Text(_error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error))),
+              TextButton.icon(onPressed: _loading ? null : _load,
+                  icon: const Icon(Icons.refresh_rounded), label: const Text('Atualizar extrato')),
+            ],
             if (_loading && statement == null)
               const Padding(
                 padding: EdgeInsets.only(top: 80),
@@ -200,17 +210,22 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CircleAvatar(
+                          if (!compact) CircleAvatar(
                             backgroundColor: Colors.white,
                             foregroundColor: RamoColors.brandBlack,
                             child: Icon(_iconFor(item)),
                           ),
-                          const SizedBox(width: RamoSpacing.md),
+                          if (!compact) const SizedBox(width: RamoSpacing.md),
                           Expanded(
                             child: Column(
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
+                                if (compact) ...[
+                                  Text(_amountLabel(item),
+                                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                                  const SizedBox(height: 6),
+                                ],
                                 Text(
                                   item.title,
                                   style: const TextStyle(
@@ -270,8 +285,8 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: RamoSpacing.sm),
-                          Text(
+                          if (!compact) const SizedBox(width: RamoSpacing.sm),
+                          if (!compact) Text(
                             _amountLabel(item),
                             textAlign: TextAlign.end,
                             style: TextStyle(
@@ -294,6 +309,7 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -328,3 +344,4 @@ class _EmptyStatement extends StatelessWidget {
     );
   }
 }
+

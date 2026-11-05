@@ -3,6 +3,11 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_wallet_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_coupons_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_promotion.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_help_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/presentation/passenger_benefits_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_growth_service.dart';
@@ -142,6 +147,8 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'wallet': PassengerWalletScreen(service: _PaymentCaptureService()),
+          'coupons': PassengerCouponsScreen(service: _PaymentCaptureService()),
           'help': PassengerHelpScreen(supportService: _SupportCaptureService()),
           'benefits': PassengerBenefitsScreen(service: _BenefitsCaptureService()),
           'security': const PassengerSecurityScreen(
@@ -178,6 +185,8 @@ void main() {
           await tester.pumpAndSettle();
           await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
           final bottom = switch (screen.key) {
+            'wallet' => find.text('Histórico de recargas'),
+            'coupons' => find.text('Ativar cupom'),
             'documents' => find.textContaining('até 20 MB por arquivo'),
             'ranking' => find.text('Continue fazendo um ótimo trabalho. Novidades estão chegando.'),
             'help' => find.text('Problemas com notificações ou GPS?'),
@@ -320,4 +329,16 @@ class _BenefitsCaptureService extends Fake implements PassengerGrowthService {
   };
   @override
   void close() {}
+}
+
+class _PaymentCaptureService extends Fake implements PassengerPaymentService {
+  @override
+  Future<int> walletBalanceCents() async => 15000;
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) async => [
+    WalletTopupStatus(id: 'capture', status: 'approved', amountCents: 15000,
+        createdAt: DateTime(2026, 11, 5), updatedAt: DateTime(2026, 11, 5)),
+  ];
+  @override
+  Future<PassengerPromotionPreference?> promotionPreference() async => null;
 }

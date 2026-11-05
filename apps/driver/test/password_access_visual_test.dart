@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_driver/src/features/finance/presentation/driver_wallet_screen.dart';
+import 'package:ramo_nessa_driver/src/features/finance/presentation/driver_statement_screen.dart';
 import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_documents_screen.dart';
 import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_ranking_benefits_screen.dart';
 
@@ -141,6 +143,8 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'wallet': DriverWalletScreen(api: _SupportCaptureApi()),
+          'statement': DriverStatementScreen(api: _SupportCaptureApi()),
           'documents': DriverDocumentsScreen(api: _SupportCaptureApi()),
           'ranking': const DriverRankingBenefitsScreen(),
           'security': DriverSecurityScreen(api: _SupportCaptureApi()),
@@ -174,6 +178,8 @@ void main() {
           await tester.pumpAndSettle();
           await shot('${screen.key}-${narrow ? 'phone' : 'desktop-dark'}');
           final bottom = switch (screen.key) {
+            'wallet' => find.text('Ver extrato de ganhos'),
+            'statement' => find.text('Corrida de demonstração'),
             'documents' => find.textContaining('até 20 MB por arquivo'),
             'ranking' => find.text('Continue fazendo um ótimo trabalho. Novidades estão chegando.'),
             'help' => find.text('Problemas com notificações ou GPS?'),
@@ -230,6 +236,22 @@ void main() {
 }
 
 class _SupportCaptureApi extends Fake implements DriverApi {
+  @override
+  Future<DriverFinanceSummary> financeSummary() async => const DriverFinanceSummary(
+    availableBalanceCents: 25850, payoutPendingCents: 5000, cashCommissionDebtCents: 2000,
+  );
+  @override
+  Future<DriverPayoutDestination> payoutDestination() async => const DriverPayoutDestination(configured: false);
+  @override
+  Future<DriverFinanceStatement> financeStatement() async => DriverFinanceStatement(
+    generatedAt: DateTime(2026, 11, 5),
+    finance: await financeSummary(),
+    items: [DriverStatementItem(
+      id: 'capture', kind: 'RIDE_SETTLED', title: 'Corrida de demonstração',
+      availableDeltaCents: 13500, pendingDeltaCents: 0, debtDeltaCents: -1000,
+      platformFeeCents: 1500, balanceAfterCents: 25850, createdAt: DateTime(2026, 11, 5),
+    )],
+  );
   @override
   Future<DriverDocumentsSnapshot> documents() async => const DriverDocumentsSnapshot(
     items: [], requiredDocumentTypes: ['driver_license', 'vehicle_registration'],

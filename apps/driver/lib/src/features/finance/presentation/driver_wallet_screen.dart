@@ -444,7 +444,9 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Carteira')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -617,6 +619,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ],
             const SizedBox(height: RamoSpacing.xl),
             FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
               onPressed: available >= (_finance?.anticipationMinimumCents ?? 8000) &&
                       !_requestingPayout &&
                       _payoutDestination?.configured == true
@@ -643,6 +646,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
               onPressed: _openStatement,
               icon: const Icon(Icons.receipt_long_rounded),
               label: const Text('Ver extrato de ganhos'),
@@ -686,6 +690,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -759,3 +764,4 @@ class _WalletInfoTile extends StatelessWidget {
     );
   }
 }
+

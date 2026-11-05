@@ -128,7 +128,9 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Carteira Ramo Nessa')),
-      body: RefreshIndicator(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -159,6 +161,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                   ),
                   const SizedBox(height: RamoSpacing.md),
                   FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
                     onPressed: _creating ? null : _newTopup,
                     icon: _creating
                         ? const SizedBox.square(
@@ -211,9 +214,9 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
                     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Icon(
+                    child: Icon(
                       Icons.pix_rounded,
-                      color: RamoColors.brandBlack,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   title: Text(
@@ -227,6 +230,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
           ],
         ),
       ),
+      )))),
     );
   }
 }
@@ -387,6 +391,7 @@ class _PixWalletTopupScreenState extends State<_PixWalletTopupScreen> {
               widget.result.qrCode.trim().isNotEmpty
             )
               FilledButton.icon(
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
                 onPressed: _copyPix,
                 icon: const Icon(Icons.copy_rounded),
                 label: const Text('Copiar código Pix'),
@@ -615,3 +620,4 @@ String _formatDate(DateTime value) {
   final minute = local.minute.toString().padLeft(2, '0');
   return '$day/$month/${local.year} · $hour:$minute';
 }
+

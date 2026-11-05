@@ -85,7 +85,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
         await widget.paymentService!.savePromotionCode(b['code'] as String);
         _notice('Cupom salvo. Confira sua aplicação e o preço na próxima corrida.');
       }), child: const Text('Usar na próxima corrida')),
-    ])))))));
+    ])));
   }
   @override
   Widget build(BuildContext context) {
@@ -175,7 +175,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
         TextField(controller: _referral, enabled: !_busy, maxLength: 18, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Código de indicação', helperText: 'Registre antes de concluir sua primeira corrida.', helperMaxLines: 4)),
         TextButton(onPressed: _busy ? null : () => _action(() async { await widget.service.applyReferral(_referral.text); _notice('Indicação registrada.'); }), child: const Text('Registrar indicação')),
       ],
-    ])));
+    ])))))));
   }
 }
 
