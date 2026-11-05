@@ -463,7 +463,7 @@ class AgencyTourDetailScreen extends StatelessWidget {
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(56),
           ),
-        ))),
+        )))),
       ),
       body: SafeArea(top: false, bottom: false, child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 900),
