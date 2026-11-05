@@ -188,7 +188,8 @@ class _DriverPrivacyScreenState extends State<DriverPrivacyScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
-            child: RefreshIndicator(
+            child: RamoReveal(
+              child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -363,6 +364,7 @@ class _DriverPrivacyScreenState extends State<DriverPrivacyScreen> {
             ],
           ],
         ),
+              ),
             ),
           ),
         ),
