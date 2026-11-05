@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 60cc2b8ac4464ba15d7cf638e1cede4cee77ff23
+          ref: 5d20ce916946cd0edb34ab02c6a902ad62c3ab6d
       - uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: '3.47.5'
@@ -98,7 +98,7 @@ jobs:
           import base64,json,os,urllib.request
           from pathlib import Path
           app=os.environ['REVIEW_APP']
-          names=('wallet','statement','documents','ranking','help','benefits','profile','activity','saved-places','chat','summary','search','vehicles','payment','tours')
+          names=('wallet','statement','documents','ranking','help','benefits','profile','activity','saved-places','chat','summary','search','vehicles','payment','tours','personal-data','payment-methods','saved-place-editor')
           for p in sorted(Path('release/access-shots').glob(app+'-*.png')):
               if not any(p.name.startswith(app+'-'+name+'-') for name in names):
                   continue
