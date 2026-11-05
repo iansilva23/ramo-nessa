@@ -47,6 +47,8 @@ class DriverSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(16) > 20;
     return Scaffold(
       appBar: AppBar(title: const Text('Configurações')),
       body: SafeArea(
@@ -76,21 +78,21 @@ class DriverSettingsScreen extends StatelessWidget {
                     children: [
                       ListTile(
                         contentPadding: const EdgeInsets.all(16),
-                        leading: const CircleAvatar(child: Icon(Icons.settings_rounded)),
+                        leading: compact ? null : const CircleAvatar(child: Icon(Icons.settings_rounded)),
                         title: const Text('Configurações do aplicativo'),
                         subtitle: const Text(kIsWeb
                             ? 'Localização e notificações neste navegador.'
                             : 'Permissões, notificações, bateria e dados do sistema.'),
-                        trailing: const Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
+                        trailing: compact ? null : const Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
                         onTap: () => _openSettings(context),
                       ),
                       const Divider(height: 1, indent: 72),
                       ListTile(
                         contentPadding: const EdgeInsets.all(16),
-                        leading: const CircleAvatar(child: Icon(Icons.location_on_rounded)),
+                        leading: compact ? null : const CircleAvatar(child: Icon(Icons.location_on_rounded)),
                         title: const Text('Configurações de localização'),
                         subtitle: const Text('GPS e serviços de localização do aparelho.'),
-                        trailing: const Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
+                        trailing: compact ? null : const Icon(kIsWeb ? Icons.info_outline_rounded : Icons.open_in_new_rounded),
                         onTap: () => _openSettings(context, location: true),
                       ),
                     ],

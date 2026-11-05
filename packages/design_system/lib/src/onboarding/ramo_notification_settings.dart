@@ -128,6 +128,9 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
                   const SizedBox(height: 12),
                 ],
                 FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
                   onPressed: _busy ? null : _activate,
                   icon: const Icon(Icons.notifications_outlined),
                   label: Text(_busy
