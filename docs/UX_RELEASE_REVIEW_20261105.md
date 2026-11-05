@@ -14,7 +14,7 @@ Inspeção visual concluída das capturas de Configurações, Suporte e Notifica
 - Os testes e builds Web, Android debug e iOS simulador da revisão e398076935bde07ee4dd1a3ace5d7839113c1470 passaram no run 42045478880. Isso não comprova builds de distribuição assinados, entrega de push ou desempenho em aparelhos físicos.
 - A inspeção final do Passageiro usou os artefatos desse run, recuperados pelo run de auditoria 42064543872.
 - Encontrado rótulo truncado no campo de mensagem do Suporte em tela estreita com fonte ampliada. Corrigido para “Mensagem” nos dois apps nos commits a813924ac4e2857ec239240e456d0c1753b31278 e 95542d8e185d953f7cd4fb3a46da02d603d105e6.
-- A validação automática da revisão 95542d8e185d953f7cd4fb3a46da02d603d105e6 foi iniciada no run 42065001844. Seu resultado deve ser conferido antes de declarar a correção final validada.
+- A análise e os testes dos dois apps passaram nos quatro jobs Android/iOS da revisão 95542d8e185d953f7cd4fb3a46da02d603d105e6 no run 42065001844. Os testes compartilhados de notificações e permissões também passaram. A compilação Android, Web e iOS ainda estava em andamento no último acompanhamento. Conferir a conclusão desse run antes de declarar os novos builds aprovados.
 
 ## Pendências confirmadas no código
 
