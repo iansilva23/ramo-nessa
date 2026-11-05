@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: c72b62e6ceaf5c017d9add1b5000c8dfa42d0e95
+          ref: adb7cc0d8dd01e4d7a1f539726d4dd4875d39c21
       - uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: '3.47.5'
@@ -79,7 +79,7 @@ jobs:
           PY
       - name: Render profile and checkout pages without paid providers
         working-directory: apps/${{ matrix.app }}
-        run: flutter test test/password_access_visual_test.dart
+        run: flutter test test/password_access_visual_test.dart test/secondary_states_visual_test.dart
       - name: Preserve review images
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,7 +98,7 @@ jobs:
           import base64,json,os,urllib.request
           from pathlib import Path
           app=os.environ['REVIEW_APP']
-          names=('wallet','statement','documents','ranking','help','benefits','profile','activity','saved-places','chat','summary','search','vehicles','payment','tours','personal-data','payment-methods','saved-place-editor','tour-detail','password-setup','password-configured','password-load-error')
+          names=('wallet','statement','documents','ranking','help','benefits','profile','activity','saved-places','chat','summary','search','vehicles','payment','tours','personal-data','payment-methods','saved-place-editor','tour-detail','password-setup','password-configured','password-load-error','secondary')
           for p in sorted(Path('release/access-shots').glob(app+'-*.png')):
               if not any(p.name.startswith(app+'-'+name+'-') for name in names):
                   continue
