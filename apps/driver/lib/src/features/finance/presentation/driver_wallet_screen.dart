@@ -562,51 +562,27 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: RamoColors.brandYellow,
-                    foregroundColor: RamoColors.brandBlack,
-                    child: Icon(Icons.pix_rounded),
-                  ),
-                  const SizedBox(width: RamoSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Chave Pix para repasses',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _payoutDestination?.configured == true
-                              ? '${_payoutDestination!.typeLabel} · '
-                                  '${_payoutDestination!.pixKeyMasked}'
-                              : 'Nenhuma chave cadastrada',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _savingPix ? null : _configurePix,
-                    child: _savingPix
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            _payoutDestination?.configured == true
-                                ? 'Alterar'
-                                : 'Cadastrar',
-                          ),
-                  ),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  const Icon(Icons.pix_rounded),
+                  const SizedBox(width: RamoSpacing.sm),
+                  const Expanded(child: Text('Chave Pix para repasses',
+                      style: TextStyle(fontWeight: FontWeight.w900))),
+                ]),
+                const SizedBox(height: RamoSpacing.sm),
+                Text(_payoutDestination?.configured == true
+                    ? '${_payoutDestination!.typeLabel} · ${_payoutDestination!.pixKeyMasked}'
+                    : 'Nenhuma chave cadastrada',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(height: RamoSpacing.sm),
+                OutlinedButton(
+                  onPressed: _savingPix ? null : _configurePix,
+                  child: _savingPix
+                      ? const SizedBox.square(dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(_payoutDestination?.configured == true ? 'Alterar' : 'Cadastrar'),
+                ),
+              ]),
             ),
             if (_error != null) ...[
               const SizedBox(height: RamoSpacing.md),
