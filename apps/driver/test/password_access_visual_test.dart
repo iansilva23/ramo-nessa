@@ -3,6 +3,10 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_security_screen.dart';
+import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_privacy_screen.dart';
+import 'package:ramo_nessa_driver/src/features/profile/data/driver_privacy_service.dart';
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -134,6 +138,8 @@ void main() {
             ? const Size(320, 740)
             : const Size(1000, 900);
         final screens = <String, Widget>{
+          'security': DriverSecurityScreen(api: _SupportCaptureApi()),
+          'privacy': DriverPrivacyScreen(service: _PrivacyCaptureService()),
           'settings': const DriverSettingsScreen(),
           'support': DriverSupportScreen(api: _SupportCaptureApi()),
           'notifications': RamoNotificationSettings(
@@ -202,6 +208,85 @@ void main() {
 
 class _SupportCaptureApi extends Fake implements DriverApi {
   @override
+  Future<DriverSecuritySnapshot> security() async => DriverSecuritySnapshot(
+    sessionId: 'capture', subjectType: 'driver',
+    createdAt: DateTime(2026, 11, 5), expiresAt: DateTime(2026, 12, 5),
+  );
+  @override
   Future<DriverSupportSnapshot> supportTickets() async =>
       const DriverSupportSnapshot(tickets: []);
 }
+
+
+class _PrivacyCaptureService implements DriverPrivacyService {
+  bool marketingEnabled = false;
+  bool failOverview = false;
+  String? acceptedDocumentType;
+  int? acceptedVersion;
+  final List<DriverPrivacyRequest> requests = [];
+
+  @override
+  Future<DriverPrivacyOverview> overview() async {
+    if (failOverview) throw Exception("Offline");
+    return DriverPrivacyOverview(
+      legalDocuments: [
+        DriverLegalDocument(
+          documentType: 'terms_of_use',
+          version: 2,
+          title: 'Termos de Uso',
+          content:
+              'Documento jurídico publicado pelo Core para validar a tela do motorista.',
+          effectiveAt: DateTime.utc(2026, 9, 28),
+          accepted: acceptedDocumentType == 'terms_of_use' &&
+              acceptedVersion == 2,
+          acceptedAt: acceptedDocumentType == null
+              ? null
+              : DateTime.utc(2026, 9, 28, 14),
+        ),
+      ],
+      preferences: DriverPrivacyPreferences(
+        marketingNotificationsEnabled: marketingEnabled,
+        updatedAt: DateTime.utc(2026, 9, 28),
+      ),
+      requests: List.unmodifiable(requests),
+    );
+  }
+
+  @override
+  Future<void> acceptLegalDocument({
+    required String documentType,
+    required int version,
+  }) async {
+    acceptedDocumentType = documentType;
+    acceptedVersion = version;
+  }
+
+  @override
+  Future<DriverPrivacyRequest> createRequest({
+    required String requestType,
+    String? note,
+  }) async {
+    final request = DriverPrivacyRequest(
+      id: 'driver-privacy-request-test',
+      requestType: requestType,
+      status: 'open',
+      note: note,
+      createdAt: DateTime.utc(2026, 9, 28, 14, 20),
+      updatedAt: DateTime.utc(2026, 9, 28, 14, 20),
+    );
+    requests.add(request);
+    return request;
+  }
+
+  @override
+  Future<DriverPrivacyPreferences> updateMarketingNotifications(
+    bool enabled,
+  ) async {
+    marketingEnabled = enabled;
+    return DriverPrivacyPreferences(
+      marketingNotificationsEnabled: enabled,
+      updatedAt: DateTime.utc(2026, 9, 28, 14, 10),
+    );
+  }
+}
+
