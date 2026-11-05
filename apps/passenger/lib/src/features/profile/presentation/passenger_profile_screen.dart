@@ -329,7 +329,9 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
     final account = _account;
 
     return SafeArea(
-      child: RefreshIndicator(
+      child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RamoReveal(child: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -579,6 +581,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
           ],
         ),
       ),
+      ))),
     );
   }
 }
@@ -1099,3 +1102,4 @@ String _formatCents(int cents) {
   final value = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
   return 'R\$ $value';
 }
+

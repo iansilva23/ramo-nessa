@@ -398,7 +398,7 @@ Widget _rideMetrics(
     Expanded(child: _rideMetric(Icons.route_rounded, distanceLabel, distance)),
     const SizedBox(width: 6),
     Expanded(
-      child: _rideMetric(Icons.group_rounded, 'Passageiros', '$passengers'),
+      child: _rideMetric(Icons.group_rounded, 'Pessoas', '$passengers'),
     ),
   ],
 );

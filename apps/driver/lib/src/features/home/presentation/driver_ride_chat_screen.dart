@@ -223,7 +223,9 @@ class _DriverRideChatScreenState extends State<DriverRideChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Mensagem com passageiro')),
-      body: Column(
+      body: SafeArea(child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Column(
         children: [
           if (_passengerWhatsApp != null)
             Padding(
@@ -349,7 +351,7 @@ class _DriverRideChatScreenState extends State<DriverRideChatScreen> {
                       maxLength: 1000,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
-                        hintText: 'Mensagem para o passageiro',
+                        hintText: 'Escreva uma mensagem',
                         counterText: '',
                       ),
                       onSubmitted: (_) => _send(),
@@ -372,6 +374,8 @@ class _DriverRideChatScreenState extends State<DriverRideChatScreen> {
           ),
         ],
       ),
+      ))),
     );
   }
 }
+
