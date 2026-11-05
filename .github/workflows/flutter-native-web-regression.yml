@@ -74,7 +74,7 @@ jobs:
         working-directory: packages/design_system
         run: |
           flutter pub get
-          flutter test test/ramo_notification_settings_test.dart test/ramo_permission_onboarding_test.dart
+          flutter test test/ramo_theme_test.dart test/ramo_notification_settings_test.dart test/ramo_permission_onboarding_test.dart
       - name: Compile Android debug without release signing or providers
         if: matrix.platform == 'android'
         working-directory: apps/${{ matrix.app }}

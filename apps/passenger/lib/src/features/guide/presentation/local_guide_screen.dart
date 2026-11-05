@@ -254,14 +254,16 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                       sliver: SliverLayoutBuilder(
                         builder: (context, constraints) {
                           final wide = constraints.crossAxisExtent > 800;
+                          final narrow = constraints.crossAxisExtent < 320 ||
+                              MediaQuery.textScalerOf(context).scale(1) > 1.3;
                           return SliverGrid.builder(
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: wide ? 4 : 2,
+                                  crossAxisCount: narrow ? 1 : wide ? 4 : 2,
                                   mainAxisSpacing: 12,
                                   crossAxisSpacing: 12,
                                   childAspectRatio:
-                                      .70 /
+                                      (narrow ? 1.4 : .70) /
                                       MediaQuery.textScalerOf(context)
                                           .scale(1)
                                           .clamp(1.0, 2.5),
