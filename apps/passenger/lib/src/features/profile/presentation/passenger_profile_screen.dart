@@ -750,7 +750,7 @@ class _ProfileOption extends StatelessWidget {
           icon,
           color: destructive
               ? Theme.of(context).colorScheme.error
-              : RamoColors.brandBlack,
+              : Theme.of(context).colorScheme.onSurface,
         ),
       ),
       title: Text(
