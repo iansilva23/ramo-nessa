@@ -225,8 +225,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
       body: SafeArea(
         child: Center(child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
-          child: RamoReveal(
-        child: Column(
+          child: RamoReveal(child: Column(
           children: [
             Expanded(
               child: ListView(
@@ -237,9 +236,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.8,
-                            ),
-        )),
-      ),
+                        ),
                   ),
                   const SizedBox(height: RamoSpacing.xs),
                   Text(
@@ -411,7 +408,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
               ),
             ),
           ],
-        ),
+        )))),
       ),
     );
   }
@@ -506,5 +503,4 @@ class _PassengerCounter extends StatelessWidget {
     );
   }
 }
-
 

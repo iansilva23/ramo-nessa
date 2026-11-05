@@ -560,16 +560,13 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
       body: SafeArea(
         child: Center(child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
-          child: RamoReveal(
-        child: Padding(
+          child: RamoReveal(child: Padding(
           padding: const EdgeInsets.fromLTRB(
             RamoSpacing.md,
             RamoSpacing.sm,
             RamoSpacing.md,
             RamoSpacing.lg,
-              ),
-        )),
-      ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -728,7 +725,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
               ),
             ],
           ),
-        ),
+        )))),
       ),
     );
   }
@@ -944,5 +941,4 @@ class _MissingPlaceSearchService implements PlaceSearchService {
     );
   }
 }
-
 

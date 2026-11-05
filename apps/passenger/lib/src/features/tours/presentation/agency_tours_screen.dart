@@ -92,8 +92,8 @@ class _AgencyToursScreenState extends State<AgencyToursScreen> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Center(child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: RamoReveal(child: RefreshIndicator(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: RamoReveal(child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -152,8 +152,7 @@ class _AgencyToursScreenState extends State<AgencyToursScreen> {
               ),
           ],
         ),
-      ),
-      ))),
+      )))),
     );
   }
 }
@@ -770,4 +769,3 @@ class _ToursMessage extends StatelessWidget {
     );
   }
 }
-
