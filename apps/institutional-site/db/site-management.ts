@@ -17,7 +17,7 @@ export function openSiteManagement(filename: string) {
   db.prepare('INSERT OR IGNORE INTO site_state VALUES (1,0,?,?)').run(JSON.stringify(defaultContent), JSON.stringify(defaultContent));
   function transaction<T>(fn: () => T): T { db.exec('BEGIN IMMEDIATE'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } }
   function audit(actor: string, action: string, target: string) { db.prepare('INSERT INTO site_audit(actor,action,target,created_at) VALUES(?,?,?,?)').run(actor,action,target,Date.now()); }
-  function state() { const r = db.prepare('SELECT * FROM site_state WHERE id=1').get()!; return { revision: Number(r.revision), draft: JSON.parse(String(r.draft)) as SiteContent, published: JSON.parse(String(r.published)) as SiteContent }; }
+  function state() { const r = db.prepare('SELECT * FROM site_state WHERE id=1').get()!; return { revision: Number(r.revision), draft: contentSchema.parse(JSON.parse(String(r.draft))), published: contentSchema.parse(JSON.parse(String(r.published))) }; }
   function checkRevision(expected: number) { if (state().revision !== expected) throw new SiteError(409, 'Outra pessoa alterou o site. Atualize antes de salvar.'); }
   function checkAssets(content: SiteContent) {
     const refs = [content.heroImage,content.appIcon,content.driverIcon,...content.apps.flatMap(a=>[a.apkHref])];

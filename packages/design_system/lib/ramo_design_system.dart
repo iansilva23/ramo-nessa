@@ -25,3 +25,5 @@ export 'src/rides/ramo_ride_occurrence.dart';
 export 'src/rides/ramo_notification_journey.dart';
 export 'src/auth/ramo_password_access_flow.dart';
 export 'src/auth/ramo_password_recovery.dart';
+
+export 'src/privacy/ramo_account_deletion.dart';

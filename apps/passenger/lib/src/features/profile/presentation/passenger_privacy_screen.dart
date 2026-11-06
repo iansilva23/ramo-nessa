@@ -7,9 +7,11 @@ class PassengerPrivacyScreen extends StatefulWidget {
   const PassengerPrivacyScreen({
     super.key,
     required this.service,
+    this.onLogout,
   });
 
   final PassengerPrivacyService? service;
+  final Future<bool> Function()? onLogout;
 
   @override
   State<PassengerPrivacyScreen> createState() =>
@@ -203,6 +205,13 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+              if (widget.service is RamoAccountDeletionService)
+                RamoAccountDeletionSection(service:widget.service! as RamoAccountDeletionService,onClosed:() async {
+                  final logout = widget.onLogout;
+                  Navigator.of(context).popUntil((route)=>route.isFirst);
+                  await logout?.call();
+                }),
+
             Semantics(
               header: true,
               child: Text(

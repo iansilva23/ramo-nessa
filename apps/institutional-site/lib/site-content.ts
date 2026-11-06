@@ -6,7 +6,14 @@ const link = z.string().max(2048).refine(value => {
   try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; }
 }, 'Use um endereço HTTPS completo.');
 const image = z.string().refine(value => /^\/(app-icon|driver-icon|jericoacoara)\.webp$/.test(value) || /^\/media\/[a-f0-9]{64}\.(png|jpg|webp)$/.test(value), 'Envie uma imagem pelo painel.');
+export const defaultFooter = { enabled: true, companyName: 'Ramo Nessa', cnpj: '69.495.337/0001-13', email: 'suporteramonessa@gmail.com' };
+const footerSchema = z.object({
+  enabled: z.boolean(), companyName: text(120),
+  cnpj: z.string().trim().regex(/^(?:\d{14}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})$/, 'Informe o CNPJ com 14 dígitos.'),
+  email: z.string().trim().email().max(254),
+}).strict().default(defaultFooter);
 export const contentSchema = z.object({
+  footer: footerSchema,
   heroTitle: text(70), heroAccent: text(40), heroDescription: text(220),
   driverTitle: text(70), driverAccent: text(40), driverDescription: text(250),
   downloadTitle: text(80), downloadAccent: text(50),
@@ -16,6 +23,7 @@ export const contentSchema = z.object({
 }).strict();
 export type SiteContent = z.infer<typeof contentSchema>;
 export const defaultContent: SiteContent = {
+  footer: { ...defaultFooter },
   heroTitle: 'O próximo destino', heroAccent: 'é seu.', heroDescription: 'Corridas e entregas em um app.\nNosso começo: Jericoacoara, Jijoca e Preá.',
   driverTitle: 'Você dirige?', driverAccent: 'Ramo nessa.', driverDescription: 'Motorista, mototaxista ou entregador: vem fazer parte do Ramo Nessa na sua região.',
   downloadTitle: 'Seu próximo destino', downloadAccent: 'começa aqui.',
