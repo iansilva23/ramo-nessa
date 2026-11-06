@@ -1,0 +1,127 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
+import 'package:ramo_nessa_passenger/src/features/service_area/domain/service_area_policy.dart';
+import 'package:ramo_nessa_passenger/src/features/service_area/domain/service_zone.dart';
+
+void main() {
+  test('Jeri, Jijoca, Preá e Aeroporto JJD ficam na área operacional', () {
+    expect(
+      RamoServiceArea.zoneFor(const LatLng(-2.80023, -40.51638))?.id,
+      'jericoacoara',
+    );
+    expect(
+      RamoServiceArea.zoneFor(const LatLng(-2.89860, -40.45060))?.id,
+      'jijoca',
+    );
+    expect(
+      RamoServiceArea.zoneFor(const LatLng(-2.82017, -40.41467))?.id,
+      'prea',
+    );
+    expect(
+      RamoServiceArea.zoneFor(const LatLng(-2.906425, -40.357338))?.id,
+      'airport-jjd',
+    );
+  });
+
+  test('destino externo aprovado entra na área comercial sem abrir qualquer ponto', () {
+    const prea = RamoPlace(
+      name: 'Preá',
+      address: 'Preá, Cruz, Ceará',
+      position: LatLng(-2.82017, -40.41467),
+    );
+    const sobral = RamoPlace(
+      name: 'Sobral',
+      address: 'Sobral, Ceará, Brasil',
+      position: LatLng(-3.68, -40.35),
+    );
+
+    final check = RamoServiceArea.checkPlaceTrip(
+      origin: prea,
+      destination: sobral,
+    );
+
+    expect(check.isSupported, isTrue);
+    expect(check.destinationZone?.id, 'external');
+    expect(check.destinationZone?.label, 'Sobral');
+  });
+
+  test('ponto distante fica fora da área operacional', () {
+    expect(
+      RamoServiceArea.contains(const LatLng(-3.7319, -38.5267)),
+      isFalse,
+    );
+  });
+
+  test('viagem só é suportada com origem e destino na área', () {
+    final supported = RamoServiceArea.checkTrip(
+      origin: const LatLng(-2.80023, -40.51638),
+      destination: const LatLng(-2.82017, -40.41467),
+    );
+    final unsupported = RamoServiceArea.checkTrip(
+      origin: const LatLng(-2.80023, -40.51638),
+      destination: const LatLng(-3.7319, -38.5267),
+    );
+
+    expect(supported.isSupported, isTrue);
+    expect(supported.message, isNull);
+    expect(unsupported.isSupported, isFalse);
+    expect(unsupported.message, contains('destino'));
+  });
+  test('localidade aprovada pelo Core vence os círculos legados', () {
+    const origin = RamoPlace(
+      name: 'Ponto específico',
+      address: 'Ponto específico, CE',
+      position: LatLng(-3.2, -41.2),
+      approvedPricingZoneId: 'prea',
+      approvedPricingLocalityId: 'lagoa-grande',
+      placeProof: 'signed-proof',
+    );
+    const destination = RamoPlace(
+      name: 'Preá',
+      address: 'Preá, CE',
+      position: LatLng(-2.82017, -40.41467),
+    );
+
+    final check = RamoServiceArea.checkPlaceTrip(
+      origin: origin,
+      destination: destination,
+    );
+
+    expect(check.isSupported, isTrue);
+    expect(check.originZone?.id, 'prea');
+    expect(check.originZone?.label, 'lagoa-grande');
+  });
+
+  test('geocercas sobrepostas mantêm a localidade central, sem classificar Jijoca como Jeri', () {
+    const centerJijoca = LatLng(-2.89860, -40.45060);
+    const geofences = [
+      ServiceZone(
+        id:'jericoacoara', label:'Zona Jeri de fronteira',
+        center:LatLng(-2.9000,-40.4520), radiusMeters:700,
+      ),
+      ServiceZone(
+        id:'jijoca', label:'Jijoca',
+        center:centerJijoca, radiusMeters:3500,
+      ),
+    ];
+    expect(RamoServiceArea.zoneFor(centerJijoca,catalogZones:geofences)?.id,'jijoca');
+  });
+
+  test('Preá para Jijoca com referências aprovadas mantém ambas as zonas corretas', () {
+    const origin = RamoPlace(
+      name:'Preá',address:'Preá, Cruz',
+      position:LatLng(-2.82017,-40.41467),
+      approvedPricingZoneId:'prea',approvedPricingLocalityId:'prea',
+    );
+    const destination = RamoPlace(
+      name:'Jijoca de Jericoacoara',address:'Jijoca, CE',
+      position:LatLng(-2.89860,-40.45060),
+      approvedPricingZoneId:'jijoca',approvedPricingLocalityId:'jijoca',
+    );
+    final trip=RamoServiceArea.checkPlaceTrip(origin:origin,destination:destination);
+    expect(trip.originZone?.id,'prea');
+    expect(trip.destinationZone?.id,'jijoca');
+  });
+
+}

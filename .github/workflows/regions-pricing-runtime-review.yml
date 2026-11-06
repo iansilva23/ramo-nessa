@@ -1,0 +1,51 @@
+name: Regions and Pricing - Runtime References
+on:
+  push:
+    branches: [feature/admin-regions-pricing-simple-20261020]
+    paths:
+      - '.github/workflows/regions-pricing-runtime-review.yml'
+      - 'deploy/staging/inspect-regions-pricing*'
+      - 'scripts/web/runtime-source-fingerprint.mjs'
+permissions:
+  contents: read
+concurrency:
+  group: regions-pricing-runtime-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: financial-integration
+            revision: 9a5a888946e851e8b370dc952d1caa081d809895
+          - name: gateway-v5-hint
+            revision: cc873e217267cc7241b239a3403695d38cc486cf
+          - name: pricing-v5-base
+            revision: 6f90c616ec181943d093b0e373e21fdb23b57f4f
+          - name: regions-review
+            revision: aecaaa486f28fa0063fb93bea5e3080cc619dfe7
+    name: Reference ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tooling
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.revision }}
+          path: reference
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: reference/backend/core/package-lock.json
+      - name: Verify read-only inventory and fingerprint contract
+        run: node --test tooling/deploy/staging/inspect-regions-pricing.test.mjs
+      - working-directory: reference/backend/core
+        run: npm ci --no-audit --no-fund
+      - working-directory: reference/backend/core
+        run: npm run build
+      - name: Publish source reference hashes only
+        run: node tooling/scripts/web/runtime-source-fingerprint.mjs reference ${{ matrix.revision }}
