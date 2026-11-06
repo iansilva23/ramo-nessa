@@ -10,7 +10,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'offer_tone_player.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -146,12 +146,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   String? _lastAlertedOfferId;
-  late final AudioPlayer _offerTonePlayer = AudioPlayer();
+  late final OfferTonePlayer _offerTonePlayer = OfferTonePlayer();
   late final OfferToneLifecycle _offerTone = OfferToneLifecycle(
-    startLoop: () async {
-      await _offerTonePlayer.setReleaseMode(ReleaseMode.loop);
-      await _offerTonePlayer.play(AssetSource('audio/nova_corrida.mp3'));
-    },
+    startLoop: _offerTonePlayer.startLoop,
     stopAudio: _offerTonePlayer.stop,
   );
 
@@ -298,6 +295,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void initState() {
     super.initState();
+    _offerTonePlayer.prepare();
     _activityNotificationTimer = Timer.periodic(
       const Duration(seconds: 3),
       (_) => unawaited(_updateActivityNotification()),
@@ -5564,7 +5562,9 @@ class _ActiveRideCard extends StatelessWidget {
           'IN_PROGRESS',
           'COMPLETED',
         ].contains(ride.state)) {
-      return _DriverActiveDesign(
+      return Semantics(
+        liveRegion: true,
+        child: _DriverActiveDesign(
         identity: identity,
         ride: ride,
         busy: busy,
@@ -5581,6 +5581,7 @@ class _ActiveRideCard extends StatelessWidget {
         onNavigate: onNavigate,
         onStopNavigation: onStopNavigation,
         onExternalNavigation: onExternalNavigation,
+        ),
       );
     }
     final legacyCard = RamoWebMapOverlay(
