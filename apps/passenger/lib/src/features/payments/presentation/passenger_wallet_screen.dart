@@ -7,6 +7,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../data/passenger_payment_service.dart';
 import '../domain/wallet_topup_result.dart';
+import '../domain/payment_email.dart';
 
 class PassengerWalletScreen extends StatefulWidget {
   const PassengerWalletScreen({
@@ -68,19 +69,26 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
   Future<void> _newTopup() async {
     if (_creating) return;
 
-    final input = await showDialog<_WalletTopupInput>(
-      context: context,
-      builder: (_) => const _WalletTopupDialog(),
-    );
-
-    if (input == null || !mounted) return;
-
     setState(() {
       _creating = true;
       _error = null;
     });
 
     try {
+      final service = widget.service;
+      final accountEmail = service is AccountPaymentEmailService
+          ? await (service as AccountPaymentEmailService).loadAccountPaymentEmail()
+          : null;
+      if (!mounted) return;
+      final input = await showDialog<_WalletTopupInput>(
+        context: context,
+        builder: (_) => _WalletTopupDialog(accountEmail: accountEmail),
+      );
+      if (!mounted) return;
+      if (input == null) {
+        setState(() => _creating = false);
+        return;
+      }
       final result = await widget.service.createPixWalletTopup(
         amountCents: input.amountCents,
         payerEmail: input.payerEmail,
@@ -444,7 +452,8 @@ class _PixWalletTopupScreenState extends State<_PixWalletTopupScreen> {
 }
 
 class _WalletTopupDialog extends StatefulWidget {
-  const _WalletTopupDialog();
+  const _WalletTopupDialog({this.accountEmail});
+  final String? accountEmail;
 
   @override
   State<_WalletTopupDialog> createState() => _WalletTopupDialogState();
@@ -454,6 +463,12 @@ class _WalletTopupDialogState extends State<_WalletTopupDialog> {
   final _amountController = TextEditingController();
   final _emailController = TextEditingController();
   String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.text = paymentEmailOrNull(widget.accountEmail) ?? '';
+  }
 
   @override
   void dispose() {
@@ -525,6 +540,7 @@ class _WalletTopupDialogState extends State<_WalletTopupDialog> {
               ),
             ),
             const SizedBox(height: RamoSpacing.md),
+            if (paymentEmailOrNull(widget.accountEmail) == null)
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,

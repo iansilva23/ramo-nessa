@@ -590,7 +590,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           rethrow;
         }
         if (!mounted) return;
-        final email = await showDialog<String>(
+        final accountEmail = service is AccountPaymentEmailService
+            ? await (service as AccountPaymentEmailService).loadAccountPaymentEmail()
+            : null;
+        if (!mounted) return;
+        final email = accountEmail ?? await showDialog<String>(
           context: context,
           builder: (_) => const _CheckoutEmailDialog(),
         );
@@ -662,6 +666,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     });
 
     try {
+      final accountEmail = service is AccountPaymentEmailService
+          ? await (service as AccountPaymentEmailService).loadAccountPaymentEmail()
+          : service is PixEmailPaymentService
+              ? (service as PixEmailPaymentService).checkoutEmail
+              : null;
+      if (!mounted) return;
+      _updateRemaining();
+      if (_remaining == Duration.zero || !_canPay) {
+        throw const PassengerPaymentException(
+          'A reserva expirou ou o motorista ficou indisponível. Solicite novamente.',
+        );
+      }
       final tokenizer =
           widget.cardTokenizationService ??
           createCardTokenizationService(
@@ -675,9 +691,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           builder: (_) => CardCheckoutScreen(
             tokenizer: tokenizer,
             amountLabel: PreparedRide.formatCents(_cardTotalAmountCents),
-            initialEmail: service is PixEmailPaymentService
-                ? (service as PixEmailPaymentService).checkoutEmail ?? ''
-                : '',
+            initialEmail: accountEmail ?? '',
             holdExpiresAt: _ride.holdExpiresAt,
             cards: service is SavedCardService
                 ? service as SavedCardService
