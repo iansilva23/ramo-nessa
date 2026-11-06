@@ -398,7 +398,7 @@ Widget _rideMetrics(
     Expanded(child: _rideMetric(Icons.route_rounded, distanceLabel, distance)),
     const SizedBox(width: 6),
     Expanded(
-      child: _rideMetric(Icons.group_rounded, 'Pessoas', '$passengers'),
+      child: _rideMetric(Icons.group_rounded, 'Passageiros', '$passengers'),
     ),
   ],
 );
@@ -632,22 +632,19 @@ class _DriverActiveDesign extends StatelessWidget {
     };
     return _DriverDesignFrame(
       onMinimize: onMinimize,
-      header: Semantics(
-        liveRegion: true,
-        child: _rideHeading(
-          done
-              ? 'Corrida finalizada'
-              : underway
-              ? 'Corrida em andamento'
-              : 'Indo buscar passageiro',
-          done
-              ? 'Viagem concluída com sucesso'
-              : underway
-              ? 'Passageiro a bordo'
-              : 'Chegue no embarque',
-          category,
-          done: done,
-        ),
+      header: _rideHeading(
+        done
+            ? 'Corrida finalizada'
+            : underway
+            ? 'Corrida em andamento'
+            : 'Indo buscar passageiro',
+        done
+            ? 'Viagem concluída com sucesso'
+            : underway
+            ? 'Passageiro a bordo'
+            : 'Chegue no embarque',
+        category,
+        done: done,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
