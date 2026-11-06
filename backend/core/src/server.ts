@@ -726,15 +726,17 @@ const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
 const selfDeletionEnabled = process.env.SELF_ACCOUNT_DELETION_ENABLED?.trim() === 'true';
 let selfDeletionTimer:ReturnType<typeof setInterval>|null=null;
+let selfDeletionRunning=false;
 async function processSelfDeletions(){
- if(!selfDeletionEnabled||!selfAccountDeletion)return;
- await selfAccountDeletion.processPending(privateDocumentStorage,async card=>{
+ if(!selfDeletionEnabled||!selfAccountDeletion||selfDeletionRunning)return;
+ selfDeletionRunning=true;
+ try{await selfAccountDeletion.processPending(privateDocumentStorage,async card=>{
   const gateway=mercadoPagoOrdersClient;
   if(!gateway||gateway.cardStorageScope!==card.scope)throw Error('CARD_CLEANUP_SCOPE_UNAVAILABLE');
   try{await gateway.removeCustomerCard(card.customer,card.card);}catch(error){
    if(!(error instanceof MercadoPagoOrdersError&&error.statusCode===404))throw error;
   }
- });
+ });}finally{selfDeletionRunning=false;}
 }
 
 const documentInspectionEncryptionKey =

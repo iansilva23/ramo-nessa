@@ -25,7 +25,7 @@ export async function accountDeletionRoutes(d:{request:IncomingMessage;response:
    const result=await d.service.start(subject.subjectType,subject.subjectId,body?.confirmed,Boolean(d.storage),d.cardScope);
    for(const session of result.sessions)d.disconnect(session);
    // The durable job is committed already. A cleanup failure must not lose the receipt.
-   try{await d.process();}catch{}
+   try{void d.process().catch(()=>{});}catch{}
    const current=await d.service.receiptStatus(result.receipt).catch(()=>({status:'processing'}));
    d.json(response,202,{id:result.id,receipt:result.receipt,status:current.status});return true;
   }
