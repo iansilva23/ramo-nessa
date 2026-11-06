@@ -1,0 +1,16 @@
+name: Prepare app updates without site - regression
+'on':
+  push:
+    branches: [ops/apps-pending-no-site-20261106]
+    paths: ['deploy/apps-pending-no-site/**', '.github/workflows/apps-pending-preparation.yml']
+permissions: {contents: read}
+jobs:
+  preparation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate app-only preparation and protected return configuration
+        run: python3 -m unittest discover -s deploy/apps-pending-no-site -p 'test_*.py' -v
+      - name: Validate unchanged gateway route without Node or site build
+        run: docker run --rm --pull=always --network=none -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" -e APP_DOMAIN=app.example.test -e ACME_EMAIL=ci@example.test caddy:2.11.7-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

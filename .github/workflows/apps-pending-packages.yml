@@ -1,8 +1,13 @@
 name: Package verified app updates without site
 'on':
   push:
-    branches: [ops/apps-pending-no-site-20261106]
-permissions: {contents: write, actions: read}
+    branches:
+    - ops/apps-pending-no-site-20261106
+    paths:
+    - .github/workflows/apps-pending-packages.yml
+permissions:
+  contents: write
+  actions: read
 jobs:
   package:
     runs-on: ubuntu-24.04
@@ -11,40 +16,33 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
-        with: {ref: '9eb6aa071db458c57c6298cfd656ad2bd2ba3227'}
-      - name: Require successful app and server checks
-        run: gh run watch 42267368304 --exit-status
-      - uses: actions/download-artifact@v4
-        with:
-          name: driver-offer-navigation-web
-          path: payload/driver
-          run-id: 42267368304
-          github-token: ${{ github.token }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: pending-passenger-web
-          path: payload/passenger
-          run-id: 42267368304
-          github-token: ${{ github.token }}
-      - name: Package exact verified Web files
-        run: |
-          python3 - <<'PYCODE'
-          import hashlib,json,zipfile
-          from pathlib import Path
-          source='9eb6aa071db458c57c6298cfd656ad2bd2ba3227'
-          sums=[]
-          for role,route in [('driver','motorista'),('passenger','passageiro')]:
-              root=Path('payload')/role
-              files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()}
-              assert 'main.dart.js' in files and 'index.html' in files
-              name='RamoNessa-Apps-'+role+'.zip'
-              with zipfile.ZipFile(name,'w',zipfile.ZIP_DEFLATED) as z:
-                  z.writestr('manifest.json',json.dumps({'schema':1,'source':source,'component':role,'basePath':'/'+route+'/','files':files}))
-                  for name2 in sorted(files):z.write(root/name2,role+'/'+name2)
-              sums.append(hashlib.sha256(Path(name).read_bytes()).hexdigest()+'  '+name)
-          Path('SHA256SUMS').write_text('\n'.join(sums)+'\n')
-          PYCODE
-      - name: Publish verified packages for VPS transfer
-        run: gh release create apps-pending-9eb6aa071db4 --target 9eb6aa071db458c57c6298cfd656ad2bd2ba3227 --title 'Pending apps and Driver fixes - site deferred' --notes 'Verified builds only. No VPS deployment. Site and ADM footer deferred. Account deletion remains disabled.' RamoNessa-Apps-driver.zip RamoNessa-Apps-passenger.zip SHA256SUMS
-
+    - uses: actions/checkout@v4
+      with:
+        ref: 9eb6aa071db458c57c6298cfd656ad2bd2ba3227
+    - name: Require successful app and server checks
+      run: gh run watch 42267368304 --exit-status
+    - uses: actions/download-artifact@v4
+      with:
+        name: driver-offer-navigation-web
+        path: payload/driver
+        run-id: 42267368304
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@v4
+      with:
+        name: pending-passenger-web
+        path: payload/passenger
+        run-id: 42267368304
+        github-token: ${{ github.token }}
+    - name: Package exact verified Web files
+      run: "python3 - <<'PYCODE'\nimport hashlib,json,zipfile\nfrom pathlib import Path\nsource='9eb6aa071db458c57c6298cfd656ad2bd2ba3227'\n\
+        sums=[]\nfor role,route in [('driver','motorista'),('passenger','passageiro')]:\n    root=Path('payload')/role\n \
+        \   files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()}\n\
+        \    assert 'main.dart.js' in files and 'index.html' in files\n    name='RamoNessa-Apps-'+role+'.zip'\n    with zipfile.ZipFile(name,'w',zipfile.ZIP_DEFLATED)\
+        \ as z:\n        z.writestr('manifest.json',json.dumps({'schema':1,'source':source,'component':role,'basePath':'/'+route+'/','files':files}))\n\
+        \        for name2 in sorted(files):z.write(root/name2,role+'/'+name2)\n    sums.append(hashlib.sha256(Path(name).read_bytes()).hexdigest()+'\
+        \  '+name)\nPath('SHA256SUMS').write_text('\\n'.join(sums)+'\\n')\nPYCODE\n"
+    - name: Publish verified packages for VPS transfer
+      run: gh release view apps-pending-9eb6aa071db4 >/dev/null 2>&1 || gh release create apps-pending-9eb6aa071db4 --target
+        9eb6aa071db458c57c6298cfd656ad2bd2ba3227 --title 'Pending apps and Driver fixes - site deferred' --notes 'Verified
+        builds only. No VPS deployment. Site and ADM footer deferred. Account deletion remains disabled.' RamoNessa-Apps-driver.zip
+        RamoNessa-Apps-passenger.zip SHA256SUMS
