@@ -1,4 +1,4 @@
-name: Restore original Guide and Driver GPS Cinema
+name: Restore exact pre-redesign Passenger Guide
 'on':
   push:
     branches:
@@ -14,8 +14,6 @@ jobs:
         include:
         - role: passenger
           route: passageiro
-        - role: driver
-          route: motorista
       fail-fast: false
     env:
       RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
@@ -31,19 +29,12 @@ jobs:
         flutter-version: 3.47.5
         channel: stable
         cache: true
-    - name: Preserve scope and verify exact original Guide
+    - name: Preserve Driver and restore exact previously published Guide
       run: |
-        git fetch --no-tags origin 674f18a32b125bcb1964a9d5057e4272f922894d 0d8d865af3b27db8f7ea91663e0393aeb134b817 9e913c89de373945cb99b3b3150feb9c012d2983
-        git diff --exit-code 674f18a32b125bcb1964a9d5057e4272f922894d HEAD -- apps/passenger/lib/src/features/guide/presentation/local_guide_screen.dart
-        python3 - <<'CHECK'
-        from pathlib import Path
-        import subprocess
-        path='apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart'
-        expected=subprocess.check_output(['git','show','0d8d865af3b27db8f7ea91663e0393aeb134b817:'+path]).decode().replace("'Pessoas'","'Passageiros'")
-        assert Path(path).read_text()==expected
-        CHECK
-        test "$(git diff --name-only 0d8d865af3b27db8f7ea91663e0393aeb134b817 HEAD -- apps/*/lib packages backend apps/admin | wc -l)" -eq 2
-        git diff --exit-code 0d8d865af3b27db8f7ea91663e0393aeb134b817 HEAD -- apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart apps/driver/lib/src/core/map
+        git fetch --no-tags origin 9e913c89de373945cb99b3b3150feb9c012d2983 6047ec587faa87d6527be5bfb585b7b93d7609a9
+        git diff --exit-code 9e913c89de373945cb99b3b3150feb9c012d2983 HEAD -- apps/passenger/lib/src/features/guide apps/passenger/test/local_guide_appearance_test.dart
+        git diff --exit-code 6047ec587faa87d6527be5bfb585b7b93d7609a9 HEAD -- apps/driver packages backend apps/admin apps/passenger/lib/src/features/home
+        test "$(git diff --name-only 6047ec587faa87d6527be5bfb585b7b93d7609a9 HEAD -- apps/*/lib | wc -l)" -eq 1
     - name: Prepare the published Web configuration
       run: |
         python3 -m pip install --quiet Pillow==11.3.0
@@ -87,6 +78,8 @@ jobs:
             archive.writestr('manifest.json', json.dumps({
                 'source': os.environ['GITHUB_SHA'],
                 'role': role,
+                'schema': 1,
+                'basePath': '/passageiro/',
                 'files': {str(p.relative_to(root)): sha256(p.read_bytes()).hexdigest() for p in files},
             }))
             for file in files:
