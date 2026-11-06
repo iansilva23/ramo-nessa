@@ -1,0 +1,17 @@
+name: Second update site build and partial resume regression
+'on':
+  push:
+    branches: [fix/second-update-site-build-resume-20261106]
+permissions: {contents: read}
+jobs:
+  resume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Validate existing and resume protection tests
+        run: sudo python3 -m unittest discover -s deploy/second-update -p 'test_*.py' -v
+      - name: Reproduce the exact Docker symlink collision and validate the clean image
+        run: sudo python3 deploy/second-update/docker_resume_regression.py
