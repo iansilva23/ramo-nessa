@@ -12,6 +12,7 @@ import '../../../../core/location/driver_location_service.dart';
 import '../../../../core/location/driver_travel_heading.dart';
 import '../../../../core/config/driver_web_heading_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
+import '../../../../core/map/driver_navigation_marker.dart';
 import '../../../../core/map/driver_map_gestures.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
@@ -774,7 +775,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     }
 
     final driverPoint = _driverPoint;
-    final navigationArrow = widget.activeRide?.state == 'IN_PROGRESS'
+    final navigationArrow = usesDriverNavigationArrow(widget.activeRide?.state)
         ? _navigationArrow
         : null;
     markers.add(

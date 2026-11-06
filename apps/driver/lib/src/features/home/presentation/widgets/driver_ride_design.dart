@@ -632,22 +632,19 @@ class _DriverActiveDesign extends StatelessWidget {
     };
     return _DriverDesignFrame(
       onMinimize: onMinimize,
-      header: Semantics(
-        liveRegion: true,
-        child: _rideHeading(
-          done
-              ? 'Corrida finalizada'
-              : underway
-              ? 'Corrida em andamento'
-              : 'Indo buscar passageiro',
-          done
-              ? 'Viagem concluída com sucesso'
-              : underway
-              ? 'Passageiro a bordo'
-              : 'Chegue no embarque',
-          category,
-          done: done,
-        ),
+      header: _rideHeading(
+        done
+            ? 'Corrida finalizada'
+            : underway
+            ? 'Corrida em andamento'
+            : 'Indo buscar passageiro',
+        done
+            ? 'Viagem concluída com sucesso'
+            : underway
+            ? 'Passageiro a bordo'
+            : 'Chegue no embarque',
+        category,
+        done: done,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
