@@ -22,11 +22,12 @@ export async function accountDeletionRoutes(d:{request:IncomingMessage;response:
   if(request.method==='GET'){d.json(response,200,await d.service.overview(subject.subjectType,subject.subjectId));return true;}
   if(request.method==='POST'){
    const body=await d.readJson(request) as {confirmed?:unknown}|null;
-   const result=await d.service.start(subject.subjectType,subject.subjectId,body?.confirmed,Boolean(d.storage),d.cardScope);
+   const result=await d.service.request(subject.subjectType,subject.subjectId,body?.confirmed);
    for(const session of result.sessions)d.disconnect(session);
    // The durable job is committed already. A cleanup failure must not lose the receipt.
    try{void d.process().catch(()=>{});}catch{}
-   const current=await d.service.receiptStatus(result.receipt).catch(()=>({status:'processing'}));
+   const receipt='receipt' in result?result.receipt:undefined;
+   const current=receipt?await d.service.receiptStatus(receipt).catch(()=>({status:result.status})):{status:result.status};
    d.json(response,202,{id:result.id,receipt:result.receipt,status:current.status});return true;
   }
   d.json(response,405,{error:'METHOD_NOT_ALLOWED'});return true;

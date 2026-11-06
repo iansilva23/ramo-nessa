@@ -14,6 +14,7 @@ async function fixture(role:'driver'|'passenger'='passenger'){
  if(role==='driver')await pool.query(`INSERT INTO driver_profiles(driver_id,full_name,status,created_at,updated_at)VALUES($1,'Motorista de teste','approved',now(),now())`,[id]);
  const store=new SelfAccountDeletion(pool);
  const cleanup=async()=>{
+  await pool.query('DELETE FROM self_account_deletion_requests WHERE subject_id=$1',[id]);
   await pool.query('DELETE FROM passenger_payment_customers WHERE passenger_id=$1',[id]);
   await pool.query('DELETE FROM self_account_deletions WHERE subject_id=$1',[id]);
   await pool.query('DELETE FROM data_subject_requests WHERE subject_id=$1',[id]);
@@ -171,4 +172,43 @@ test('deletion waits for an in-flight external registration and captures its met
   const cleanup=(await f.pool.query('SELECT cleanup FROM self_account_deletions WHERE id=$1',[job.id])).rows[0].cleanup;
   assert.deepEqual(cleanup.documents,[key]);
  }finally{release();await Promise.allSettled([upload,closing]);await f.cleanup();}
+});
+
+test('a confirmed balance request is durable, preserves money/access, and closes automatically after settlement',{skip:!enabled},async()=>{
+ const f=await fixture();const other=await fixture();const tx=randomUUID();
+ try{
+  await f.pool.query("INSERT INTO ledger_transactions(id,kind,reference_key)VALUES($1,'test_funding',$2)",[tx,tx]);
+  await f.pool.query("INSERT INTO ledger_entries(transaction_id,account_key,direction,amount_cents)VALUES($1,$2,'credit',1234),($1,'ci:deletion:funding','debit',1234)",[tx,`passenger:${f.id}:wallet`]);
+  const moneyBefore=(await f.pool.query('SELECT id,account_key,direction,amount_cents FROM ledger_entries WHERE transaction_id=$1 ORDER BY id',[tx])).rows;
+  const request=await f.store.request(f.role,f.id,true);
+  assert.equal(request.status,'waiting');assert.ok('receipt'in request&&request.receipt);
+  assert.equal((await f.store.overview(f.role,f.id)).requestId,request.id);
+  const replay=await f.store.request(f.role,f.id,true);assert.equal(replay.id,request.id);
+  await f.store.processPending(null,noCard);
+  assert.equal((await f.store.receiptStatus('receipt'in request?request.receipt:null)).status,'waiting');
+  assert.deepEqual((await f.pool.query('SELECT id,account_key,direction,amount_cents FROM ledger_entries WHERE transaction_id=$1 ORDER BY id',[tx])).rows,moneyBefore);
+  assert.equal((await f.pool.query('SELECT status FROM auth_identities WHERE id=$1',[f.identity])).rows[0]?.status,'active');
+  assert.equal((await f.pool.query('SELECT 1 FROM auth_sessions WHERE id=$1',[f.session])).rowCount,1);
+  assert.equal((await f.pool.query('SELECT 1 FROM self_account_deletions WHERE subject_id=$1',[f.id])).rowCount,0);
+  // Synthetic settlement only. The deletion service must never create these entries.
+  await f.pool.query("INSERT INTO ledger_entries(transaction_id,account_key,direction,amount_cents)VALUES($1,$2,'debit',1234),($1,'ci:deletion:funding','credit',1234)",[tx,`passenger:${f.id}:wallet`]);
+  await f.store.processPending(null,noCard);
+  assert.equal((await f.store.receiptStatus('receipt'in request?request.receipt:null)).status,'deleted');
+  assert.equal((await f.pool.query('SELECT 1 FROM auth_identities WHERE id=$1',[other.identity])).rowCount,1);
+  assert.equal((await f.pool.query('SELECT status FROM self_account_deletion_requests WHERE id=$1',[request.id])).rows[0]?.status,'deleted');
+ }finally{await f.pool.query('DELETE FROM ledger_entries WHERE transaction_id=$1',[tx]);await f.pool.query('DELETE FROM ledger_transactions WHERE id=$1',[tx]);await f.cleanup();await other.cleanup();}
+});
+
+test('concurrent confirmed requests are idempotent and do not revoke access until processing',{skip:!enabled},async()=>{
+ const f=await fixture('driver');
+ try{
+  await assert.rejects(f.store.request(f.role,f.id,false));
+  const results=await Promise.all([f.store.request(f.role,f.id,true),f.store.request(f.role,f.id,true)]);
+  assert.equal(results[0]!.id,results[1]!.id);
+  assert.equal((await f.pool.query('SELECT 1 FROM self_account_deletion_requests WHERE subject_id=$1',[f.id])).rowCount,1);
+  assert.equal((await f.pool.query('SELECT 1 FROM auth_sessions WHERE id=$1',[f.session])).rowCount,1);
+  await f.store.processPending(null,noCard);
+  const result=results.find(r=>'receipt'in r);assert.ok(result&&'receipt'in result);
+  assert.equal((await f.store.receiptStatus(result.receipt)).status,'deleted');
+ }finally{await f.cleanup();}
 });

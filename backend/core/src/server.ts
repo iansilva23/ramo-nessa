@@ -737,7 +737,7 @@ async function processSelfDeletions(){
   try{await gateway.removeCustomerCard(card.customer,card.card);}catch(error){
    if(!(error instanceof MercadoPagoOrdersError&&error.statusCode===404))throw error;
   }
- });}finally{selfDeletionRunning=false;}
+ },5,mercadoPagoOrdersClient?.cardStorageScope);}finally{selfDeletionRunning=false;}
 }
 
 const documentInspectionEncryptionKey =

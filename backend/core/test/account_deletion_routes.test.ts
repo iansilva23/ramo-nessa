@@ -9,7 +9,7 @@ async function setup(enabled=true){
  const calls:{role:string;id:string;confirmed:unknown}[]=[];let authenticated=0,disconnected=0;
  const service={
   overview:async()=>({available:true,eligible:true,balanceCents:0}),
-  start:async(role:string,id:string,confirmed:unknown)=>{calls.push({role,id,confirmed});return {id:'synthetic-job',receipt:'a'.repeat(64),sessions:['session-1'],status:'processing'};},
+  request:async(role:string,id:string,confirmed:unknown)=>{calls.push({role,id,confirmed});return {id:'synthetic-job',receipt:'a'.repeat(64),sessions:['session-1'],status:'processing'};},
   receiptStatus:async(receipt:unknown)=>{assert.equal(receipt,'a'.repeat(64));return {id:'synthetic-job',status:'processing'};},
  } as unknown as SelfAccountDeletion;
  const server=createServer(async(request,response)=>{
