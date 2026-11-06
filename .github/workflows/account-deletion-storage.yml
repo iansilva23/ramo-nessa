@@ -1,0 +1,22 @@
+name: Account deletion - private storage prerequisite
+'on':
+  push:
+    branches: [feature/account-deletion-storage-20261106]
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run typecheck --prefix backend/core && npm run build --prefix backend/core
+      - name: Test private deletion and existing upload and inspection flows
+        working-directory: backend/core
+        run: node --import tsx --test test/private_document_deletion.test.ts test/driver_documents_self_service.test.ts test/driver_document_inspection.test.ts
+      - name: Preserve apps, admin and financial paths
+        run: |
+          git diff --exit-code 68329f8540447b6994ef8d7255fcd69b04d7d3a1 HEAD -- apps packages backend/core/src/payments backend/core/src/server.ts backend/core/migrations

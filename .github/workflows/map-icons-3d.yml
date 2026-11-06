@@ -1,0 +1,100 @@
+name: Ramo Nessa 3D Map Icons
+
+on:
+  push:
+    branches:
+      - feature/map-markers-3d-20261013
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: map-icons-3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shared-assets:
+    name: Decode and validate 7 PNG markers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve shared UI package
+        working-directory: packages/design_system
+        run: flutter pub get
+      - name: Test map markers in Flutter renderer
+        working-directory: packages/design_system
+        run: flutter test test/ramo_map_marker_assets_test.dart
+
+  android:
+    name: Android ${{ matrix.app }}
+    needs: shared-assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve locked Flutter dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and test
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+      - name: Build installable Android debug package with new assets
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build apk --debug --dart-define=RAMO_PREVIEW_MODE=true
+
+  ios:
+    name: iOS simulator ${{ matrix.app }}
+    needs: shared-assets
+    runs-on: macos-15
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve locked Flutter dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Configure maps API key for simulator
+        shell: bash
+        env:
+          PASSENGER_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
+          DRIVER_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+          COMMON_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: |
+          case "${{ matrix.app }}" in
+            passenger) KEY="${PASSENGER_KEY:-${COMMON_KEY:-}}" ;;
+            driver) KEY="${DRIVER_KEY:-${COMMON_KEY:-}}" ;;
+          esac
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$KEY" > "apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig"
+      - name: Build iOS simulator app without publishing
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build ios --simulator --debug --dart-define=RAMO_PREVIEW_MODE=true
