@@ -167,6 +167,7 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(3,len(commands))
         self.assertNotIn('up',sum(commands,[]))
         anchor=Path(result['anchor'])
+        self.assertEqual('prepared',json.loads((anchor/'phase.private.json').read_text())['phase'])
         self.assertEqual(0o700,anchor.stat().st_mode&0o777)
         self.assertEqual(0o600,(anchor/'plan.private.json').stat().st_mode&0o777)
         self.assertEqual(result['planSha256'],m.sha((anchor/'plan.private.json').read_bytes()))

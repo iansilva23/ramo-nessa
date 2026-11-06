@@ -250,6 +250,13 @@ def prepare(package, h, inventory):
               'onlyPlannedChange': 'gateway /srv/web bind source', 'changesApplied': False,
               'servicesRestarted': False, 'activationImplemented': False}
     private_save(anchor / 'prepared.private.json', result)
+    private_save(anchor / 'phase-complete.private.json', {'phase': 'prepared', 'planSha256': plan_hash, 'changesApplied': False})
+    os.replace(anchor / 'phase-complete.private.json', anchor / 'phase.private.json')
+    descriptor = os.open(anchor, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
     return result
 
 
