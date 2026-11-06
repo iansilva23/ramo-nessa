@@ -23,6 +23,8 @@ BASELINE = '2b3c3891a89dca2f4da9100b830dcb00cf142ff41a021a77e43c42949a2e3ce3'
 BASE_WEB = Path('/opt/ramo-nessa-web/releases/restore-exact-guide-68329f854044/bundles')
 SITE_COMPOSE = Path('/opt/ramo-nessa-site/compose.yml')
 SITE_COMPOSE_SHA = '35d31dcf3e398c3f7db653fe1f5b06dc55a6574eb6de4ea24da6c799177270c6'
+CADDY_SOURCE = Path('/home/ubuntu/ramo-nessa-v5-3f3aad573667/deploy/staging/Caddyfile')
+CADDY_SHA = '785c04aae3fde022b62038fe360add985ab34120c095141b3808cc0efe92db87'
 INVENTORY_SHA = '034ec10182c0fef822a2854d88189e8db60de2dd97e81f65d65e700c26baddb7'
 HELPER = ROOT / 'active-screen-lock-e2dfhu83/activate-lock-candidate.py'
 HELPER_SHA = '71268d209c4483b13c23ad3117e74196a65245e118f1bc9317f4bde3ee8b762f'
@@ -128,6 +130,24 @@ def site_compose_source(path):
     require(identity(path.lstat()) == identity(before) and len(raw) == before.st_size,
             'Compose do site mudou durante a leitura.')
     require(sha(raw) == SITE_COMPOSE_SHA, 'Checksum do Compose do site difere do inventário.')
+    return raw
+
+def caddy_source_bytes(h, gateway, path):
+    require(path == CADDY_SOURCE and path.resolve() == path, 'Caminho do Caddyfile difere da leitura confirmada.')
+    ubuntu = pwd.getpwnam('ubuntu')
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_uid == ubuntu.pw_uid and before.st_gid == ubuntu.pw_gid and
+            stat.S_IMODE(before.st_mode) in (0o644,0o664) and before.st_size <= 1024**2,
+            'Proprietário, grupo, tipo ou permissões do Caddyfile diferem da leitura confirmada.')
+    identity = lambda st: (st.st_dev,st.st_ino,st.st_uid,st.st_gid,st.st_mode,st.st_size,st.st_mtime_ns,st.st_ctime_ns)
+    descriptor = os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+    with os.fdopen(descriptor,'rb') as stream:
+        require(identity(os.fstat(stream.fileno())) == identity(before), 'Caddyfile mudou antes da leitura.')
+        raw = stream.read(1024**2+1)
+    require(len(raw) == before.st_size and sha(raw) == CADDY_SHA, 'Caddyfile difere do hash confirmado no host e gateway.')
+    mounted = h.run(['docker','exec',gateway['Name'],'cat','/etc/caddy/Caddyfile'])
+    require(mounted == raw and identity(path.lstat()) == identity(before),
+            'Caddyfile montado diverge do host ou mudou durante a leitura.')
     return raw
 
 def snapshot(h, before, service, project):
@@ -257,8 +277,7 @@ def prepare(package, h, inventory):
     caddy_mounts = [m for m in runtime['gateway']['Mounts'] if m['Destination'] == '/etc/caddy/Caddyfile']
     require(len(caddy_mounts) == 1 and caddy_mounts[0]['Type'] == 'bind' and not caddy_mounts[0]['RW'], 'Caddyfile montado exige revisão.')
     caddy_source = Path(caddy_mounts[0]['Source'])
-    require(caddy_source.resolve() == caddy_source and stat.S_ISREG(caddy_source.lstat().st_mode) and not caddy_source.stat().st_mode & 0o022, 'Caddyfile ativo exige revisão de caminho/permissões.')
-    caddy_raw = caddy_source.read_bytes()
+    caddy_raw = caddy_source_bytes(h,runtime['gateway'],caddy_source)
     text = caddy_raw.decode()
     marker = '  @api path /v1/* /health /ready'
     require(text.count(marker) == 1 and '/excluir-conta' not in text, 'Rotas atuais exigem revisão antes da inclusão pontual.')
@@ -316,7 +335,7 @@ def prepare(package, h, inventory):
         observed = h.inspect(before['Name'])
         require(h.identity(before) == h.identity(observed), 'Container mudou durante a preparação.')
         h.runtime_matches(before, observed, before['Image'])
-    require(sha(caddy_source.read_bytes()) == sha(caddy_raw), 'Caddyfile ativo mudou durante a preparação.')
+    require(caddy_source_bytes(h,runtime['gateway'],caddy_source) == caddy_raw, 'Caddyfile ativo mudou durante a preparação.')
     for path, digest in bind_hashes.items():
         require(h.bound_hash(Path(path)) == digest, 'Arquivo montado mudou durante a preparação.')
     result = {'status':'SECOND_UPDATE_PREPARED','source':SOURCE,'productSource':PRODUCT_SOURCE,'anchor':str(anchor),'planSha256':plan_hash,'baselineSha256':BASELINE,'candidateImages':images,'candidateWeb':str(release/'bundles'),'changesApplied':False,'servicesRestarted':False,'databaseMigrationPerformed':False,'activationImplemented':False,'selfAccountDeletionEnabled':False,'rollbackPrepared':False,'returnConfigurationsPrepared':True,'schemaState':schema}

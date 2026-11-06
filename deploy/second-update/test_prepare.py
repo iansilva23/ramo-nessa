@@ -112,10 +112,10 @@ class PreparationTests(unittest.TestCase):
     def virtual_site_owner(self,path,owner=1000):
         # The executor user namespace cannot chown to host UID1000. Keep real I/O,
         # injecting only the owner field in lstat/fstat at the filesystem boundary.
-        real_lstat=Path.lstat;real_fstat=os.fstat;state={'uid':owner}
+        real_lstat=Path.lstat;real_fstat=os.fstat;state={'uid':owner,'gid':path.stat().st_gid}
         def metadata(st):
-            fields={k:getattr(st,k) for k in ['st_dev','st_ino','st_uid','st_mode','st_size','st_mtime_ns','st_ctime_ns']}
-            fields['st_uid']=state['uid'];return types.SimpleNamespace(**fields)
+            fields={k:getattr(st,k) for k in ['st_dev','st_ino','st_uid','st_gid','st_mode','st_size','st_mtime_ns','st_ctime_ns']}
+            fields['st_uid']=state['uid'];fields['st_gid']=state['gid'];return types.SimpleNamespace(**fields)
         def lstat(p,*args,**kwargs):
             st=real_lstat(p,*args,**kwargs);return metadata(st) if p==path else st
         with patch.object(Path,'lstat',lstat),patch.object(m.os,'fstat',lambda fd:metadata(real_fstat(fd))):
@@ -146,6 +146,39 @@ class PreparationTests(unittest.TestCase):
         fields={k:getattr(before,k) for k in ['st_dev','st_ino','st_uid','st_mode','st_size','st_mtime_ns','st_ctime_ns']};fields['st_uid']=1000;fields['st_mtime_ns']+=1
         with self.virtual_site_owner(path),patch.object(m,'SITE_COMPOSE',path),patch.object(m,'SITE_COMPOSE_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000)),patch.object(m.os,'fstat',return_value=types.SimpleNamespace(**fields)):
             with self.assertRaises(m.PreparationError):m.site_compose_source(path)
+
+    def test_caddy_accepts_confirmed_ubuntu_group_664_with_matching_mounted_hash_without_chmod(self):
+        path,raw=self.site_fixture();path.chmod(0o664);before=path.stat();calls=[]
+        h=types.SimpleNamespace(run=lambda args:(calls.append(args) or raw))
+        with self.virtual_site_owner(path) as owner,patch.object(m,'CADDY_SOURCE',path),patch.object(m,'CADDY_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000,pw_gid=1000)):
+            owner['gid']=1000
+            self.assertEqual(raw,m.caddy_source_bytes(h,{'Name':'gateway'},path))
+        after=path.stat();self.assertEqual((before.st_mode,before.st_uid,before.st_gid,before.st_mtime_ns),(after.st_mode,after.st_uid,after.st_gid,after.st_mtime_ns))
+        self.assertEqual([['docker','exec','gateway','cat','/etc/caddy/Caddyfile']],calls)
+
+    def test_caddy_rejects_wrong_owner_group_world_write_hash_and_mounted_divergence(self):
+        path,raw=self.site_fixture();path.chmod(0o664);h=types.SimpleNamespace(run=lambda args:raw)
+        with self.virtual_site_owner(path) as owner,patch.object(m,'CADDY_SOURCE',path),patch.object(m,'CADDY_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000,pw_gid=1000)):
+            for uid,gid in [(1001,1000),(1000,1001)]:
+                owner.update(uid=uid,gid=gid)
+                with self.assertRaises(m.PreparationError):m.caddy_source_bytes(h,{'Name':'gateway'},path)
+            owner.update(uid=1000,gid=1000);path.chmod(0o666)
+            with self.assertRaises(m.PreparationError):m.caddy_source_bytes(h,{'Name':'gateway'},path)
+            path.chmod(0o664)
+            bad=types.SimpleNamespace(run=lambda args:b'different mounted content')
+            with self.assertRaises(m.PreparationError):m.caddy_source_bytes(bad,{'Name':'gateway'},path)
+            path.write_bytes(raw+b'changed')
+            with self.assertRaises(m.PreparationError):m.caddy_source_bytes(h,{'Name':'gateway'},path)
+
+    def test_caddy_rejects_symlink_and_change_during_mounted_read(self):
+        path,raw=self.site_fixture();path.chmod(0o664)
+        with self.virtual_site_owner(path) as owner,patch.object(m,'CADDY_SOURCE',path),patch.object(m,'CADDY_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000,pw_gid=1000)):
+            owner['gid']=1000
+            def race(args):path.write_bytes(raw+b'changed');return raw
+            with self.assertRaises(m.PreparationError):m.caddy_source_bytes(types.SimpleNamespace(run=race),{'Name':'gateway'},path)
+            link=self.root/'caddy-link';link.symlink_to(path)
+            with patch.object(m,'CADDY_SOURCE',link):
+                with self.assertRaises(m.PreparationError):m.caddy_source_bytes(types.SimpleNamespace(run=lambda a:raw),{'Name':'gateway'},link)
 
     def test_core_and_gateway_still_use_strict_private_file_guard(self):
         called=[]
