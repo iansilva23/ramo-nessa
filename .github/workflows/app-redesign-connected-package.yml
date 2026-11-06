@@ -1,0 +1,435 @@
+name: App redesign connected packages
+'on':
+  push:
+    branches:
+    - ops/app-redesign-packages-20261105
+    paths:
+    - .github/workflows/app-redesign-connected-package.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: app-redesign-connected-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  SOURCE_COMMIT: 0d8d865af3b27db8f7ea91663e0393aeb134b817
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+  SWIFT_VERSION: '5.0'
+  RAMO_PRODUCTION_SIGNING: 'false'
+jobs:
+  identify:
+    runs-on: ubuntu-24.04
+    outputs:
+      build_number: ${{ steps.identify.outputs.build_number }}
+    steps:
+    - id: identify
+      run: printf "build_number=%s\n" "$(date +%s)" >> "$GITHUB_OUTPUT"
+  driver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+      SOURCE_BUILD: ${{ needs.identify.outputs.build_number }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SOURCE_COMMIT }}
+    - name: Verify immutable approved source
+      run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Validate retained Maps and Firebase configuration
+      run: |
+        node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface='Driver password Android'
+        node tooling/validate-firebase-mobile-config.mjs --platform=android --surface='Driver password Android'
+    - run: flutter pub get --enforce-lockfile
+      working-directory: apps/driver
+    - name: Build connected Android APK with retained stable test signing
+      working-directory: apps/driver
+      run: |
+        flutter build apk --release --no-pub --build-number="$SOURCE_BUILD" \
+          --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_APP_VERSION=0.1.0-redesign-0d8d865a \
+          --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+          --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+          --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+          --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+    - name: Prepare retained public Web configuration
+      run: |
+        python3 -m pip install --quiet Pillow==11.3.0
+        python3 scripts/web/generate_pwa_icons.py
+        node scripts/web/prepare_configured_web.mjs --role=driver
+    - name: Build Driver Web
+      working-directory: apps/driver
+      run: flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+    - name: Verify and package connected artifacts
+      run: |
+        node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+        signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+        "$signer" verify apps/driver/build/app/outputs/flutter-apk/app-release.apk
+        mkdir -p release/redesign
+        cp apps/driver/build/app/outputs/flutter-apk/app-release.apk release/redesign/RamoNessa-Motorista-Redesign-Android.apk
+        python3 - <<'PY'
+        import zipfile, pathlib, os, json, hashlib
+        root=pathlib.Path('apps/driver/build/web')
+        files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
+        with zipfile.ZipFile('release/redesign/RamoNessa-Motorista-Redesign-Web.zip','w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('manifest.json',json.dumps({'schema':1,'source':os.environ['SOURCE_COMMIT'],'role':'driver','basePath':'/motorista/','files':files}))
+            for path in files: z.write(root/path,'driver/'+path)
+        PY
+        cd release/redesign
+        sha256sum *.apk *.zip > SHA256SUMS-Driver
+        printf 'source=%s\napi=https://app.ramonessa.com.br\npreviewMode=false\nsigning=existing-test-key-not-for-store\n' "$SOURCE_COMMIT" > LEIA-ME.txt
+    - name: Verify retained Android identity and certificate
+      run: |
+        set -euo pipefail
+        apk=apps/driver/build/app/outputs/flutter-apk/app-release.apk
+        signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+        aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+        "$signer" verify --print-certs "$apk" > "$RUNNER_TEMP/certificate.txt"
+        "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+        python3 - <<'CHECK'
+        import os,re,pathlib
+        certificate=pathlib.Path(os.environ['RUNNER_TEMP'],'certificate.txt').read_text()
+        match=re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F:]+)',certificate)
+        assert match and match[1].replace(':','').lower()=='21867b7cf8beb84b4c55d648e7be3aa18f0ca78a5c57d18c1557fb503cd9efc9', 'Certificado Android diferente da chave de teste estável.'
+        package=pathlib.Path(os.environ['RUNNER_TEMP'],'package.txt').read_text()
+        assert "name='br.com.ramonessa.driver.preview'" in package, 'Package Android mudou.'
+        assert "versionCode='"+os.environ['SOURCE_BUILD']+"'" in package, 'Número do build diverge.'
+        CHECK
+        cp "$RUNNER_TEMP/certificate.txt" release/redesign/CERTIFICADO.txt
+        cp "$RUNNER_TEMP/package.txt" release/redesign/PACOTE-ANDROID.txt
+    - name: Record source, build identity and artifact checksums
+      run: |
+        python3 - <<'REPORT'
+        import os,json,hashlib
+        from pathlib import Path
+        root=Path('release/redesign')
+        files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.iterdir()) if p.is_file()}
+        data={'schema':1,'source':os.environ['SOURCE_COMMIT'],'workflowCommit':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_RUN_ID'],'buildNumber':int(os.environ['SOURCE_BUILD']),'role':'driver','platform':'android','apiOrigin':os.environ['RAMO_CORE_BASE_URL'],'previewMode':False,'signing':'stable-test-key','installed':False,'files':files}
+        (root/'BUILD-MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
+        REPORT
+    - name: Keep approved application code unchanged
+      run: git diff --exit-code -- apps/driver/lib apps/driver/pubspec.yaml apps/driver/pubspec.lock packages/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: redesign-driver-android
+        path: release/redesign/
+        if-no-files-found: error
+        retention-days: 14
+    needs: identify
+    name: driver connected android and Web
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+      SOURCE_BUILD: ${{ needs.identify.outputs.build_number }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SOURCE_COMMIT }}
+    - name: Verify immutable approved source
+      run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Validate retained Maps and Firebase configuration
+      run: |
+        node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface='Passenger password Android'
+        node tooling/validate-firebase-mobile-config.mjs --platform=android --surface='Passenger password Android'
+    - run: flutter pub get --enforce-lockfile
+      working-directory: apps/passenger
+    - name: Build connected Android APK with retained stable test signing
+      working-directory: apps/passenger
+      run: |
+        flutter build apk --release --no-pub --build-number="$SOURCE_BUILD" \
+          --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_APP_VERSION=0.1.0-redesign-0d8d865a \
+          --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+          --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+          --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+          --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+    - name: Prepare retained public Web configuration
+      run: |
+        python3 -m pip install --quiet Pillow==11.3.0
+        python3 scripts/web/generate_pwa_icons.py
+        node scripts/web/prepare_configured_web.mjs --role=passenger
+    - name: Build Passenger Web
+      working-directory: apps/passenger
+      run: flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+    - name: Verify and package connected artifacts
+      run: |
+        node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+        signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+        "$signer" verify apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+        mkdir -p release/redesign
+        cp apps/passenger/build/app/outputs/flutter-apk/app-release.apk release/redesign/RamoNessa-Passageiro-Redesign-Android.apk
+        python3 - <<'PY'
+        import zipfile, pathlib, os, json, hashlib
+        root=pathlib.Path('apps/passenger/build/web')
+        files={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}
+        with zipfile.ZipFile('release/redesign/RamoNessa-Passageiro-Redesign-Web.zip','w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('manifest.json',json.dumps({'schema':1,'source':os.environ['SOURCE_COMMIT'],'role':'passenger','basePath':'/passageiro/','files':files}))
+            for path in files: z.write(root/path,'passenger/'+path)
+        PY
+        cd release/redesign
+        sha256sum *.apk *.zip > SHA256SUMS-Passenger
+        printf 'source=%s\napi=https://app.ramonessa.com.br\npreviewMode=false\nsigning=existing-test-key-not-for-store\n' "$SOURCE_COMMIT" > LEIA-ME-Passageiro.txt
+    - name: Verify retained Android identity and certificate
+      run: |
+        set -euo pipefail
+        apk=apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+        signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+        aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+        "$signer" verify --print-certs "$apk" > "$RUNNER_TEMP/certificate.txt"
+        "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+        python3 - <<'CHECK'
+        import os,re,pathlib
+        certificate=pathlib.Path(os.environ['RUNNER_TEMP'],'certificate.txt').read_text()
+        match=re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F:]+)',certificate)
+        assert match and match[1].replace(':','').lower()=='21867b7cf8beb84b4c55d648e7be3aa18f0ca78a5c57d18c1557fb503cd9efc9', 'Certificado Android diferente da chave de teste estável.'
+        package=pathlib.Path(os.environ['RUNNER_TEMP'],'package.txt').read_text()
+        assert "name='br.com.ramonessa.passenger.preview'" in package, 'Package Android mudou.'
+        assert "versionCode='"+os.environ['SOURCE_BUILD']+"'" in package, 'Número do build diverge.'
+        CHECK
+        cp "$RUNNER_TEMP/certificate.txt" release/redesign/CERTIFICADO.txt
+        cp "$RUNNER_TEMP/package.txt" release/redesign/PACOTE-ANDROID.txt
+    - name: Record source, build identity and artifact checksums
+      run: |
+        python3 - <<'REPORT'
+        import os,json,hashlib
+        from pathlib import Path
+        root=Path('release/redesign')
+        files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.iterdir()) if p.is_file()}
+        data={'schema':1,'source':os.environ['SOURCE_COMMIT'],'workflowCommit':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_RUN_ID'],'buildNumber':int(os.environ['SOURCE_BUILD']),'role':'passenger','platform':'android','apiOrigin':os.environ['RAMO_CORE_BASE_URL'],'previewMode':False,'signing':'stable-test-key','installed':False,'files':files}
+        (root/'BUILD-MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
+        REPORT
+    - name: Keep approved application code unchanged
+      run: git diff --exit-code -- apps/passenger/lib apps/passenger/pubspec.yaml apps/passenger/pubspec.lock packages/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: redesign-passenger-android
+        path: release/redesign/
+        if-no-files-found: error
+        retention-days: 14
+    needs: identify
+    name: passenger connected android and Web
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 55
+    env:
+      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      SOURCE_BUILD: ${{ needs.identify.outputs.build_number }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SOURCE_COMMIT }}
+    - name: Verify immutable approved source
+      run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Validate retained iOS services
+      run: |
+        node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface='Driver password iOS'
+        node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface='Driver password iOS'
+        printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/driver/ios/Flutter/GoogleMaps.local.xcconfig
+    - run: flutter pub get --enforce-lockfile
+      working-directory: apps/driver
+    - name: Build iPhone code without Apple distribution signing
+      working-directory: apps/driver
+      run: |
+        flutter build ios --release --no-codesign --no-pub --build-number="$SOURCE_BUILD" \
+          --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+          --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+          --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+          --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+    - name: Package unsigned iPhone build separately
+      run: |
+        mkdir -p release/redesign
+        ditto -c -k --sequesterRsrc --keepParent apps/driver/build/ios/iphoneos/Runner.app release/redesign/RamoNessa-Motorista-Redesign-iPhone-SEM-ASSINATURA.zip
+        printf 'Exige assinatura e provisionamento Apple. Nao instalavel diretamente. Fonte %s\n' "$SOURCE_COMMIT" > release/redesign/LEIA-ME-iPhone.txt
+    - name: Record source, build identity and artifact checksums
+      run: |
+        python3 - <<'REPORT'
+        import os,json,hashlib
+        from pathlib import Path
+        root=Path('release/redesign')
+        files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.iterdir()) if p.is_file()}
+        data={'schema':1,'source':os.environ['SOURCE_COMMIT'],'workflowCommit':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_RUN_ID'],'buildNumber':int(os.environ['SOURCE_BUILD']),'role':'driver','platform':'ios','apiOrigin':os.environ['RAMO_CORE_BASE_URL'],'previewMode':False,'signing':'unsigned-apple-provisioning-required','installed':False,'files':files}
+        (root/'BUILD-MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
+        REPORT
+    - name: Keep approved application code unchanged
+      run: git diff --exit-code -- apps/driver/lib apps/driver/pubspec.yaml apps/driver/pubspec.lock packages/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: redesign-driver-ios
+        path: release/redesign/
+        if-no-files-found: error
+        retention-days: 14
+    needs: identify
+    name: driver connected ios unsigned
+  passenger-ios:
+    runs-on: macos-15
+    timeout-minutes: 55
+    env:
+      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      SOURCE_BUILD: ${{ needs.identify.outputs.build_number }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SOURCE_COMMIT }}
+    - name: Verify immutable approved source
+      run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Validate retained iOS services
+      run: |
+        node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface='Passenger password iOS'
+        node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface='Passenger password iOS'
+        printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/passenger/ios/Flutter/GoogleMaps.local.xcconfig
+    - run: flutter pub get --enforce-lockfile
+      working-directory: apps/passenger
+    - name: Build iPhone code without Apple distribution signing
+      working-directory: apps/passenger
+      run: |
+        flutter build ios --release --no-codesign --no-pub --build-number="$SOURCE_BUILD" \
+          --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+          --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+          --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+          --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+    - name: Package unsigned iPhone build separately
+      run: |
+        mkdir -p release/redesign
+        ditto -c -k --sequesterRsrc --keepParent apps/passenger/build/ios/iphoneos/Runner.app release/redesign/RamoNessa-Passageiro-Redesign-iPhone-SEM-ASSINATURA.zip
+        printf 'Exige assinatura e provisionamento Apple. Nao instalavel diretamente. Fonte %s\n' "$SOURCE_COMMIT" > release/redesign/LEIA-ME-iPhone-Passageiro.txt
+    - name: Record source, build identity and artifact checksums
+      run: |
+        python3 - <<'REPORT'
+        import os,json,hashlib
+        from pathlib import Path
+        root=Path('release/redesign')
+        files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.iterdir()) if p.is_file()}
+        data={'schema':1,'source':os.environ['SOURCE_COMMIT'],'workflowCommit':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_RUN_ID'],'buildNumber':int(os.environ['SOURCE_BUILD']),'role':'passenger','platform':'ios','apiOrigin':os.environ['RAMO_CORE_BASE_URL'],'previewMode':False,'signing':'unsigned-apple-provisioning-required','installed':False,'files':files}
+        (root/'BUILD-MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
+        REPORT
+    - name: Keep approved application code unchanged
+      run: git diff --exit-code -- apps/passenger/lib apps/passenger/pubspec.yaml apps/passenger/pubspec.lock packages/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: redesign-passenger-ios
+        path: release/redesign/
+        if-no-files-found: error
+        retention-days: 14
+    needs: identify
+    name: passenger connected ios unsigned
+  verify-packages:
+    needs:
+    - driver
+    - passenger
+    - ios
+    - passenger-ios
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: redesign-*
+        path: packages
+    - name: Verify coherent source and all packaged checksums
+      run: |
+        python3 - <<'VERIFY'
+        import os,json,hashlib
+        from pathlib import Path
+        root=Path('packages')
+        reports=sorted(root.glob('*/BUILD-MANIFEST.json'))
+        assert len(reports)==4, 'Quatro pacotes esperados.'
+        identities=set()
+        builds=set()
+        for path in reports:
+         data=json.loads(path.read_text())
+         assert data['source']==os.environ['SOURCE_COMMIT']
+         assert data['previewMode'] is False and data['installed'] is False
+         assert data['apiOrigin']==os.environ['RAMO_CORE_BASE_URL']
+         identities.add((data['role'],data['platform']))
+         builds.add(data['buildNumber'])
+         assert data['files']
+         for name,digest in data['files'].items():
+          assert Path(name).name==name and name not in ('.','..')
+          assert hashlib.sha256((path.parent/name).read_bytes()).hexdigest()==digest
+        assert len(builds)==1
+        assert identities=={(role,platform) for role in ('driver','passenger') for platform in ('android','ios')}
+        summary={'source':os.environ['SOURCE_COMMIT'],'buildNumber':builds.pop(),'packages':[json.loads(p.read_text()) for p in reports],'deployed':False,'physicalAcceptance':False,'storeReady':False}
+        Path('PACKAGE-REPORT.json').write_text(json.dumps(summary,indent=2)+'\n')
+        print('Quatro pacotes coerentes e checksums conferidos; nada instalado.')
+        VERIFY
+    - uses: actions/upload-artifact@v4
+      with:
+        name: redesign-package-report
+        path: PACKAGE-REPORT.json
+        if-no-files-found: error
+        retention-days: 14
