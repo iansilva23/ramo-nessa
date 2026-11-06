@@ -73,6 +73,16 @@ class ResumeTests(unittest.TestCase):
         self.assertIn('pinned-image',args);self.assertIn('readFileSync',args[-1])
         with self.assertRaises(m.PreparationError):m.verify_image_files(types.SimpleNamespace(run=lambda *a,**k:b'{}'),'pinned-image',{'dist/module.js':'a'*64},'/app/')
 
+    def test_gateway_proof_uses_sha256sum_and_rejects_mismatch_missing_duplicate_or_unexpected_files(self):
+        path='/srv/admin/src/site-admin.js';digest='b'*64;calls=[]
+        h=types.SimpleNamespace(run=lambda args,**kwargs:(calls.append(args) or (digest+'  '+path+'\n').encode()))
+        m.verify_image_files(h,'gateway',{'src/site-admin.js':digest},'/srv/admin/')
+        self.assertEqual('sha256sum',calls[0][calls[0].index('--entrypoint')+1]);self.assertNotIn('node',calls[0])
+        self.assertIn('--network=none',calls[0]);self.assertNotIn('--mount',calls[0])
+        for output in [b'',('a'*64+'  '+path).encode(),(digest+'  /srv/admin/unexpected').encode(),((digest+'  '+path+'\n')*2).encode()]:
+            bad=types.SimpleNamespace(run=lambda *args,**kw:output)
+            with self.assertRaises(m.PreparationError):m.verify_image_files(bad,'gateway',{'src/site-admin.js':digest},'/srv/admin/')
+
     def test_resume_refuses_nonpreparing_anchor_before_build_or_runtime_changes(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);anchor=root/m.NAME;anchor.mkdir(mode=0o700)

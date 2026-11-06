@@ -316,8 +316,21 @@ def verify_image_base(h, candidate, base):
 
 def verify_image_files(h, candidate, files, prefix):
     paths = {prefix+str(relative(name)):digest for name,digest in files.items()}
-    probe = "import{readFileSync}from'node:fs';import{createHash}from'node:crypto';const expected="+json.dumps(paths)+";const actual={};for(const p of Object.keys(expected))actual[p]=createHash('sha256').update(readFileSync(p)).digest('hex');console.log(JSON.stringify(actual));"
-    actual = json.loads(h.run(['docker','run','--rm','--pull=never','--network=none','--read-only','--entrypoint','node',candidate,'--input-type=module','-e',probe],timeout=90))
+    if prefix == '/srv/admin/':
+        # The Caddy/Alpine gateway has sha256sum but no Node runtime.
+        output = h.run(['docker','run','--rm','--pull=never','--network=none','--read-only','--entrypoint','sha256sum',candidate,*sorted(paths)],timeout=90)
+        actual = {}
+        for line in output.decode().splitlines():
+            fields = line.split(maxsplit=1)
+            require(len(fields)==2,'Resposta de hash do gateway inválida.')
+            digest,name = fields
+            if name.startswith('*'):
+                name = name[1:]
+            require(name in paths and name not in actual,'Arquivo inesperado ou repetido na prova do gateway.')
+            actual[name] = digest
+    else:
+        probe = "import{readFileSync}from'node:fs';import{createHash}from'node:crypto';const expected="+json.dumps(paths)+";const actual={};for(const p of Object.keys(expected))actual[p]=createHash('sha256').update(readFileSync(p)).digest('hex');console.log(JSON.stringify(actual));"
+        actual = json.loads(h.run(['docker','run','--rm','--pull=never','--network=none','--read-only','--entrypoint','node',candidate,'--input-type=module','-e',probe],timeout=90))
     require(actual == paths,'Conteúdo da imagem a reaproveitar diverge do pacote verificado.')
 
 def resume_preparation(package, h, inventory):

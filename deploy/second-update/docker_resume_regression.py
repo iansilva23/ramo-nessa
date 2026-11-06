@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory() as directory:
     root=Path(directory);fixture=root/'fixture';fixture.mkdir()
     fixture.joinpath('Dockerfile').write_text('''FROM alpine:3.22
 RUN addgroup -g 1000 node && adduser -D -u 1000 -G node node && mkdir -p /app/node_modules/.pnpm/pkg/node_modules/@scope /app/node_modules/.pnpm/pkg/node_modules/old-target /var/lib/ramo-site && echo old > /app/node_modules/.pnpm/pkg/node_modules/old-target/old.js && ln -s ../old-target /app/node_modules/.pnpm/pkg/node_modules/@scope/sourcemap-codec && echo preserve-data > /var/lib/ramo-site/fixture-data && chown -R node:node /app /var/lib/ramo-site
+RUN mkdir -p /srv/admin/src && printf admin-source > /srv/admin/src/site-admin.js
 WORKDIR /app
 ENV KEEP_LITERAL=unchanged
 USER node
@@ -31,6 +32,8 @@ CMD ["sh"]
     tag='ramo-resume-fixture:'+uuid.uuid4().hex
     run(['docker','build','-t',tag,str(fixture)])
     base=inspect(tag)
+    run(['docker','run','--rm','--network=none','--read-only','--entrypoint','sh',base['Id'],'-ec','! command -v node'])
+    m.verify_image_files(types.SimpleNamespace(run=run),base['Id'],{'src/site-admin.js':m.sha(b'admin-source')},'/srv/admin/')
     build=root/'candidate';leaf=build/'payload/node_modules/.pnpm/pkg/node_modules/@scope/sourcemap-codec';leaf.mkdir(parents=True);(leaf/'new.js').write_text('new-module')
     build.joinpath('Dockerfile.bad').write_text('FROM '+tag+'\nCOPY --chown=node:node payload/ /app/\n')
     bad=subprocess.run(['docker','build','--pull=false','--network=none','-f',str(build/'Dockerfile.bad'),str(build)],capture_output=True,timeout=120)
@@ -42,4 +45,11 @@ CMD ["sh"]
     original=run(['docker','run','--rm','--network=none','--read-only','--entrypoint','sh',base['Id'],'-ec','test -L /app/node_modules/.pnpm/pkg/node_modules/@scope/sourcemap-codec; test "$(cat /app/node_modules/.pnpm/pkg/node_modules/old-target/old.js)" = old; printf unchanged'])
     assert original==b'unchanged'
     assert inspect(base['Id'])['Config']==base['Config']
-    print(json.dumps({'realDockerCollisionReproduced':True,'cleanDerivedImagePassed':True,'originalImageUnchanged':True,'runtimeUserPreserved':True,'dataDirectoryPreserved':True}))
+    gateway=root/'gateway';gateway.mkdir();(gateway/'site-admin.js').write_bytes(b'gateway-fixture')
+    (gateway/'Dockerfile').write_text('FROM caddy:2-alpine\nCOPY site-admin.js /srv/admin/src/site-admin.js\n')
+    gateway_tag='ramo-gateway-fixture:'+uuid.uuid4().hex
+    run(['docker','build','-t',gateway_tag,str(gateway)])
+    gateway_id=inspect(gateway_tag)['Id']
+    run(['docker','run','--rm','--network=none','--read-only','--entrypoint','sh',gateway_id,'-ec','! command -v node'])
+    m.verify_image_files(helper,gateway_id,{'src/site-admin.js':m.sha(b'gateway-fixture')},'/srv/admin/')
+    print(json.dumps({'gatewayCaddyWithoutNode':True,'gatewayHashWithoutNode':True,'realDockerCollisionReproduced':True,'cleanDerivedImagePassed':True,'originalImageUnchanged':True,'runtimeUserPreserved':True,'dataDirectoryPreserved':True}))
