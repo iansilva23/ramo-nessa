@@ -1,0 +1,115 @@
+name: Second update operational packages
+'on':
+  push:
+    branches: [feature/second-update-packages-20261106]
+    paths: ['.github/workflows/second-update-packages.yml', 'deploy/second-update/package-release.py']
+permissions: {contents: read}
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {role: driver, route: motorista}
+          - {role: passenger, route: passageiro}
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ matrix.role == 'driver' && secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+    - uses: actions/checkout@v4
+      with: {fetch-depth: 0}
+    - uses: subosito/flutter-action@v2.23.0
+      with: {flutter-version: '3.47.5', channel: stable, cache: true}
+    - name: Prepare the published Web configuration
+      run: |
+        python3 -m pip install --quiet Pillow==11.3.0
+        python3 scripts/web/generate_pwa_icons.py
+        node scripts/web/prepare_configured_web.mjs --role=${{ matrix.role }}
+    - name: Build Web
+      working-directory: apps/${{ matrix.role }}
+      run: |
+        flutter pub get --enforce-lockfile
+        flags=()
+        if [ '${{ matrix.role }}' = driver ]; then
+          flags+=(--dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true)
+          flutter test --platform chrome test/driver_web_heading_config_test.dart test/driver_web_cinematic_camera_test.dart "${flags[@]}"
+        fi
+        flutter build web --release --no-pub --no-web-resources-cdn --base-href=/${{ matrix.route }}/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false "${flags[@]}"
+        if [ '${{ matrix.role }}' = driver ]; then
+          python3 -c "from pathlib import Path; assert 'de20bf289d6db3ad15fdb14b' in Path('build/web/main.dart.js').read_text()"
+        fi
+    - name: Verify configured payload
+      run: |
+        node scripts/web/verify_web_bundle.mjs --role=${{ matrix.role }} --dist=apps/${{ matrix.role }}/build/web
+        python3 deploy/second-update/package-release.py ${{ matrix.role }}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: second-${{ matrix.role }}
+        path: RamoNessa-Segunda-${{ matrix.role }}.zip
+        if-no-files-found: error
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+      with: {fetch-depth: 0}
+    - uses: actions/setup-node@v4
+      with: {node-version: '22'}
+    - name: Build exact baseline and candidate overlay
+      run: |
+        mkdir -p /tmp/ramo-second-baseline
+        git archive 68329f8540447b6994ef8d7255fcd69b04d7d3a1 backend/core | tar -x -C /tmp/ramo-second-baseline
+        npm ci --prefix /tmp/ramo-second-baseline/backend/core --no-audit --no-fund
+        npm run build --prefix /tmp/ramo-second-baseline/backend/core
+        npm ci --prefix backend/core --no-audit --no-fund
+        npm run build --prefix backend/core
+        python3 deploy/second-update/package-release.py core
+    - uses: actions/upload-artifact@v4
+      with:
+        name: second-core
+        path: RamoNessa-Segunda-*.zip
+        if-no-files-found: error
+  site:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with: {node-version: '24.22.1'}
+    - run: npm install --global pnpm@11.25.0 --no-audit --no-fund
+    - name: Build standalone site
+      working-directory: apps/institutional-site
+      env: {NEXT_TELEMETRY_DISABLED: '1'}
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm build
+        cp -r public .next/standalone/public
+        mkdir -p .next/standalone/.next
+        cp -r .next/static .next/standalone/.next/static
+    - run: python3 deploy/second-update/package-release.py site
+    - uses: actions/upload-artifact@v4
+      with:
+        name: second-site
+        path: RamoNessa-Segunda-site.zip
+        if-no-files-found: error
+  publish:
+    needs: [web, core, site]
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+    - uses: actions/download-artifact@v4
+      with: {pattern: 'second-*', path: packages, merge-multiple: true}
+    - name: Publish delivery packages without accessing the VPS
+      working-directory: packages
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        sha256sum RamoNessa-Segunda-*.zip > SHA256SUMS
+        gh release create "second-update-${GITHUB_SHA:0:12}" ./*.zip ./SHA256SUMS --target "$GITHUB_SHA" --prerelease --latest=false --title 'Segunda atualização - pacotes operacionais' --notes 'Pacotes preparados a partir da candidata conjunta validada. Nenhuma aplicação na VPS. Exclusão permanece desativada até ativação coordenada.'
