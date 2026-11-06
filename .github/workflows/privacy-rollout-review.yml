@@ -7,7 +7,8 @@ permissions: {contents: read}
 jobs:
   preparation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s deploy/privacy-rollout -p 'test_*.py' -v
+      - run: sudo env RAMO_PRIVACY_DOCKER_REHEARSAL=1 python3 -m unittest discover -s deploy/privacy-rollout -p 'test_activate_docker.py' -v
