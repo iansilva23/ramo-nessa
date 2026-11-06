@@ -26,6 +26,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
   List<WalletTopupStatus> _topups = const [];
   bool _loading = true;
   bool _creating = false;
+  bool _topupDialogOpen = false;
   String? _error;
 
   @override
@@ -67,7 +68,8 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
   }
 
   Future<void> _newTopup() async {
-    if (_creating) return;
+    if (_creating || _topupDialogOpen) return;
+    _topupDialogOpen = true;
 
     setState(() {
       _creating = true;
@@ -80,6 +82,8 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
           ? await (service as AccountPaymentEmailService).loadAccountPaymentEmail()
           : null;
       if (!mounted) return;
+      // Keep the reentry lock, but stop the background spinner while typing.
+      setState(() => _creating = false);
       final input = await showDialog<_WalletTopupInput>(
         context: context,
         builder: (_) => _WalletTopupDialog(accountEmail: accountEmail),
@@ -89,6 +93,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
         setState(() => _creating = false);
         return;
       }
+      setState(() => _creating = true);
       final result = await widget.service.createPixWalletTopup(
         amountCents: input.amountCents,
         payerEmail: input.payerEmail,
@@ -127,6 +132,8 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
         _creating = false;
         _error = 'Não conseguimos gerar a recarga Pix agora.';
       });
+    } finally {
+      _topupDialogOpen = false;
     }
   }
 
