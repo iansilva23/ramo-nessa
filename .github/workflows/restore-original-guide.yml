@@ -1,0 +1,87 @@
+name: Restore original Local Guide only
+'on':
+  push:
+    branches:
+    - fix/restore-original-local-guide-20261106
+permissions:
+  contents: read
+jobs:
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+        - role: passenger
+          route: passageiro
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ matrix.role == 'driver' && secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Preserve scope and verify exact original Guide
+      run: |
+        git fetch --no-tags origin 674f18a32b125bcb1964a9d5057e4272f922894d 0d8d865af3b27db8f7ea91663e0393aeb134b817
+        git diff --exit-code 674f18a32b125bcb1964a9d5057e4272f922894d HEAD -- apps/passenger/lib/src/features/guide/presentation/local_guide_screen.dart
+        test "$(git diff --name-only 0d8d865af3b27db8f7ea91663e0393aeb134b817 HEAD -- apps/*/lib packages backend apps/admin | wc -l)" -eq 1
+    - name: Prepare the published Web configuration
+      run: |
+        python3 -m pip install --quiet Pillow==11.3.0
+        python3 scripts/web/generate_pwa_icons.py
+        node scripts/web/prepare_configured_web.mjs --role=${{ matrix.role }}
+    - name: Analyze and test Passenger including original Guide navigation
+      working-directory: apps/passenger
+      run: |-
+        flutter pub get --enforce-lockfile
+        flutter analyze
+        flutter test
+    - name: Build Web
+      working-directory: apps/${{ matrix.role }}
+      run: |
+        flutter pub get --enforce-lockfile
+        flutter build web --release --no-pub --no-web-resources-cdn \
+          --base-href=/${{ matrix.route }}/ --dart-define=RAMO_CORE_BASE_URL= \
+          --dart-define=RAMO_PREVIEW_MODE=false
+    - name: Verify and package Web
+      env:
+        APP_ROLE: ${{ matrix.role }}
+      run: |
+        node scripts/web/verify_web_bundle.mjs --role="$APP_ROLE" --dist="apps/$APP_ROLE/build/web"
+        python3 - <<'PY'
+        from hashlib import sha256
+        from pathlib import Path
+        import json
+        import os
+        import zipfile
+
+        role = os.environ['APP_ROLE']
+        root = Path('apps', role, 'build', 'web')
+        files = sorted(p for p in root.rglob('*') if p.is_file())
+        with zipfile.ZipFile(f'RamoNessa-Recuperacao-{role}.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr('manifest.json', json.dumps({
+                'source': os.environ['GITHUB_SHA'],
+                'role': role,
+                'files': {str(p.relative_to(root)): sha256(p.read_bytes()).hexdigest() for p in files},
+            }))
+            for file in files:
+                archive.write(file, f'{role}/{file.relative_to(root)}')
+        PY
+    - uses: actions/upload-artifact@v4
+      with:
+        name: recovery-${{ matrix.role }}
+        path: RamoNessa-Recuperacao-${{ matrix.role }}.zip
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v4
+      with:
+        name: original-guide-review
+        path: apps/passenger/guide-test-artifacts/
+        if-no-files-found: ignore

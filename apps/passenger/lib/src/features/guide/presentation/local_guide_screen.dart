@@ -10,14 +10,6 @@ const _yellow = Color(0xFFFFDE00),
     _background = Color(0xFF090B0E),
     _card = Color(0xFF13161B),
     _muted = Color(0xFFB9BDC5);
-
-class _GuideColors {
-  const _GuideColors({required this.background, required this.card, required this.muted, required this.body, required this.accent, required this.border});
-  final Color background, card, muted, body, accent, border;
-  static const dark = _GuideColors(background:_background,card:_card,muted:_muted,body:Color(0xFFDEE0E4),accent:_yellow,border:Color(0xFF42464E));
-  static const light = _GuideColors(background:Color(0xFFF5F6F8),card:Colors.white,muted:Color(0xFF596273),body:Color(0xFF283141),accent:Color(0xFF806000),border:Color(0xFFD3D8E0));
-}
-_GuideColors _guideColors(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? _GuideColors.dark : _GuideColors.light;
 IconData guideIcon(String icon) =>
     const <String, IconData>{
       'eco': Icons.eco_outlined,
@@ -33,13 +25,11 @@ IconData guideIcon(String icon) =>
       'info': Icons.info_outline,
     }[icon] ??
     Icons.explore_outlined;
-ThemeData _guideTheme(Brightness brightness) {
-  final colors = brightness == Brightness.dark ? _GuideColors.dark : _GuideColors.light;
-  return ThemeData(
+ThemeData _guideTheme() => ThemeData(
   useMaterial3: true,
-  brightness: brightness,
-  scaffoldBackgroundColor: colors.background,
-  colorScheme: brightness == Brightness.dark ? const ColorScheme.dark(
+  brightness: Brightness.dark,
+  scaffoldBackgroundColor: _background,
+  colorScheme: const ColorScheme.dark(
     primary: _yellow,
     onPrimary: Colors.black,
     surface: _card,
@@ -48,16 +38,9 @@ ThemeData _guideTheme(Brightness brightness) {
     secondaryContainer: _card,
     onSecondary: Colors.white,
     onSecondaryContainer: Colors.white,
-  ) : ColorScheme.light(
-    primary:colors.accent,onPrimary:Colors.white,
-    surface:colors.card,onSurface:const Color(0xFF171C25),
-    onSurfaceVariant:colors.muted,secondary:colors.card,
-    secondaryContainer:colors.card,onSecondary:const Color(0xFF171C25),
-    onSecondaryContainer:const Color(0xFF171C25),outline:colors.border,
   ),
   fontFamily: 'Inter',
 );
-}
 
 class LocalGuideScreen extends StatefulWidget {
   const LocalGuideScreen({
@@ -135,15 +118,15 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                 .toList() ??
             [];
     return Theme(
-      data: _guideTheme(Theme.of(context).brightness),
+      data: _guideTheme(),
       child: Builder(
         builder: (context) => Scaffold(
-          backgroundColor: _guideColors(context).background,
+          backgroundColor: _background,
           body: SafeArea(
             bottom: false,
             child: RefreshIndicator(
               onRefresh: () => _load(refresh: true),
-              color: _guideColors(context).accent,
+              color: _yellow,
               child: CustomScrollView(
                 key: const PageStorageKey('guide-home'),
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -175,10 +158,10 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Text(
+                          const Text(
                             'Experiências selecionadas pela Ramo Nessa Agência.',
                             style: TextStyle(
-                              color: _guideColors(context).muted,
+                              color: _muted,
                               fontSize: 14,
                               height: 1.5,
                             ),
@@ -215,11 +198,11 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                               ),
                             ),
                           if (catalog?.stale == true)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
                               child: Text(
                                 'Sem conexão. Exibindo o último conteúdo carregado.',
-                                style: TextStyle(color: _guideColors(context).muted, fontSize: 12),
+                                style: TextStyle(color: _muted, fontSize: 12),
                               ),
                             ),
                         ],
@@ -227,9 +210,9 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                     ),
                   ),
                   if (_loading)
-                    SliverFillRemaining(
+                    const SliverFillRemaining(
                       child: Center(
-                        child: CircularProgressIndicator(color: _guideColors(context).accent),
+                        child: CircularProgressIndicator(color: _yellow),
                       ),
                     )
                   else if (_error != null)
@@ -254,16 +237,14 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                       sliver: SliverLayoutBuilder(
                         builder: (context, constraints) {
                           final wide = constraints.crossAxisExtent > 800;
-                          final narrow = constraints.crossAxisExtent < 320 ||
-                              MediaQuery.textScalerOf(context).scale(1) > 1.3;
                           return SliverGrid.builder(
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: narrow ? 1 : wide ? 4 : 2,
+                                  crossAxisCount: wide ? 4 : 2,
                                   mainAxisSpacing: 12,
                                   crossAxisSpacing: 12,
                                   childAspectRatio:
-                                      (narrow ? 1.4 : .70) /
+                                      .70 /
                                       MediaQuery.textScalerOf(context)
                                           .scale(1)
                                           .clamp(1.0, 2.5),
@@ -301,7 +282,7 @@ class _CategoryTile extends StatelessWidget {
     button: true,
     label: entry.name,
     child: Material(
-      color: _guideColors(context).card,
+      color: _card,
       borderRadius: BorderRadius.circular(21),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -348,7 +329,6 @@ class _CategoryTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: compact ? 14 : 18,
-                      color: Colors.white,
                       fontWeight: FontWeight.w800,
                       height: 1.12,
                     ),
@@ -371,7 +351,7 @@ class _CategoryTile extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right, size: 22, color:Colors.white),
+                        const Icon(Icons.chevron_right, size: 22),
                       ],
                     ),
                   ],
@@ -444,9 +424,9 @@ class _GuideCategoryPageState extends State<GuideCategoryPage> {
         featured = items.where((e) => e.featured).toList(),
         other = items.where((e) => !e.featured).toList();
     return Theme(
-      data: _guideTheme(Theme.of(context).brightness),
+      data: _guideTheme(),
       child: Scaffold(
-        backgroundColor: _guideColors(context).background,
+        backgroundColor: _background,
         body: SafeArea(
           top: false,
           bottom: true,
@@ -491,8 +471,8 @@ class _GuideCategoryPageState extends State<GuideCategoryPage> {
                   ),
                 ),
               if (_busy)
-                SliverToBoxAdapter(
-                  child: LinearProgressIndicator(color: _guideColors(context).accent, minHeight: 2),
+                const SliverToBoxAdapter(
+                  child: LinearProgressIndicator(color: _yellow, minHeight: 2),
                 ),
               if (items.isEmpty)
                 const SliverFillRemaining(
@@ -623,7 +603,6 @@ class _Hero extends StatelessWidget {
               entry.name,
               style: const TextStyle(
                 fontSize: 29,
-                color: Colors.white,
                 fontWeight: FontWeight.w800,
                 height: 1.15,
                 letterSpacing: -.6,
@@ -662,7 +641,7 @@ class _ItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = entry, rules = template == 'rules';
     return Material(
-      color: _guideColors(context).card,
+      color: _card,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -720,9 +699,9 @@ class _ItemCard extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                Icon(
+                                const Icon(
                                   Icons.chevron_right,
-                                  color: _guideColors(context).muted,
+                                  color: _muted,
                                   size: 20,
                                 ),
                               ],
@@ -745,8 +724,8 @@ class _ItemCard extends StatelessWidget {
                                 padding: const EdgeInsets.only(top: 6),
                                 child: Text(
                                   e.summary,
-                                  style: TextStyle(
-                                    color: _guideColors(context).muted,
+                                  style: const TextStyle(
+                                    color: _muted,
                                     fontSize: 12,
                                     height: 1.4,
                                   ),
@@ -757,8 +736,8 @@ class _ItemCard extends StatelessWidget {
                                 padding: const EdgeInsets.only(top: 8),
                                 child: Text(
                                   guidePrice(e),
-                                  style: TextStyle(
-                                    color: _guideColors(context).accent,
+                                  style: const TextStyle(
+                                    color: _yellow,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
                                   ),
@@ -792,7 +771,7 @@ class _FeaturedCard extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     height: 235,
     child: Material(
-      color: _guideColors(context).card,
+      color: _card,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -823,7 +802,6 @@ class _FeaturedCard extends StatelessWidget {
                     entry.name,
                     style: const TextStyle(
                       fontSize: 23,
-                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -863,9 +841,9 @@ class _GuideItemPageState extends State<GuideItemPage> {
   Widget build(BuildContext context) {
     final e = widget.entry;
     return Theme(
-      data: _guideTheme(Theme.of(context).brightness),
+      data: _guideTheme(),
       child: Scaffold(
-        backgroundColor: _guideColors(context).background,
+        backgroundColor: _background,
         body: SafeArea(
           top: false,
           child: ListView(
@@ -892,8 +870,8 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Text(
                           guidePrice(e),
-                          style: TextStyle(
-                            color: _guideColors(context).accent,
+                          style: const TextStyle(
+                            color: _yellow,
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
                           ),
@@ -904,10 +882,10 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         child: Text(
                           e.text('description'),
-                          style: TextStyle(
+                          style: const TextStyle(
                             height: 1.65,
                             fontSize: 15,
-                            color: _guideColors(context).body,
+                            color: Color(0xFFDEE0E4),
                           ),
                         ),
                       ),
@@ -933,17 +911,17 @@ class _GuideItemPageState extends State<GuideItemPage> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.check_circle_outline,
                                   size: 16,
-                                  color: _guideColors(context).accent,
+                                  color: _yellow,
                                 ),
                                 const SizedBox(width: 9),
                                 Expanded(
                                   child: Text(
                                     line,
-                                    style: TextStyle(
-                                      color: _guideColors(context).muted,
+                                    style: const TextStyle(
+                                      color: _muted,
                                       height: 1.45,
                                     ),
                                   ),
@@ -957,13 +935,13 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         padding: const EdgeInsets.only(top: 18),
                         child: Text(
                           'Fonte: ${e.text('source')}',
-                          style: TextStyle(color: _guideColors(context).muted),
+                          style: const TextStyle(color: _muted),
                         ),
                       ),
                     if (e.text('updatedOn').isNotEmpty)
                       Text(
                         'Atualizado em ${formatGuideDate(e.text('updatedOn'))}',
-                        style: TextStyle(fontSize: 12, color: _guideColors(context).muted),
+                        style: const TextStyle(fontSize: 12, color: _muted),
                       ),
                     if (e.text('sourceUrl').isNotEmpty)
                       TextButton.icon(
@@ -975,7 +953,7 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         label: const Text('Consultar fonte oficial'),
                       ),
                     const SizedBox(height: 22),
-                    if (_busy) LinearProgressIndicator(color: _guideColors(context).accent),
+                    if (_busy) const LinearProgressIndicator(color: _yellow),
                     IgnorePointer(
                       ignoring: _busy,
                       child: GuideActionButtons(
@@ -1030,9 +1008,9 @@ class GuideActionButtons extends StatelessWidget {
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               backgroundColor: a.primary ? _yellow : Colors.transparent,
-              foregroundColor: a.primary ? Colors.black : Theme.of(context).colorScheme.onSurface,
+              foregroundColor: a.primary ? Colors.black : Colors.white,
               side: BorderSide(
-                color: a.primary ? _yellow : _guideColors(context).border,
+                color: a.primary ? _yellow : const Color(0xFF42464E),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
               textStyle: const TextStyle(
@@ -1156,12 +1134,12 @@ class GuidePhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = entry.imageUrl;
     Widget empty() => ColoredBox(
-      color: _guideColors(context).card,
+      color: _card,
       child: Center(
         child: Icon(
           guideIcon(entry.text('icon')),
           size: 32,
-          color: _guideColors(context).muted,
+          color: const Color(0xFF53565E),
         ),
       ),
     );
@@ -1195,8 +1173,8 @@ class _Pill extends StatelessWidget {
       minimumSize: const Size(72, 44),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       backgroundColor: selected ? _yellow : Colors.transparent,
-      foregroundColor: selected ? Colors.black : Theme.of(context).colorScheme.onSurface,
-      side: BorderSide(color: selected ? _yellow : _guideColors(context).border),
+      foregroundColor: selected ? Colors.black : Colors.white,
+      side: BorderSide(color: selected ? _yellow : const Color(0xFF353940)),
       textStyle: TextStyle(
         fontFamily: 'Inter',
         fontSize: 13,
@@ -1239,12 +1217,12 @@ class _Meta extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: _guideColors(context).muted, size: 15),
+        Icon(icon, color: _muted, size: 15),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             text,
-            style: TextStyle(color: _guideColors(context).muted, fontSize: 12, height: 1.35),
+            style: const TextStyle(color: _muted, fontSize: 12, height: 1.35),
           ),
         ),
       ],
@@ -1261,7 +1239,7 @@ class _SectionTitle extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
     child: Row(
       children: [
-        Icon(icon, color: _guideColors(context).accent, size: 23),
+        Icon(icon, color: _yellow, size: 23),
         const SizedBox(width: 9),
         Expanded(
           child: Text(
@@ -1285,7 +1263,7 @@ class _Empty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.explore_outlined, color: _guideColors(context).accent, size: 36),
+          const Icon(Icons.explore_outlined, color: _yellow, size: 36),
           const SizedBox(height: 16),
           Text(
             title,
@@ -1296,7 +1274,7 @@ class _Empty extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: TextStyle(color: _guideColors(context).muted, height: 1.5),
+            style: const TextStyle(color: _muted, height: 1.5),
           ),
           if (action != null)
             TextButton(
