@@ -8013,12 +8013,14 @@ const server = createServer(async (request, response) => {
         if ((await savedCardRepository.list(passengerId,scope)).length >= 5) {
           json(response, 409, {error: 'CARD_LIMIT', message: 'Remova um cartão antes de adicionar outro.'}); return;
         }
+        const payerEmail=body.payerEmail.trim().toLowerCase();
+        const storageToken=body.token;
         const registerCard = async () => {
         try {
           // Never search/reuse an existing customer by user-supplied email.
           const customerId = await savedCardRepository.customer(passengerId,scope) ??
-            await savedCardRepository.bindCustomer(passengerId,scope,await gateway.createCustomer(body.payerEmail.trim().toLowerCase()));
-          const card = await gateway.saveCustomerCard(customerId,body.token);
+            await savedCardRepository.bindCustomer(passengerId,scope,await gateway.createCustomer(payerEmail));
+          const card = await gateway.saveCustomerCard(customerId,storageToken);
           await savedCardRepository.save(passengerId,scope,card);
           json(response, 201, {card});
         } catch {
