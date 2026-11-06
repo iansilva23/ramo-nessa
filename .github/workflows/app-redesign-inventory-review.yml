@@ -1,0 +1,14 @@
+name: App redesign read-only inventory review
+on:
+  push:
+    branches: [ops/app-redesign-packages-20261105]
+    paths: ['deploy/app-redesign/**', '.github/workflows/app-redesign-inventory-review.yml']
+permissions: {contents: read}
+jobs:
+  inventory-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify read-only inventory using isolated fixtures
+        run: python3 -m unittest discover -s deploy/app-redesign -p 'test_*.py' -v
