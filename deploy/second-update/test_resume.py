@@ -78,7 +78,7 @@ class ResumeTests(unittest.TestCase):
             root=Path(directory);anchor=root/m.NAME;anchor.mkdir(mode=0o700)
             h=types.SimpleNamespace(private_file=lambda p:json.dumps({'phase':'prepared','source':m.SOURCE,'changesApplied':False}).encode())
             with patch.object(m,'ROOT',root):
-                with self.assertRaises(m.PreparationError):m.resume_preparation(root,h,None)
+                with self.assertRaisesRegex(m.PreparationError,'Fase da âncora'):m.resume_preparation(root,h,None)
             self.assertEqual([],list(anchor.iterdir()))
 
     def test_legacy_v3_phase_reaches_baseline_guard_without_rebuilding(self):

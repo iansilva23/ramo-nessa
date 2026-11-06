@@ -12,6 +12,6 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - name: Validate existing and resume protection tests
-        run: python3 -m unittest discover -s deploy/second-update -p 'test_*.py' -v
+        run: sudo python3 -m unittest discover -s deploy/second-update -p 'test_*.py' -v
       - name: Reproduce the exact Docker symlink collision and validate the clean image
-        run: python3 deploy/second-update/docker_resume_regression.py
+        run: sudo python3 deploy/second-update/docker_resume_regression.py
