@@ -520,7 +520,7 @@ class _RamoPasswordRecoveryState extends State<RamoPasswordRecovery> {
                       if (_supportContact.isNotEmpty)
                         ListTile(
                           title: const Text('Contato do suporte'),
-                          subtitle: SelectableText(_supportContact),
+                          subtitle: const SelectableText(_supportContact),
                           trailing: IconButton(
                             tooltip: 'Copiar contato',
                             icon: const Icon(Icons.copy_rounded),

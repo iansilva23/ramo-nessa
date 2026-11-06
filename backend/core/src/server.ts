@@ -1,3 +1,5 @@
+import { AccountDeletionError } from './account-deletion/self-account-deletion.js';
+import { accountDeletionRoutes } from './account-deletion/account-deletion-routes.js';
 import { AdminAccountDeletionError } from './admin/admin-account-deletion.js';
 import { handlePasswordRecoveryRoute } from './auth/password-recovery-routes.js';
 import { recoveryDeliveryFromEnv } from './auth/recovery-delivery.js';
@@ -583,6 +585,7 @@ const {
   passengerGeoLearningStore,
   geoStorageMaintenance,
   savedCardRepository,
+  selfAccountDeletion,
   privacyRepository,
   promotionRepository,
   driverBenefitRepository,
@@ -722,6 +725,21 @@ const recoveryDeliveries = passwordRecoverySecret.length >= 32 ? recoveryDeliver
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
 const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
+const selfDeletionEnabled = process.env.SELF_ACCOUNT_DELETION_ENABLED?.trim() === 'true';
+let selfDeletionTimer:ReturnType<typeof setInterval>|null=null;
+let selfDeletionRunning=false;
+async function processSelfDeletions(){
+ if(!selfDeletionEnabled||!selfAccountDeletion||selfDeletionRunning)return;
+ selfDeletionRunning=true;
+ try{await selfAccountDeletion.processPending(privateDocumentStorage,async card=>{
+  const gateway=mercadoPagoOrdersClient;
+  if(!gateway||gateway.cardStorageScope!==card.scope)throw Error('CARD_CLEANUP_SCOPE_UNAVAILABLE');
+  try{await gateway.removeCustomerCard(card.customer,card.card);}catch(error){
+   if(!(error instanceof MercadoPagoOrdersError&&error.statusCode===404))throw error;
+  }
+ });}finally{selfDeletionRunning=false;}
+}
+
 const documentInspectionEncryptionKey =
   privateDocumentStorage == null
     ? null
@@ -6499,6 +6517,11 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if(await accountDeletionRoutes({request,response,url:requestUrl,enabled:selfDeletionEnabled,
+      service:selfAccountDeletion,storage:privateDocumentStorage,cardScope:mercadoPagoOrdersClient?.cardStorageScope,
+      authenticate:()=>authenticateBearer({repository:authSessionRepository,identities:authIdentityRepository,headers:request.headers}),
+      readJson,json,disconnect:id=>realtimeServer.disconnectBrowserSession(id),process:processSelfDeletions}))return;
+
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/me/privacy'
@@ -6996,7 +7019,7 @@ const server = createServer(async (request, response) => {
         MAX_PRIVATE_DOCUMENT_BYTES,
       );
       const expiresOn = headerValue(request, 'x-document-expires-on');
-      const result = await submitDriverDocumentFromDriverApp({
+      const upload = () => submitDriverDocumentFromDriverApp({
         registry: driverRegistryRepository,
         documents: driverDocumentRepository,
         storage: privateDocumentStorage,
@@ -7007,6 +7030,9 @@ const server = createServer(async (request, response) => {
         mimeType: rawContentType,
         ...(expiresOn == null ? {} : { expiresOn }),
       });
+      const result = selfDeletionEnabled && selfAccountDeletion
+        ? await selfAccountDeletion.withOpenAccount('driver', driverId, upload)
+        : await upload();
       json(response, 201, result);
       return;
     }
@@ -7987,16 +8013,23 @@ const server = createServer(async (request, response) => {
         if ((await savedCardRepository.list(passengerId,scope)).length >= 5) {
           json(response, 409, {error: 'CARD_LIMIT', message: 'Remova um cartão antes de adicionar outro.'}); return;
         }
+        const payerEmail=body.payerEmail.trim().toLowerCase();
+        const storageToken=body.token;
+        const registerCard = async () => {
         try {
           // Never search/reuse an existing customer by user-supplied email.
           const customerId = await savedCardRepository.customer(passengerId,scope) ??
-            await savedCardRepository.bindCustomer(passengerId,scope,await gateway.createCustomer(body.payerEmail.trim().toLowerCase()));
-          const card = await gateway.saveCustomerCard(customerId,body.token);
+            await savedCardRepository.bindCustomer(passengerId,scope,await gateway.createCustomer(payerEmail));
+          const card = await gateway.saveCustomerCard(customerId,storageToken);
           await savedCardRepository.save(passengerId,scope,card);
           json(response, 201, {card});
         } catch {
           json(response, 502, {error: 'CARD_SAVE_FAILED', message: 'Não conseguimos salvar o cartão agora. Você pode pagar sem salvá-lo.'});
         }
+        };
+        if(selfDeletionEnabled&&selfAccountDeletion){
+          await selfAccountDeletion.withOpenAccount('passenger',passengerId,registerCard);
+        }else{await registerCard();}
         return;
       }
       if (request.method === 'DELETE' && savedCardMatch[1] != null) {
@@ -9355,6 +9388,9 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof AccountDeletionError) {
+      json(response,error.status,{error:error.code,message:error.message});return;
+    }
     if (error instanceof AdminAccountDeletionError) {
       json(response, error.status, { error: error.code, message: error.message });
       return;
@@ -10001,6 +10037,7 @@ function shutdown(signal: string): Promise<void> {
       clearInterval(driverBenefitFinalizationTimer);
       driverBenefitFinalizationTimer = null;
     }
+    if(selfDeletionTimer){clearInterval(selfDeletionTimer);selfDeletionTimer=null;}
     if(growthTimer){clearInterval(growthTimer);growthTimer=null;}
     if(geoStorageTimer){clearInterval(geoStorageTimer);geoStorageTimer=null;}
     if(documentExpiryTimer){clearInterval(documentExpiryTimer);documentExpiryTimer=null;}
@@ -10068,6 +10105,10 @@ server.listen(port, '0.0.0.0', () => {
     void runGeoStorageMaintenance();
   }
 
+  if(selfDeletionEnabled&&selfAccountDeletion){
+    const run=()=>void processSelfDeletions().catch(()=>logError('account.deletion.worker.failed',{message:'Falha no processamento de exclusão; tarefa preservada para nova tentativa.'}));
+    selfDeletionTimer=setInterval(run,30_000);selfDeletionTimer.unref();run();
+  }
   growthTimer=setInterval(()=>void runGrowthMarketing(),15*60_000);
   documentExpiryTimer=setInterval(()=>void notifyDocumentExpiries(),60*60_000);
   documentExpiryTimer.unref();void notifyDocumentExpiries();

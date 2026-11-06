@@ -3620,7 +3620,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) =>
-                        DriverPrivacyScreen(service: widget.privacyService),
+                        DriverPrivacyScreen(service: widget.privacyService, onLogout: widget.onLogout),
                   ),
                 );
               },

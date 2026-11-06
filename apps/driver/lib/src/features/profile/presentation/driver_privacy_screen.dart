@@ -7,9 +7,11 @@ class DriverPrivacyScreen extends StatefulWidget {
   const DriverPrivacyScreen({
     super.key,
     required this.service,
+    this.onLogout,
   });
 
   final DriverPrivacyService? service;
+  final Future<bool> Function()? onLogout;
 
   @override
   State<DriverPrivacyScreen> createState() =>
@@ -203,6 +205,13 @@ class _DriverPrivacyScreenState extends State<DriverPrivacyScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+              if (widget.service is RamoAccountDeletionService)
+                RamoAccountDeletionSection(service:widget.service! as RamoAccountDeletionService,onClosed:() async {
+                  final logout = widget.onLogout;
+                  Navigator.of(context).popUntil((route)=>route.isFirst);
+                  await logout?.call();
+                }),
+
             Semantics(
               header: true,
               child: Text(

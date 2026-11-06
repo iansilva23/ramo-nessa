@@ -536,6 +536,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                     MaterialPageRoute<void>(
                       builder: (_) => PassengerPrivacyScreen(
                         service: widget.privacyService,
+                        onLogout: widget.onLogout,
                       ),
                     ),
                   );
