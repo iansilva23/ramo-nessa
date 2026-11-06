@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync,rmSync,readFileSync,readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,4 +35,19 @@ test('content forbids scripts, credential URLs, unknown fields and duplicate app
 test('uploads stream to private files, hash their content and clean up invalid payloads',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'ramo-upload-'));const prior=process.env.INTERESTS_DB_PATH;process.env.INTERESTS_DB_PATH=join(dir,'db.sqlite');
  try{const png=Buffer.from('89504e470d0a1a0a00000000','hex');const asset=await receiveAsset(new Request('http://site',{method:'POST',body:png}),'image');assert.equal(asset.extension,'png');assert.deepEqual(readFileSync(join(dir,'assets',asset.id+'.png')),png);await assert.rejects(receiveAsset(new Request('http://site',{method:'POST',body:'<svg onload="x">x</svg>'}),'image'),e=>e.status===400);await assert.rejects(receiveAsset(new Request('http://site',{method:'POST',body:'PK\x03\x04this is not android'}),'apk'),e=>e.status===400);assert.equal(readdirSync(join(dir,'assets')).length,1);}finally{if(prior===undefined)delete process.env.INTERESTS_DB_PATH;else process.env.INTERESTS_DB_PATH=prior;rmSync(dir,{recursive:true,force:true});}
+});
+
+test('legacy footer defaults, draft isolation, hiding, editing and restore survive restart',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'ramo-footer-'));const filename=join(dir,'db.sqlite');
+ try{let store=openSiteManagement(filename);store.close();const legacy=structuredClone(defaultContent);delete legacy.footer;
+ const db=new DatabaseSync(filename);db.prepare('UPDATE site_state SET draft=?,published=?').run(JSON.stringify(legacy),JSON.stringify(legacy));db.close();
+ store=openSiteManagement(filename);assert.equal(store.state().published.footer.email,'suporteramonessa@gmail.com');
+ const draft=store.state().draft;draft.footer={enabled:false,companyName:'Empresa editada',cnpj:'69495337000113',email:'novo@example.com'};
+ store.saveDraft(draft,0,'editor');assert.equal(store.state().published.footer.enabled,true);store.publish(1,'editor');store.close();
+ store=openSiteManagement(filename);assert.equal(store.state().published.footer.enabled,false);assert.equal(store.state().published.footer.email,'novo@example.com');
+ store.restore(Number(store.releases()[0].id),2,'editor');assert.equal(store.state().published.footer.enabled,false);assert.equal(store.state().draft.footer.enabled,true);store.publish(3,'editor');assert.equal(store.state().published.footer.companyName,'Ramo Nessa');store.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('footer accepts only typed visibility and safe email/CNPJ text',()=>{
+ for(const footer of [{...defaultContent.footer,enabled:'false'},{...defaultContent.footer,email:'a@example.com?subject=x'},{...defaultContent.footer,email:'a@example.com\r\nBcc:x@y.com'},{...defaultContent.footer,cnpj:'<script>'}])assert.equal(contentSchema.safeParse({...defaultContent,footer}).success,false);
 });
