@@ -80,7 +80,7 @@ export class SelfAccountDeletion {
     const current=(await c.query<Job>("SELECT * FROM self_account_deletions WHERE id=$1 AND status='processing'",[job.id])).rows[0];if(!current)continue;
     for(const key of current.cleanup.documents){if(!storage)throw Error('PRIVATE_STORAGE_UNAVAILABLE');await storage.delete(key);}
     for(const card of current.cleanup.cards)await removeCard(card);
-    await c.query('BEGIN');await c.query("SELECT set_config('ramo.account_deletion_worker','true',true)");
+    await c.query('BEGIN');await c.query("SET LOCAL lock_timeout='3s'; SET LOCAL statement_timeout='8s'");await c.query("SELECT set_config('ramo.account_deletion_worker','true',true)");
     const id=job.subject_id,role=job.subject_type;
     // Retain financial, ride and support evidence; remove current access and optional profile data.
     if(role==='passenger'){
@@ -102,7 +102,7 @@ export class SelfAccountDeletion {
     await c.query('ROLLBACK');
     const code=error&&typeof error==='object'&&'code' in error&&typeof error.code==='string'&&/^[0-9A-Z]{5}$/.test(error.code)?error.code:'CLEANUP_UNAVAILABLE';
     await c.query('UPDATE self_account_deletions SET attempts=attempts+1,last_error_code=$2,updated_at=now() WHERE id=$1',[job.id,code]);
-   }finally{if(locked)await c.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[job.id]);c.release();}
+   }finally{try{if(locked)await c.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[job.id]);}finally{c.release();}}
   }
  }
 }

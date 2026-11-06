@@ -110,3 +110,34 @@ test('new operations and shared document references cannot escape closure guards
   assert.equal((await f.store.receiptStatus(job.receipt)).status,'processing');
  }finally{await f.cleanup();await other.cleanup();}
 });
+
+test('zero net balance permits deletion while preserving ledger and support evidence',{skip:!enabled},async()=>{
+ const f=await fixture();const transaction=randomUUID(),ticket=randomUUID();
+ try{
+  await f.pool.query("INSERT INTO ledger_transactions(id,kind,reference_key)VALUES($1,'self-delete-history',$2)",[transaction,transaction]);
+  await f.pool.query("INSERT INTO ledger_entries(transaction_id,account_key,direction,amount_cents)VALUES($1,$2,'credit',2500),($1,$2,'debit',2500)",[transaction,`passenger:${f.id}:wallet`]);
+  await f.pool.query(`INSERT INTO driver_support_tickets(id,passenger_id,category,subject,message,status,created_at,updated_at)VALUES($1,$2,'account','Histórico de teste','Mensagem histórica de suporte.','open',now(),now())`,[ticket,f.id]);
+  const job=await f.store.start('passenger',f.id,true,true);await f.store.processPending(null,noCard);
+  assert.equal((await f.store.receiptStatus(job.receipt)).status,'deleted');
+  assert.equal((await f.pool.query('SELECT count(*)::int n FROM ledger_entries WHERE transaction_id=$1',[transaction])).rows[0].n,2);
+  assert.equal((await f.pool.query('SELECT message FROM driver_support_tickets WHERE id=$1',[ticket])).rows[0].message,'Mensagem histórica de suporte.');
+ }finally{await f.pool.query('DELETE FROM driver_support_tickets WHERE id=$1',[ticket]);await f.cleanup();const p=new Pool({connectionString:process.env.DATABASE_URL});await p.query('DELETE FROM ledger_transactions WHERE id=$1',[transaction]);await p.end();}
+});
+
+test('an active ride or pending charge blocks deletion; finished history stays intact',{skip:!enabled},async()=>{
+ const f=await fixture();const ride=randomUUID(),payment=randomUUID();
+ try{
+  await f.pool.query(`INSERT INTO rides(id,passenger_id,state,payment_status,origin_zone_id,destination_zone_id,category,price_period,passengers,pricing_rule_id,base_amount_cents,pickup_compensation_cents,total_amount_cents,platform_commission_cents,driver_net_cents)VALUES($1,$2,'AWAITING_PAYMENT','pending','prea','jijoca','car','day',1,'self-delete-ci',100,0,100,10,90)`,[ride,f.id]);
+  assert.equal((await f.store.overview('passenger',f.id)).eligible,false);
+  await assert.rejects(f.store.start('passenger',f.id,true,true));
+  await f.pool.query("UPDATE rides SET state='COMPLETED' WHERE id=$1",[ride]);
+  await f.pool.query("INSERT INTO payments(id,ride_id,method,processor,status,amount_cents,idempotency_key)VALUES($1,$2,'pix','synthetic','pending',100,$3)",[payment,ride,payment]);
+  assert.match((await f.store.overview('passenger',f.id)).reason??'',/processamento/);
+  await assert.rejects(f.store.start('passenger',f.id,true,true));
+  await f.pool.query("UPDATE payments SET status='failed' WHERE id=$1",[payment]);
+  const job=await f.store.start('passenger',f.id,true,true);await f.store.processPending(null,noCard);
+  assert.equal((await f.store.receiptStatus(job.receipt)).status,'deleted');
+  assert.equal((await f.pool.query('SELECT 1 FROM rides WHERE id=$1',[ride])).rowCount,1);
+  assert.equal((await f.pool.query('SELECT 1 FROM payments WHERE id=$1',[payment])).rowCount,1);
+ }finally{await f.pool.query('DELETE FROM payments WHERE id=$1',[payment]);await f.pool.query('DELETE FROM rides WHERE id=$1',[ride]);await f.cleanup();}
+});

@@ -30,6 +30,8 @@ jobs:
       - name: Account and existing financial and authentication regressions
         working-directory: backend/core
         run: npm test
+      - name: Validate the public deletion route in Caddy
+        run: docker run --rm -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" -e APP_DOMAIN=app.example.test -e ACME_EMAIL=ci@example.test caddy:2.11.7-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - name: Test the external page with a real browser and synthetic API
         run: |
           npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
@@ -53,3 +55,12 @@ jobs:
       - name: Preserve approved Guide, map and camera source
         run: |
           git diff --exit-code 6a7066bfbef533363821610d73d3acb7e4af577d HEAD -- apps/passenger/lib/src/features/guide apps/passenger/lib/src/features/map apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart apps/driver/lib/src/core/map packages/design_system/lib/src/map packages/design_system/lib/src/theme apps/admin backend/core/src/payments
+      - name: Driver home changes only the privacy logout callback
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import subprocess
+          path='apps/driver/lib/src/features/home/presentation/driver_home_screen.dart'
+          expected=subprocess.check_output(['git','show','6a7066bfbef533363821610d73d3acb7e4af577d:'+path]).decode().replace('DriverPrivacyScreen(service: widget.privacyService)','DriverPrivacyScreen(service: widget.privacyService, onLogout: widget.onLogout)')
+          assert Path(path).read_text()==expected
+          PYCODE
