@@ -28,6 +28,12 @@
     reverse_proxy institutional-site:3000
   }
 
+  redir /excluir-conta/ /excluir-conta 308
+  handle /excluir-conta {
+    rewrite * /v1/account-deletion/page
+    reverse_proxy core:8080
+  }
+
   @api path /v1/* /health /ready
   handle @api {
     reverse_proxy core:8080 {

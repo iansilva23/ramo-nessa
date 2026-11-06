@@ -27,6 +27,22 @@ import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tr
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
+  testWidgets('Pix missing-email response retries with account email without opening a form', (tester) async {
+    final service = _AccountEmailPixService();
+    final ride = PreparedRide(id:'ride-account-pix',state:'AWAITING_PAYMENT',baseAmountCents:4000,pickupCompensationCents:0,totalAmountCents:4000,
+      holdExpiresAt:DateTime.now().add(const Duration(minutes:2)));
+    await tester.pumpWidget(MaterialApp(home:RidePaymentScreen(ride:ride,paymentService:service,networkTilesEnabled:false)));
+    await tester.pump(); await tester.pump(const Duration(milliseconds:100));
+    await tester.ensureVisible(find.byKey(const Key('payment-option-pix')));
+    await tester.tap(find.byKey(const Key('payment-option-pix')));
+    await tester.pump(); await tester.pump(const Duration(milliseconds:500));
+    expect(find.byKey(const Key('payment-email-field')), findsNothing);
+    expect(service.email, 'account@example.test');
+    expect(service.pixCalls, 1);
+    expect(find.text('Pagar com Pix'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('server payment-first response opens payment without requesting driver acceptance', (tester) async {
     final service = _PaymentFirstService();
     final ride = PreparedRide.fromJson({
@@ -996,4 +1012,9 @@ class _PaymentFirstService extends _FakePassengerPaymentService implements Drive
       throw StateError('No prepayment confirmation is expected.');
   @override
   Future<void> releaseDriverReservation(String rideId) async {}
+}
+
+class _AccountEmailPixService extends _EmailPixService implements AccountPaymentEmailService {
+  @override
+  Future<String?> loadAccountPaymentEmail() async => 'account@example.test';
 }

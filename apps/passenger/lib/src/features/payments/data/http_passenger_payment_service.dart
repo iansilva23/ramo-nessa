@@ -1,3 +1,4 @@
+import '../domain/payment_email.dart';
 import 'saved_card_service.dart';
 import 'card_tokenization_service.dart';
 import 'dart:convert';
@@ -22,7 +23,8 @@ class HttpPassengerPaymentService
         PassengerPaymentService,
         DriverConfirmationService,
         SavedCardService,
-        PixEmailPaymentService {
+        PixEmailPaymentService,
+        AccountPaymentEmailService {
   HttpPassengerPaymentService({
     required Uri baseUrl,
     String? accessToken,
@@ -43,6 +45,25 @@ class HttpPassengerPaymentService
   String? _checkoutEmail;
   @override
   String? get checkoutEmail => _checkoutEmail;
+
+  @override
+  Future<String?> loadAccountPaymentEmail() async {
+    final response = await _client.get(
+      _baseUrl.resolve('/v1/passenger/me/account'),
+      headers: _identityHeaders,
+    ).timeout(RamoCoreConfig.requestTimeout);
+    final json = decodeJsonObject(response.body);
+    if (response.statusCode != 200 || json == null) {
+      throw PassengerPaymentException(
+        apiErrorMessage(json, 'Não conseguimos carregar os dados da sua conta.'),
+        code: json?['error'] as String?,
+      );
+    }
+    // No cross-session or persistent cache: account edits are reflected next time.
+    final email = paymentEmailOrNull(json['email'] as String?);
+    _checkoutEmail = email;
+    return email;
+  }
 
   Map<String, String> get _identityHeaders => {
     'content-type': 'application/json',

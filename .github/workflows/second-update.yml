@@ -1,0 +1,46 @@
+name: Second update - Passenger payment account email
+'on':
+  push:
+    branches: [feature/second-update-20261106]
+permissions:
+  contents: read
+concurrency:
+  group: second-update-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  passenger:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, platform: android}
+          - {runner: macos-15, platform: ios}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Preserve approved Driver, Guide, maps, Core and ADM
+        run: |
+          git diff --exit-code 68329f8540447b6994ef8d7255fcd69b04d7d3a1 HEAD -- apps/driver apps/passenger/lib/src/features/guide apps/passenger/lib/src/features/map apps/passenger/lib/src/features/home backend apps/admin packages
+      - uses: actions/setup-java@v5
+        if: matrix.platform == 'android'
+        with: {distribution: temurin, java-version: '21'}
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Resolve pinned dependencies and validate
+        working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+      - name: Compile Web and Android
+        if: matrix.platform == 'android'
+        working-directory: apps/passenger
+        run: |
+          flutter build web --release --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+          flutter build apk --debug --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Compile iOS simulator
+        if: matrix.platform == 'ios'
+        working-directory: apps/passenger
+        run: flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid

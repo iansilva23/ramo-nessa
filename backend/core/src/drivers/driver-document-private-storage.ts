@@ -1,5 +1,7 @@
 import {
   mkdir,
+  lstat,
+  unlink,
   readFile,
   writeFile,
 } from 'node:fs/promises';
@@ -42,6 +44,27 @@ export interface WritablePrivateDocumentStorage
     storageKey: string,
     object: PrivateDocumentObject,
   ): Promise<void>;
+}
+
+export interface DeletablePrivateDocumentStorage extends WritablePrivateDocumentStorage {
+  /** Resolves only after deletion; a missing object is already deleted. */
+  delete(storageKey: string): Promise<void>;
+}
+
+function assertDeleteStorageKey(storageKey: string): void {
+  if (storageKey.length < 8 || storageKey.length > 512 ||
+      storageKey.includes('..') || storageKey.includes('\\') ||
+      /[\x00-\x1f\x7f]/.test(storageKey) ||
+      /^[A-Za-z][A-Za-z0-9+.-]*:/.test(storageKey) ||
+      storageKey.split('/').some(part => !part || part === '.')) {
+    throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+      'Referência privada inválida para exclusão.');
+  }
+}
+
+function storageErrorCode(error: unknown): string {
+  return error != null && typeof error === 'object' && 'code' in error
+    ? String(error.code) : '';
 }
 
 function validateObjectSize(bytes: Buffer): void {
@@ -103,13 +126,38 @@ function contentTypeFromStorageKey(storageKey: string): string {
 }
 
 export class HttpPrivateDocumentStorage
-  implements WritablePrivateDocumentStorage
+  implements DeletablePrivateDocumentStorage
 {
   constructor(
     private readonly baseUrl: URL,
     private readonly authToken: string,
     private readonly timeoutMs = 5000,
   ) {}
+
+  async delete(storageKey: string): Promise<void> {
+    assertDeleteStorageKey(storageKey);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await fetch(objectUrl(this.baseUrl, storageKey), {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${this.authToken}` },
+        redirect: 'error',
+        signal: controller.signal,
+      });
+      // 202 means pending, not complete. Do not let callers report success early.
+      if (![200, 204, 404].includes(response.status)) {
+        throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+          'O storage não confirmou a exclusão do arquivo privado.');
+      }
+    } catch (error) {
+      if (error instanceof PrivateDocumentStorageError) throw error;
+      throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+        'Não foi possível excluir o arquivo privado.');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 
   async read(storageKey: string): Promise<PrivateDocumentObject> {
     const controller = new AbortController();
@@ -218,7 +266,7 @@ export class HttpPrivateDocumentStorage
 }
 
 export class LocalPrivateDocumentStorage
-  implements WritablePrivateDocumentStorage
+  implements DeletablePrivateDocumentStorage
 {
   private readonly rootDirectory: string;
 
@@ -238,6 +286,40 @@ export class LocalPrivateDocumentStorage
       );
     }
     return target;
+  }
+
+  async delete(storageKey: string): Promise<void> {
+    assertDeleteStorageKey(storageKey);
+    try {
+      const target = this.objectPath(storageKey);
+      // The private volume must not redirect deletion through a symbolic link.
+      const root = await lstat(this.rootDirectory);
+      if (!root.isDirectory() || root.isSymbolicLink()) {
+        throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+          'Diretório privado inválido para exclusão.');
+      }
+      const parts = storageKey.split('/');
+      let directory = this.rootDirectory;
+      for (const part of parts.slice(0, -1)) {
+        directory = resolve(directory, part);
+        const info = await lstat(directory);
+        if (!info.isDirectory() || info.isSymbolicLink()) {
+          throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+            'Diretório privado inválido para exclusão.');
+        }
+      }
+      const file = await lstat(target);
+      if (!file.isFile() || file.isSymbolicLink()) {
+        throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+          'Arquivo privado inválido para exclusão.');
+      }
+      await unlink(target);
+    } catch (error) {
+      if (storageErrorCode(error) === 'ENOENT') return;
+      if (error instanceof PrivateDocumentStorageError) throw error;
+      throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+        'Não foi possível excluir o arquivo privado local.');
+    }
   }
 
   async read(storageKey: string): Promise<PrivateDocumentObject> {
@@ -295,7 +377,7 @@ export class LocalPrivateDocumentStorage
 
 export function createPrivateDocumentStorageFromEnv(
   env: NodeJS.ProcessEnv = process.env,
-): WritablePrivateDocumentStorage | null {
+): DeletablePrivateDocumentStorage | null {
   const rawBaseUrl = env.DOCUMENT_STORAGE_BASE_URL?.trim();
   const rawLocalDir = env.DOCUMENT_STORAGE_LOCAL_DIR?.trim();
 
