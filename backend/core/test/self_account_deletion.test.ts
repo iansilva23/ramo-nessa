@@ -20,6 +20,8 @@ async function fixture(role:'driver'|'passenger'='passenger'){
   await pool.query('DELETE FROM ledger_entries WHERE account_key=$1',[`${role}:${id}:wallet`]);
   await pool.query('DELETE FROM auth_sessions WHERE subject_id=$1',[id]);
   await pool.query('DELETE FROM auth_identities WHERE subject_id=$1',[id]);
+  await pool.query('DELETE FROM driver_payout_destinations WHERE driver_id=$1',[id]);
+  await pool.query('DELETE FROM passenger_promotion_preferences WHERE passenger_id=$1',[id]);
   await pool.query('DELETE FROM driver_profiles WHERE driver_id=$1',[id]);
   await pool.end();
  };
@@ -59,7 +61,9 @@ test('document cleanup failure remains pending and retry completes without losin
  try{
   await f.pool.query(`INSERT INTO driver_documents(id,driver_id,document_type,storage_key,content_sha256,mime_type,size_bytes,status,is_current,submitted_at,created_at,updated_at)VALUES($1,$2,'driver_license',$3,$4,'application/pdf',20,'pending',true,now(),now(),now())`,[randomUUID(),f.id,key,'a'.repeat(64)]);
   await assert.rejects(f.store.start('driver',f.id,true,false));
+  await f.pool.query("INSERT INTO driver_payout_destinations(driver_id,pix_key_type,pix_key)VALUES($1,'email',$2)",[f.id,f.id+'@example.test']);
   const job=await f.store.start('driver',f.id,true,true);
+  await assert.rejects(f.pool.query("UPDATE driver_payout_destinations SET pix_key='late@example.test' WHERE driver_id=$1",[f.id]));
   const storage={delete:async(k:string)=>{assert.equal(k,key);attempts++;if(attempts===1)throw Error('temporary');}} as DeletablePrivateDocumentStorage;
   await f.store.processPending(storage,noCard);
   assert.equal((await f.store.receiptStatus(job.receipt)).status,'processing');
@@ -67,6 +71,7 @@ test('document cleanup failure remains pending and retry completes without losin
   await f.store.processPending(storage,noCard);
   assert.equal((await f.store.receiptStatus(job.receipt)).status,'deleted');assert.equal(attempts,2);
   const profile=(await f.pool.query('SELECT full_name,status FROM driver_profiles WHERE driver_id=$1',[f.id])).rows[0];assert.equal(profile.full_name,'Conta excluída');assert.equal(profile.status,'suspended');
+  assert.equal((await f.pool.query('SELECT 1 FROM driver_payout_destinations WHERE driver_id=$1',[f.id])).rowCount,0);
   assert.equal((await f.pool.query('SELECT 1 FROM driver_documents WHERE driver_id=$1',[f.id])).rowCount,0);
  }finally{await f.cleanup();}
 });

@@ -18,7 +18,7 @@ BEGIN
   SELECT ARRAY['passenger','driver'],ARRAY[r.passenger_id,r.driver_id] INTO roles,subjects FROM rides r WHERE r.id=NEW.ride_id;
  ELSIF TG_TABLE_NAME IN ('auth_sessions','auth_identities') THEN
   roles:=ARRAY[NEW.subject_type];subjects:=ARRAY[NEW.subject_id];
- ELSIF TG_TABLE_NAME IN ('driver_supply','driver_profiles','driver_documents','driver_vehicles','driver_payouts') THEN
+ ELSIF TG_TABLE_NAME IN ('driver_supply','driver_profiles','driver_documents','driver_vehicles','driver_payouts','driver_payout_destinations') THEN
   IF TG_TABLE_NAME='driver_supply' AND NOT (data->>'online')::boolean THEN RETURN NEW; END IF;
   roles:=ARRAY['driver'];subjects:=ARRAY[data->>'driver_id'];
  ELSE
@@ -47,3 +47,5 @@ CREATE TRIGGER self_closed_vehicles BEFORE INSERT OR UPDATE ON driver_vehicles F
 CREATE TRIGGER self_closed_places BEFORE INSERT OR UPDATE ON passenger_saved_places FOR EACH ROW EXECUTE FUNCTION reject_self_closed_account();
 CREATE TRIGGER self_closed_cards BEFORE INSERT OR UPDATE ON passenger_saved_cards FOR EACH ROW EXECUTE FUNCTION reject_self_closed_account();
 CREATE TRIGGER self_closed_customers BEFORE INSERT OR UPDATE ON passenger_payment_customers FOR EACH ROW EXECUTE FUNCTION reject_self_closed_account();
+CREATE TRIGGER self_closed_payout_destination BEFORE INSERT OR UPDATE ON driver_payout_destinations FOR EACH ROW EXECUTE FUNCTION reject_self_closed_account();
+CREATE TRIGGER self_closed_promotion_preference BEFORE INSERT OR UPDATE ON passenger_promotion_preferences FOR EACH ROW EXECUTE FUNCTION reject_self_closed_account();

@@ -85,10 +85,12 @@ export class SelfAccountDeletion {
     // Retain financial, ride and support evidence; remove current access and optional profile data.
     if(role==='passenger'){
      await c.query('DELETE FROM passenger_saved_places WHERE passenger_id=$1',[id]);
+     await c.query('DELETE FROM passenger_promotion_preferences WHERE passenger_id=$1',[id]);
      await c.query('DELETE FROM passenger_payment_customers WHERE passenger_id=$1',[id]);
     }else{
      await c.query('DELETE FROM driver_documents WHERE driver_id=$1',[id]);
      await c.query('DELETE FROM driver_cpf_bindings WHERE driver_id=$1',[id]);
+     await c.query('DELETE FROM driver_payout_destinations WHERE driver_id=$1',[id]);
      await c.query('DELETE FROM driver_vehicles WHERE driver_id=$1',[id]);
      await c.query("UPDATE driver_profiles SET full_name='Conta excluída',preferred_name=NULL,photo_bytes=NULL,photo_mime_type=NULL,photo_updated_at=NULL,status='suspended',updated_at=now() WHERE driver_id=$1",[id]);
      await c.query("UPDATE driver_supply SET online=false,vehicle_id='deleted',latitude=0,longitude=0,location_updated_at=now(),updated_at=now() WHERE driver_id=$1",[id]);
