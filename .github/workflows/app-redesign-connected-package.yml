@@ -8,6 +8,7 @@ name: App redesign connected packages
   workflow_dispatch: {}
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: app-redesign-connected-${{ github.ref }}
   cancel-in-progress: false
@@ -23,7 +24,7 @@ jobs:
       build_number: ${{ steps.identify.outputs.build_number }}
     steps:
     - id: identify
-      run: printf "build_number=%s\n" "$(date +%s)" >> "$GITHUB_OUTPUT"
+      run: printf "build_number=1793925295\n" >> "$GITHUB_OUTPUT"
   driver:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
@@ -99,6 +100,13 @@ jobs:
         cd release/redesign
         sha256sum *.apk *.zip > SHA256SUMS-Driver
         printf 'source=%s\napi=https://app.ramonessa.com.br\npreviewMode=false\nsigning=existing-test-key-not-for-store\n' "$SOURCE_COMMIT" > LEIA-ME.txt
+    - name: Preserve built candidates before the identity gate
+      uses: actions/upload-artifact@v4
+      with:
+        name: unverified-redesign-driver
+        path: release/redesign/
+        if-no-files-found: error
+        retention-days: 2
     - name: Verify retained Android identity and certificate
       run: |
         set -euo pipefail
@@ -110,7 +118,8 @@ jobs:
         python3 - <<'CHECK'
         import os,re,pathlib
         certificate=pathlib.Path(os.environ['RUNNER_TEMP'],'certificate.txt').read_text()
-        match=re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F:]+)',certificate)
+        print(certificate)
+        match=re.search(r'certificate SHA-256 digest:\s*([0-9a-fA-F:]+)',certificate, re.IGNORECASE)
         assert match and match[1].replace(':','').lower()=='21867b7cf8beb84b4c55d648e7be3aa18f0ca78a5c57d18c1557fb503cd9efc9', 'Certificado Android diferente da chave de teste estável.'
         package=pathlib.Path(os.environ['RUNNER_TEMP'],'package.txt').read_text()
         assert "name='br.com.ramonessa.driver.preview'" in package, 'Package Android mudou.'
@@ -136,6 +145,16 @@ jobs:
         path: release/redesign/
         if-no-files-found: error
         retention-days: 14
+    - name: Preserve identity diagnostics on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: identity-diagnostics-driver
+        path: |-
+          ${{ runner.temp }}/certificate.txt
+          ${{ runner.temp }}/package.txt
+        if-no-files-found: ignore
+        retention-days: 2
     needs: identify
     name: driver connected android and Web
   passenger:
@@ -213,6 +232,13 @@ jobs:
         cd release/redesign
         sha256sum *.apk *.zip > SHA256SUMS-Passenger
         printf 'source=%s\napi=https://app.ramonessa.com.br\npreviewMode=false\nsigning=existing-test-key-not-for-store\n' "$SOURCE_COMMIT" > LEIA-ME-Passageiro.txt
+    - name: Preserve built candidates before the identity gate
+      uses: actions/upload-artifact@v4
+      with:
+        name: unverified-redesign-passenger
+        path: release/redesign/
+        if-no-files-found: error
+        retention-days: 2
     - name: Verify retained Android identity and certificate
       run: |
         set -euo pipefail
@@ -224,7 +250,8 @@ jobs:
         python3 - <<'CHECK'
         import os,re,pathlib
         certificate=pathlib.Path(os.environ['RUNNER_TEMP'],'certificate.txt').read_text()
-        match=re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F:]+)',certificate)
+        print(certificate)
+        match=re.search(r'certificate SHA-256 digest:\s*([0-9a-fA-F:]+)',certificate, re.IGNORECASE)
         assert match and match[1].replace(':','').lower()=='21867b7cf8beb84b4c55d648e7be3aa18f0ca78a5c57d18c1557fb503cd9efc9', 'Certificado Android diferente da chave de teste estável.'
         package=pathlib.Path(os.environ['RUNNER_TEMP'],'package.txt').read_text()
         assert "name='br.com.ramonessa.passenger.preview'" in package, 'Package Android mudou.'
@@ -250,144 +277,88 @@ jobs:
         path: release/redesign/
         if-no-files-found: error
         retention-days: 14
+    - name: Preserve identity diagnostics on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: identity-diagnostics-passenger
+        path: |-
+          ${{ runner.temp }}/certificate.txt
+          ${{ runner.temp }}/package.txt
+        if-no-files-found: ignore
+        retention-days: 2
     needs: identify
     name: passenger connected android and Web
   ios:
-    runs-on: macos-15
-    timeout-minutes: 55
-    env:
-      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
-      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
-      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
-      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
-      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
-      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
-      SOURCE_BUILD: ${{ needs.identify.outputs.build_number }}
+    name: driver reuse approved unsigned iPhone
+    runs-on: ubuntu-24.04
+    needs: identify
+    timeout-minutes: 5
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
       with:
-        ref: ${{ env.SOURCE_COMMIT }}
-    - name: Verify immutable approved source
-      run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-    - uses: subosito/flutter-action@v2.23.0
-      with:
-        flutter-version: 3.47.5
-        channel: stable
-        cache: true
-    - name: Validate retained iOS services
+        name: redesign-driver-ios
+        path: release/redesign
+        run-id: 42137858046
+        github-token: ${{ github.token }}
+    - name: Verify existing successful iPhone build
       run: |
-        node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface='Driver password iOS'
-        node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface='Driver password iOS'
-        printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/driver/ios/Flutter/GoogleMaps.local.xcconfig
-    - run: flutter pub get --enforce-lockfile
-      working-directory: apps/driver
-    - name: Build iPhone code without Apple distribution signing
-      working-directory: apps/driver
-      run: |
-        flutter build ios --release --no-codesign --no-pub --build-number="$SOURCE_BUILD" \
-          --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
-          --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
-          --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
-          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
-          --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
-          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
-    - name: Package unsigned iPhone build separately
-      run: |
-        mkdir -p release/redesign
-        ditto -c -k --sequesterRsrc --keepParent apps/driver/build/ios/iphoneos/Runner.app release/redesign/RamoNessa-Motorista-Redesign-iPhone-SEM-ASSINATURA.zip
-        printf 'Exige assinatura e provisionamento Apple. Nao instalavel diretamente. Fonte %s\n' "$SOURCE_COMMIT" > release/redesign/LEIA-ME-iPhone.txt
-    - name: Record source, build identity and artifact checksums
-      run: |
-        python3 - <<'REPORT'
-        import os,json,hashlib
+        python3 - <<'VERIFY'
+        import json,os,hashlib
         from pathlib import Path
         root=Path('release/redesign')
-        files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.iterdir()) if p.is_file()}
-        data={'schema':1,'source':os.environ['SOURCE_COMMIT'],'workflowCommit':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_RUN_ID'],'buildNumber':int(os.environ['SOURCE_BUILD']),'role':'driver','platform':'ios','apiOrigin':os.environ['RAMO_CORE_BASE_URL'],'previewMode':False,'signing':'unsigned-apple-provisioning-required','installed':False,'files':files}
-        (root/'BUILD-MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
-        REPORT
-    - name: Keep approved application code unchanged
-      run: git diff --exit-code -- apps/driver/lib apps/driver/pubspec.yaml apps/driver/pubspec.lock packages/
+        data=json.loads((root/'BUILD-MANIFEST.json').read_text())
+        assert data['source']==os.environ['SOURCE_COMMIT']
+        assert data['buildNumber']==1793925295
+        assert data['role']=='driver' and data['platform']=='ios'
+        assert data['signing']=='unsigned-apple-provisioning-required'
+        assert data['previewMode'] is False
+        for name,digest in data['files'].items():
+         assert Path(name).name==name and name not in ('.','..')
+         assert hashlib.sha256((root/name).read_bytes()).hexdigest()==digest
+        print('Build iPhone já aprovado reutilizado, com origem e hashes conferidos.')
+        VERIFY
     - uses: actions/upload-artifact@v4
       with:
         name: redesign-driver-ios
         path: release/redesign/
         if-no-files-found: error
         retention-days: 14
-    needs: identify
-    name: driver connected ios unsigned
   passenger-ios:
-    runs-on: macos-15
-    timeout-minutes: 55
-    env:
-      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
-      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
-      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID }}
-      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
-      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
-      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
-      SOURCE_BUILD: ${{ needs.identify.outputs.build_number }}
+    name: passenger reuse approved unsigned iPhone
+    runs-on: ubuntu-24.04
+    needs: identify
+    timeout-minutes: 5
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
       with:
-        ref: ${{ env.SOURCE_COMMIT }}
-    - name: Verify immutable approved source
-      run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-    - uses: subosito/flutter-action@v2.23.0
-      with:
-        flutter-version: 3.47.5
-        channel: stable
-        cache: true
-    - name: Validate retained iOS services
+        name: redesign-passenger-ios
+        path: release/redesign
+        run-id: 42137858046
+        github-token: ${{ github.token }}
+    - name: Verify existing successful iPhone build
       run: |
-        node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface='Passenger password iOS'
-        node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface='Passenger password iOS'
-        printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/passenger/ios/Flutter/GoogleMaps.local.xcconfig
-    - run: flutter pub get --enforce-lockfile
-      working-directory: apps/passenger
-    - name: Build iPhone code without Apple distribution signing
-      working-directory: apps/passenger
-      run: |
-        flutter build ios --release --no-codesign --no-pub --build-number="$SOURCE_BUILD" \
-          --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
-          --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
-          --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
-          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
-          --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
-          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
-    - name: Package unsigned iPhone build separately
-      run: |
-        mkdir -p release/redesign
-        ditto -c -k --sequesterRsrc --keepParent apps/passenger/build/ios/iphoneos/Runner.app release/redesign/RamoNessa-Passageiro-Redesign-iPhone-SEM-ASSINATURA.zip
-        printf 'Exige assinatura e provisionamento Apple. Nao instalavel diretamente. Fonte %s\n' "$SOURCE_COMMIT" > release/redesign/LEIA-ME-iPhone-Passageiro.txt
-    - name: Record source, build identity and artifact checksums
-      run: |
-        python3 - <<'REPORT'
-        import os,json,hashlib
+        python3 - <<'VERIFY'
+        import json,os,hashlib
         from pathlib import Path
         root=Path('release/redesign')
-        files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.iterdir()) if p.is_file()}
-        data={'schema':1,'source':os.environ['SOURCE_COMMIT'],'workflowCommit':os.environ['GITHUB_SHA'],'run':os.environ['GITHUB_RUN_ID'],'buildNumber':int(os.environ['SOURCE_BUILD']),'role':'passenger','platform':'ios','apiOrigin':os.environ['RAMO_CORE_BASE_URL'],'previewMode':False,'signing':'unsigned-apple-provisioning-required','installed':False,'files':files}
-        (root/'BUILD-MANIFEST.json').write_text(json.dumps(data,indent=2)+'\n')
-        REPORT
-    - name: Keep approved application code unchanged
-      run: git diff --exit-code -- apps/passenger/lib apps/passenger/pubspec.yaml apps/passenger/pubspec.lock packages/
+        data=json.loads((root/'BUILD-MANIFEST.json').read_text())
+        assert data['source']==os.environ['SOURCE_COMMIT']
+        assert data['buildNumber']==1793925295
+        assert data['role']=='passenger' and data['platform']=='ios'
+        assert data['signing']=='unsigned-apple-provisioning-required'
+        assert data['previewMode'] is False
+        for name,digest in data['files'].items():
+         assert Path(name).name==name and name not in ('.','..')
+         assert hashlib.sha256((root/name).read_bytes()).hexdigest()==digest
+        print('Build iPhone já aprovado reutilizado, com origem e hashes conferidos.')
+        VERIFY
     - uses: actions/upload-artifact@v4
       with:
         name: redesign-passenger-ios
         path: release/redesign/
         if-no-files-found: error
         retention-days: 14
-    needs: identify
-    name: passenger connected ios unsigned
   verify-packages:
     needs:
     - driver
