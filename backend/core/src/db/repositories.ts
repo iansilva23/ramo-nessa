@@ -1,3 +1,4 @@
+import { resolveDbPoolMax } from '../config/runtime-config.js';
 import { SelfAccountDeletion } from '../account-deletion/self-account-deletion.js';
 import { PostgresAdminAccountDeletion } from '../admin/admin-account-deletion.js';
 import { PostgresPasswordRecoveryStore } from '../auth/password-recovery-store.js';
@@ -144,7 +145,8 @@ export function createRepositories(): RepositoryBundle {
     return {
       driverPasswordAuthStore: new PostgresDriverPasswordAuthStore(pool),
       adminAccountDeletion: new PostgresAdminAccountDeletion(pool),
-      selfAccountDeletion: new SelfAccountDeletion(pool),
+      // Coordinated external work needs one lease connection and room for DB writes.
+      selfAccountDeletion: resolveDbPoolMax() >= 3 ? new SelfAccountDeletion(pool) : null,
       passwordRecoveryStore: new PostgresPasswordRecoveryStore(pool),
       passwordRegistrationStore: new PostgresPasswordRegistrationStore(pool),
       driverNavigationControlStore: new DriverNavigationControlStore(pool),
