@@ -159,6 +159,7 @@ jobs:
     outputs:
       apps: ${{ steps.scope.outputs.apps }}
       core: ${{ steps.scope.outputs.core }}
+      ops: ${{ steps.scope.outputs.ops }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -166,8 +167,18 @@ jobs:
     - id: scope
       run: "python3 - <<'PYCODE'\nimport os,subprocess\npaths=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines()\n\
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:\n f.write('apps='+str(any(p.startswith(('apps/','packages/')) for\
-        \ p in paths)).lower()+'\\n')\n f.write('core='+str(any(p.startswith(('backend/','deploy/privacy-finalization/'))\
-        \ for p in paths)).lower()+'\\n')\nPYCODE"
+        \ p in paths)).lower()+'\\n')\n f.write('core='+str(any(p.startswith('backend/') for p in paths)).lower()+'\\n')\n\
+        PYCODE\npython3 - <<'PYCODE'\nimport os,subprocess\npaths=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines()\n\
+        with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ops='+str(any(p.startswith('deploy/privacy-finalization/')\
+        \ for p in paths)).lower()+'\\n')\nPYCODE\n"
+  ops:
+    needs:
+    - changes
+    if: needs.changes.outputs.ops == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - run: python3 -m unittest discover -s deploy/privacy-finalization -p 'test_*.py' -v
 'on':
   push:
     branches:
