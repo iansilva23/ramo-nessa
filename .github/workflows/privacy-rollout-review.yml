@@ -1,0 +1,13 @@
+name: Privacy candidate preparation scope
+on:
+  push:
+    branches: [feature/account-deletion-complete-20261106]
+    paths: ['deploy/privacy-rollout/**', '.github/workflows/privacy-rollout-review.yml']
+permissions: {contents: read}
+jobs:
+  preparation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s deploy/privacy-rollout -p 'test_*.py' -v
