@@ -1,3 +1,4 @@
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -5,7 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/driver_core_config.dart';
 import 'driver_privacy_service.dart';
 
-class HttpDriverPrivacyService implements DriverPrivacyService {
+class HttpDriverPrivacyService implements DriverPrivacyService, RamoAccountDeletionService {
   HttpDriverPrivacyService({
     required Uri baseUrl,
     required String accessToken,
@@ -87,6 +88,20 @@ class HttpDriverPrivacyService implements DriverPrivacyService {
         )
         .timeout(DriverCoreConfig.requestTimeout);
     return DriverPrivacyRequest.fromJson(_decode(response));
+  }
+
+  @override
+  Future<RamoDeletionOverview> deletionOverview() async {
+    final response = await _client.get(_baseUrl.resolve('/v1/me/account-deletion'),headers:_headers).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode == 404) return const RamoDeletionOverview(available:false,eligible:false);
+    final json = _decode(response);
+    return RamoDeletionOverview(available:json['available']==true,eligible:json['eligible']==true,reason:json['reason'] as String?);
+  }
+  @override
+  Future<RamoDeletionResult> deleteOwnAccount() async {
+    final response = await _client.post(_baseUrl.resolve('/v1/me/account-deletion'),headers:_headers,body:jsonEncode({'confirmed':true})).timeout(const Duration(seconds:45));
+    final json = _decode(response);
+    return RamoDeletionResult(id:json['id'] as String,deleted:json['status']=='deleted');
   }
 
   Map<String, dynamic> _decode(http.Response response) {
