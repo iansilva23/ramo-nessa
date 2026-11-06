@@ -29,3 +29,18 @@ Os testes unitários cobrem plano divergente, mudança exclusiva do mount, relea
 O ensaio Docker é explicitamente habilitado apenas no CI, com projeto aleatório `ramo-redesign-rehearsal-*`, rede interna, servidor HTTP fictício e PostgreSQL descartável com ledger e corridas sintéticos. Usa o preparador real, o ativador real e a consulta real da guarda de atividade. Testa corrida ativa impedindo a troca, ativação/idempotência/retorno manual e falha injetada depois da troca com retorno automático. Confere identidade dos outros containers, ledger e ADM preservados. Recursos próprios são removidos; não acessa a VPS, dados reais ou provedores pagos.
 
 Homologação no aparelho e aplicação na VPS não são comprovadas por esse ensaio. A autorização vigente nesta etapa continua de preparação; aguardar autorização explícita para executar `activate`.
+
+## Resultado conferido e aplicação pendente
+
+Run `42145264386` aprovado: 27 testes, sem skips, em 74,095 segundos. Os dois ensaios Docker/PostgreSQL reais passaram: bloqueio por corrida em andamento seguido de ativação/idempotência/retorno manual; falha injetada depois da troca seguida de retorno automático. Ledger fictício, ADM e identidade dos outros containers conferidos. A suíte local teve 24 aprovações e três testes Docker ignorados por falta de Docker local. Não foram repetidos builds/testes de produto sem mudança no produto.
+
+Fonte exata do ativador e dos ensaios: `fc452315b3abd62fab2f88c694d0d641f94312ac`. SHA-256 de `activate-web.py`: `39a14705517a300111e9ae11b6f5a7d1ab64d935fb3f370bb15c4f9290ae053f`. A comparação contra a fonte dos apps confirma alterações somente em 12 arquivos de operações, workflows, testes e documentação, sem código de apps, ADM ou backend.
+
+A VPS ainda está na versão Web anterior: apenas a preparação foi executada pelo operador. A próxima decisão é autorizar a aplicação real dos dois bundles Web. Será recriado somente o gateway com a mesma imagem e configurações, mudando o bind preparado. Pode haver breve interrupção do gateway. Isso não instala APK/IPA nem comprova homologação em aparelho.
+
+Depois de autorização, o ativador pode ser obtido do caminho fixado:
+`https://raw.githubusercontent.com/iansilva23/ramo-nessa/fc452315b3abd62fab2f88c694d0d641f94312ac/deploy/app-redesign/activate-web.py`
+
+Conferir o SHA-256 acima e executar com sudo somente o modo `activate`. O script copia a si mesmo para a âncora antes da troca e guarda seu hash no registro. Saída esperada após conferência pública: `APP_REDESIGN_WEB_ACTIVATED`. Se falhar, analisar o resultado e o registro privado; não afirmar que aplicou ou retornou sem confirmação.
+
+O retorno desta atualização, quando necessário, é `sudo python3 /opt/ramo-nessa-security/app-redesign-0d8d865af3b2-996eb5ddbdbb/activate-web.py rollback`, após conferir o checksum do arquivo preservado. Não executar ativação e retorno em sequência por rotina. O retorno recusa outra publicação e não restaura banco.
