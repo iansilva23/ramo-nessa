@@ -5,6 +5,26 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_r
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_wallet_screen.dart';
 
 void main() {
+  testWidgets('account email removes typing from wallet Pix without changing amount', (tester) async {
+    final service = _AccountWalletService();
+    await tester.pumpWidget(MaterialApp(home: PassengerWalletScreen(service: service)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Adicionar saldo via Pix'));
+    await tester.pumpAndSettle();
+    expect(find.text('E-mail para o pagamento'), findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(service.requests, 0);
+    await tester.enterText(find.byType(TextField), '10,50');
+    await tester.tap(find.text('Gerar Pix'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(service.requests, 1);
+    expect(service.amount, 1050);
+    expect(service.email, 'account@example.test');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('recarga fecha formulário e abre Pix sem descartar campos cedo',
       (tester) async {
     final service = _WalletService();
@@ -95,4 +115,9 @@ class _WalletService implements PassengerPaymentService {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _AccountWalletService extends _WalletService implements AccountPaymentEmailService {
+  @override
+  Future<String?> loadAccountPaymentEmail() async => 'account@example.test';
 }

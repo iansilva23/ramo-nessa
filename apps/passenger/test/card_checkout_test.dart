@@ -88,6 +88,34 @@ class _SavedTokenizer extends _Tokenizer
 }
 
 void main() {
+  testWidgets('account email avoids typing and still requires explicit payment confirmation', (tester) async {
+    final tokenizer = _Tokenizer();
+    CardCheckoutSelection? result;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => TextButton(
+      onPressed: () async {
+        result = await Navigator.of(context).push<CardCheckoutSelection>(MaterialPageRoute(
+          builder: (_) => CardCheckoutScreen(tokenizer: tokenizer,
+            initialEmail: ' ACCOUNT@example.test ', amountLabel: r'R$ 40,00',
+            holdExpiresAt: DateTime.now().add(const Duration(minutes: 2))),
+        ));
+      }, child: const Text('Abrir'),
+    ))));
+    await tester.tap(find.text('Abrir'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextFormField), findsNothing);
+    expect(tokenizer.calls, 0);
+    await tester.ensureVisible(find.text('Adicionar cartão'));
+    await tester.tap(find.text('Adicionar cartão'));
+    await tester.pumpAndSettle();
+    expect(tokenizer.calls, 1);
+    expect(result, isNull);
+    await tester.ensureVisible(find.text(r'Pagar R$ 40,00'));
+    await tester.tap(find.text(r'Pagar R$ 40,00'));
+    await tester.pumpAndSettle();
+    expect(result?.email, 'account@example.test');
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets(
     'adding a card requires email and does not confirm payment until explicit review',
     (tester) async {
