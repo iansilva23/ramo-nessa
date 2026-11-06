@@ -1,0 +1,55 @@
+name: Driver offer sound and accepted ride arrow
+on:
+  push:
+    branches: [fix/driver-offer-navigation-20261106]
+permissions: {contents: read}
+jobs:
+  driver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Preserve deployed apps, approved cards, audio, theme and backend
+        run: |
+          git diff --exit-code 68329f8540447b6994ef8d7255fcd69b04d7d3a1 HEAD -- apps/passenger apps/admin apps/site backend packages apps/driver/assets
+          git diff --exit-code 9e913c89de373945cb99b3b3150feb9c012d2983 HEAD -- apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart
+          node --test scripts/web/driver_offer_tone_test.mjs
+      - name: Real browser audio regression
+        run: |
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium
+          node --test scripts/web/driver_offer_tone_browser_test.mjs
+      - name: Analyze and test Driver
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+      - name: Prepare configured Web
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=driver
+      - name: Preserve Cinema, test camera, and build Web
+        working-directory: apps/driver
+        run: |
+          flags=(--dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b)
+          flutter test --platform chrome test/driver_web_heading_config_test.dart test/driver_web_cinematic_camera_test.dart "${flags[@]}"
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false "${flags[@]}"
+          python3 -c "from pathlib import Path; assert 'de20bf289d6db3ad15fdb14b' in Path('build/web/main.dart.js').read_text(); assert Path('build/web/ramo_offer_tone.js').is_file()"
+      - name: Verify compiled shell and original audio
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+          cmp apps/driver/assets/audio/nova_corrida.mp3 apps/driver/build/web/assets/assets/audio/nova_corrida.mp3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-offer-navigation-web
+          path: apps/driver/build/web
+          if-no-files-found: error
