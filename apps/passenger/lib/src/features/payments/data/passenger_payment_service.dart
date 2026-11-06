@@ -79,3 +79,8 @@ abstract interface class PixEmailPaymentService {
   String? get checkoutEmail;
   Future<PixRidePaymentResult> createPixWithEmail({required String rideId, required String idempotencyKey, required String payerEmail});
 }
+
+/// Reads the current account for this authenticated session, never a past payer.
+abstract interface class AccountPaymentEmailService {
+  Future<String?> loadAccountPaymentEmail();
+}

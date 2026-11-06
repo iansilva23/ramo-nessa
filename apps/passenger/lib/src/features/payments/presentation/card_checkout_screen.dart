@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import '../data/card_tokenization_service.dart';
+import '../domain/payment_email.dart';
 import '../data/saved_card_service.dart';
 
 class CardCheckoutSelection {
@@ -42,7 +43,7 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    _email.text = widget.initialEmail;
+    _email.text = paymentEmailOrNull(widget.initialEmail) ?? widget.initialEmail;
     unawaited(_load());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
@@ -284,6 +285,7 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
                     : 'Tempo para pagar: ${remaining ~/ 60}:${(remaining % 60).toString().padLeft(2, '0')}',
               ),
               const SizedBox(height: 20),
+              if (paymentEmailOrNull(widget.initialEmail) == null)
               TextFormField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
