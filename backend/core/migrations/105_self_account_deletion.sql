@@ -19,7 +19,6 @@ BEGIN
  ELSIF TG_TABLE_NAME IN ('auth_sessions','auth_identities') THEN
   roles:=ARRAY[NEW.subject_type];subjects:=ARRAY[NEW.subject_id];
  ELSIF TG_TABLE_NAME IN ('driver_supply','driver_profiles','driver_documents','driver_vehicles','driver_payouts','driver_payout_destinations') THEN
-  IF TG_TABLE_NAME='driver_supply' AND NOT (data->>'online')::boolean THEN RETURN NEW; END IF;
   roles:=ARRAY['driver'];subjects:=ARRAY[data->>'driver_id'];
  ELSE
   roles:=ARRAY['passenger'];subjects:=ARRAY[data->>'passenger_id'];

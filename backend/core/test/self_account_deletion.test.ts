@@ -22,6 +22,7 @@ async function fixture(role:'driver'|'passenger'='passenger'){
   await pool.query('DELETE FROM auth_identities WHERE subject_id=$1',[id]);
   await pool.query('DELETE FROM driver_payout_destinations WHERE driver_id=$1',[id]);
   await pool.query('DELETE FROM passenger_promotion_preferences WHERE passenger_id=$1',[id]);
+  await pool.query('DELETE FROM driver_supply WHERE driver_id=$1',[id]);
   await pool.query('DELETE FROM driver_profiles WHERE driver_id=$1',[id]);
   await pool.end();
  };
@@ -61,6 +62,7 @@ test('document cleanup failure remains pending and retry completes without losin
  try{
   await f.pool.query(`INSERT INTO driver_documents(id,driver_id,document_type,storage_key,content_sha256,mime_type,size_bytes,status,is_current,submitted_at,created_at,updated_at)VALUES($1,$2,'driver_license',$3,$4,'application/pdf',20,'pending',true,now(),now(),now())`,[randomUUID(),f.id,key,'a'.repeat(64)]);
   await assert.rejects(f.store.start('driver',f.id,true,false));
+  await f.pool.query("INSERT INTO driver_supply(driver_id,vehicle_id,categories,seat_capacity,online,latitude,longitude,location_updated_at)VALUES($1,'vehicle-test',ARRAY['car'],4,false,1,2,now())",[f.id]);
   await f.pool.query("INSERT INTO driver_payout_destinations(driver_id,pix_key_type,pix_key)VALUES($1,'email',$2)",[f.id,f.id+'@example.test']);
   const job=await f.store.start('driver',f.id,true,true);
   await assert.rejects(f.pool.query("UPDATE driver_payout_destinations SET pix_key='late@example.test' WHERE driver_id=$1",[f.id]));
@@ -72,6 +74,8 @@ test('document cleanup failure remains pending and retry completes without losin
   assert.equal((await f.store.receiptStatus(job.receipt)).status,'deleted');assert.equal(attempts,2);
   const profile=(await f.pool.query('SELECT full_name,status FROM driver_profiles WHERE driver_id=$1',[f.id])).rows[0];assert.equal(profile.full_name,'Conta excluída');assert.equal(profile.status,'suspended');
   assert.equal((await f.pool.query('SELECT 1 FROM driver_payout_destinations WHERE driver_id=$1',[f.id])).rowCount,0);
+  await assert.rejects(f.pool.query('UPDATE driver_supply SET latitude=42 WHERE driver_id=$1',[f.id]));
+  assert.equal(Number((await f.pool.query('SELECT latitude FROM driver_supply WHERE driver_id=$1',[f.id])).rows[0].latitude),0);
   assert.equal((await f.pool.query('SELECT 1 FROM driver_documents WHERE driver_id=$1',[f.id])).rowCount,0);
  }finally{await f.cleanup();}
 });
@@ -145,4 +149,26 @@ test('an active ride or pending charge blocks deletion; finished history stays i
   assert.equal((await f.pool.query('SELECT 1 FROM rides WHERE id=$1',[ride])).rowCount,1);
   assert.equal((await f.pool.query('SELECT 1 FROM payments WHERE id=$1',[payment])).rowCount,1);
  }finally{await f.pool.query('DELETE FROM payments WHERE id=$1',[payment]);await f.pool.query('DELETE FROM rides WHERE id=$1',[ride]);await f.cleanup();}
+});
+
+test('deletion waits for an in-flight external registration and captures its metadata',{skip:!enabled},async()=>{
+ const f=await fixture('driver');
+ let release!:()=>void,entered!:()=>void;
+ const paused=new Promise<void>(resolve=>{release=resolve;});const started=new Promise<void>(resolve=>{entered=resolve;});
+ const key=`drivers/${f.id}/driver_license/in-flight.pdf`;
+ const upload=f.store.withOpenAccount('driver',f.id,async()=>{
+  entered();await paused;
+  await f.pool.query(`INSERT INTO driver_documents(id,driver_id,document_type,storage_key,content_sha256,mime_type,size_bytes,status,is_current,submitted_at,created_at,updated_at)VALUES($1,$2,'driver_license',$3,$4,'application/pdf',20,'pending',true,now(),now(),now())`,[randomUUID(),f.id,key,'c'.repeat(64)]);
+ });
+ await started;const closing=f.store.start('driver',f.id,true,true);
+ try{
+  let waiting=false;
+  for(let i=0;i<50&&!waiting;i++){
+   waiting=Boolean((await f.pool.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted LIMIT 1")).rowCount);
+   if(!waiting)await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  assert.equal(waiting,true);release();await upload;const job=await closing;
+  const cleanup=(await f.pool.query('SELECT cleanup FROM self_account_deletions WHERE id=$1',[job.id])).rows[0].cleanup;
+  assert.deepEqual(cleanup.documents,[key]);
+ }finally{release();await Promise.allSettled([upload,closing]);await f.cleanup();}
 });

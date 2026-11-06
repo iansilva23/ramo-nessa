@@ -1,3 +1,4 @@
+import { AccountDeletionError } from './account-deletion/self-account-deletion.js';
 import { accountDeletionRoutes } from './account-deletion/account-deletion-routes.js';
 import { AdminAccountDeletionError } from './admin/admin-account-deletion.js';
 import { handlePasswordRecoveryRoute } from './auth/password-recovery-routes.js';
@@ -8012,6 +8013,7 @@ const server = createServer(async (request, response) => {
         if ((await savedCardRepository.list(passengerId,scope)).length >= 5) {
           json(response, 409, {error: 'CARD_LIMIT', message: 'Remova um cartão antes de adicionar outro.'}); return;
         }
+        const registerCard = async () => {
         try {
           // Never search/reuse an existing customer by user-supplied email.
           const customerId = await savedCardRepository.customer(passengerId,scope) ??
@@ -8022,6 +8024,10 @@ const server = createServer(async (request, response) => {
         } catch {
           json(response, 502, {error: 'CARD_SAVE_FAILED', message: 'Não conseguimos salvar o cartão agora. Você pode pagar sem salvá-lo.'});
         }
+        };
+        if(selfDeletionEnabled&&selfAccountDeletion){
+          await selfAccountDeletion.withOpenAccount('passenger',passengerId,registerCard);
+        }else{await registerCard();}
         return;
       }
       if (request.method === 'DELETE' && savedCardMatch[1] != null) {
@@ -9380,6 +9386,9 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof AccountDeletionError) {
+      json(response,error.status,{error:error.code,message:error.message});return;
+    }
     if (error instanceof AdminAccountDeletionError) {
       json(response, error.status, { error: error.code, message: error.message });
       return;
