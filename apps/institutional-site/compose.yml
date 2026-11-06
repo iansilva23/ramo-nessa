@@ -1,0 +1,31 @@
+name: ramo-nessa-site
+services:
+  institutional-site:
+    image: ramo-nessa-site:refinado
+    build: .
+    environment:
+      NODE_OPTIONS: --max-old-space-size=256
+      ADMIN_SITE_ORIGIN: https://app.ramonessa.com.br
+      CORE_INTERNAL_URL: http://core:8080
+      PUBLIC_SITE_ORIGIN: https://ramonessa.com.br
+      INTERESTS_DB_PATH: /var/lib/ramo-site/interests.sqlite
+    expose: ["3000"]
+    networks: [staging]
+    volumes:
+      - interests:/var/lib/ramo-site
+    mem_limit: 512m
+    pids_limit: 128
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+volumes:
+  interests:
+networks:
+  staging:
+    external: true
+    name: ramo-nessa-staging_default
