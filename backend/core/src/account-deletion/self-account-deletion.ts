@@ -95,12 +95,13 @@ export class SelfAccountDeletion {
     }
     await c.query('DELETE FROM auth_sessions WHERE subject_type=$1 AND subject_id=$2',[role,id]);
     await c.query('DELETE FROM auth_identities WHERE subject_type=$1 AND subject_id=$2',[role,id]);
-    await c.query("UPDATE data_subject_requests SET status='completed',response='Conta excluída. Registros necessários de corridas, financeiro e atendimento foram preservados.',responded_at=now(),updated_at=now() WHERE id=$1",[job.id]);
-    await c.query("UPDATE self_account_deletions SET status='deleted',cleanup='{}',attempts=attempts+1,completed_at=now(),updated_at=now() WHERE id=$1",[job.id]);
+    await c.query("UPDATE data_subject_requests SET status='completed',response='Conta excluída. Registros necessários de corridas, financeiro e atendimento foram preservados.',responded_by_name='Processamento automático',responded_at=now(),updated_at=now() WHERE id=$1",[job.id]);
+    await c.query("UPDATE self_account_deletions SET status='deleted',cleanup='{}',last_error_code=NULL,attempts=attempts+1,completed_at=now(),updated_at=now() WHERE id=$1",[job.id]);
     await c.query('COMMIT');
-   }catch{
+   }catch(error){
     await c.query('ROLLBACK');
-    await c.query('UPDATE self_account_deletions SET attempts=attempts+1,updated_at=now() WHERE id=$1',[job.id]);
+    const code=error&&typeof error==='object'&&'code' in error&&typeof error.code==='string'&&/^[0-9A-Z]{5}$/.test(error.code)?error.code:'CLEANUP_UNAVAILABLE';
+    await c.query('UPDATE self_account_deletions SET attempts=attempts+1,last_error_code=$2,updated_at=now() WHERE id=$1',[job.id,code]);
    }finally{if(locked)await c.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[job.id]);c.release();}
   }
  }

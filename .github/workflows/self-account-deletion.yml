@@ -30,6 +30,11 @@ jobs:
       - name: Account and existing financial and authentication regressions
         working-directory: backend/core
         run: npm test
+      - name: Test the external page with a real browser and synthetic API
+        run: |
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium
+          node --test scripts/web/account_deletion_page_test.mjs
   apps:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

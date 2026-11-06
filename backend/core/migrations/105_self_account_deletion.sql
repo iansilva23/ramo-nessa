@@ -3,7 +3,7 @@ CREATE TABLE self_account_deletions (
  id uuid PRIMARY KEY, subject_type text NOT NULL CHECK(subject_type IN ('driver','passenger')),
  subject_id text NOT NULL, receipt_hash text NOT NULL UNIQUE,
  status text NOT NULL CHECK(status IN ('processing','deleted')),
- cleanup jsonb NOT NULL, attempts integer NOT NULL DEFAULT 0,
+ cleanup jsonb NOT NULL, last_error_code text, attempts integer NOT NULL DEFAULT 0,
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz,
  UNIQUE(subject_type,subject_id)
 );
