@@ -35,7 +35,13 @@ jobs:
       run: |
         git fetch --no-tags origin 674f18a32b125bcb1964a9d5057e4272f922894d 0d8d865af3b27db8f7ea91663e0393aeb134b817 9e913c89de373945cb99b3b3150feb9c012d2983
         git diff --exit-code 674f18a32b125bcb1964a9d5057e4272f922894d HEAD -- apps/passenger/lib/src/features/guide/presentation/local_guide_screen.dart
-        git diff --exit-code 9e913c89de373945cb99b3b3150feb9c012d2983 HEAD -- apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart
+        python3 - <<'CHECK'
+        from pathlib import Path
+        import subprocess
+        path='apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart'
+        expected=subprocess.check_output(['git','show','0d8d865af3b27db8f7ea91663e0393aeb134b817:'+path]).decode().replace("'Pessoas'","'Passageiros'")
+        assert Path(path).read_text()==expected
+        CHECK
         test "$(git diff --name-only 0d8d865af3b27db8f7ea91663e0393aeb134b817 HEAD -- apps/*/lib packages backend apps/admin | wc -l)" -eq 2
         git diff --exit-code 0d8d865af3b27db8f7ea91663e0393aeb134b817 HEAD -- apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart apps/driver/lib/src/core/map
     - name: Prepare the published Web configuration
