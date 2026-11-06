@@ -11,4 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify read-only inventory using isolated fixtures
-        run: python3 -m unittest discover -s deploy/app-redesign -p 'test_*.py' -v
+        run: |
+          command -v docker
+          docker compose version
+          sudo python3 -m unittest discover -s deploy/app-redesign -p 'test_*.py' -v
