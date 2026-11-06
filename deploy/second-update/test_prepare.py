@@ -1,4 +1,5 @@
 import copy
+from contextlib import contextmanager
 import importlib.util
 import json
 import os
@@ -101,6 +102,59 @@ class PreparationTests(unittest.TestCase):
         for rows in [[],[{'filename':'104_admin_account_closure.sql','checksum':'wrong'}],[{'filename':'104_admin_account_closure.sql','checksum':m.BASE_MIGRATION_SHA},{'filename':'105_self_account_deletion.sql','checksum':'wrong'}]]:
             bad=types.SimpleNamespace(run=lambda *a,**kw:json.dumps(rows).encode())
             with self.assertRaises(m.PreparationError):m.schema_state(bad,{'Name':'core'},'a'*64)
+
+    def site_fixture(self):
+        path=self.root/'site-compose.yml';raw=b'name: ramo-nessa-site\nservices: {}\n'
+        path.write_bytes(raw);path.chmod(0o644)
+        return path,raw
+
+    @contextmanager
+    def virtual_site_owner(self,path,owner=1000):
+        # The executor user namespace cannot chown to host UID1000. Keep real I/O,
+        # injecting only the owner field in lstat/fstat at the filesystem boundary.
+        real_lstat=Path.lstat;real_fstat=os.fstat;state={'uid':owner}
+        def metadata(st):
+            fields={k:getattr(st,k) for k in ['st_dev','st_ino','st_uid','st_mode','st_size','st_mtime_ns','st_ctime_ns']}
+            fields['st_uid']=state['uid'];return types.SimpleNamespace(**fields)
+        def lstat(p,*args,**kwargs):
+            st=real_lstat(p,*args,**kwargs);return metadata(st) if p==path else st
+        with patch.object(Path,'lstat',lstat),patch.object(m.os,'fstat',lambda fd:metadata(real_fstat(fd))):
+            yield state
+
+    def test_site_compose_accepts_deployed_ubuntu_owner_without_changing_metadata(self):
+        path,raw=self.site_fixture();before=path.stat()
+        with self.virtual_site_owner(path) as owner,patch.object(m,'SITE_COMPOSE',path),patch.object(m,'SITE_COMPOSE_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000)):
+            self.assertEqual(raw,m.site_compose_source(path))
+        after=path.stat();self.assertEqual((before.st_uid,before.st_mode,before.st_mtime_ns),(after.st_uid,after.st_mode,after.st_mtime_ns))
+        self.assertEqual(1000,owner['uid'])
+
+    def test_site_compose_rejects_other_owner_writable_permissions_changed_content_and_symlink(self):
+        path,raw=self.site_fixture()
+        with self.virtual_site_owner(path) as owner,patch.object(m,'SITE_COMPOSE',path),patch.object(m,'SITE_COMPOSE_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000)):
+            owner['uid']=1001
+            with self.assertRaises(m.PreparationError):m.site_compose_source(path)
+            owner['uid']=1000;path.chmod(0o664)
+            with self.assertRaises(m.PreparationError):m.site_compose_source(path)
+            path.chmod(0o644);path.write_bytes(raw+b'changed')
+            with self.assertRaises(m.PreparationError):m.site_compose_source(path)
+            link=self.root/'symlink.yml';link.symlink_to(path)
+            with patch.object(m,'SITE_COMPOSE',link):
+                with self.assertRaises(m.PreparationError):m.site_compose_source(link)
+
+    def test_site_compose_rejects_concurrent_file_change(self):
+        path,raw=self.site_fixture();before=path.stat()
+        fields={k:getattr(before,k) for k in ['st_dev','st_ino','st_uid','st_mode','st_size','st_mtime_ns','st_ctime_ns']};fields['st_uid']=1000;fields['st_mtime_ns']+=1
+        with self.virtual_site_owner(path),patch.object(m,'SITE_COMPOSE',path),patch.object(m,'SITE_COMPOSE_SHA',m.sha(raw)),patch.object(m.pwd,'getpwnam',return_value=types.SimpleNamespace(pw_uid=1000)),patch.object(m.os,'fstat',return_value=types.SimpleNamespace(**fields)):
+            with self.assertRaises(m.PreparationError):m.site_compose_source(path)
+
+    def test_core_and_gateway_still_use_strict_private_file_guard(self):
+        called=[]
+        def private(path):called.append(path);raise RuntimeError('PRIVATE_GUARD_KEPT')
+        h=types.SimpleNamespace(private_file=private)
+        for service in ['core','gateway']:
+            before={'Config':{'Labels':{'com.docker.compose.project':'ramo-nessa-staging','com.docker.compose.service':service,'com.docker.compose.project.config_files':'/opt/private/'+service+'.json','com.docker.compose.project.working_dir':'/opt/private'}}}
+            with self.assertRaisesRegex(RuntimeError,'PRIVATE_GUARD_KEPT'):m.snapshot(h,before,service,'ramo-nessa-staging')
+        self.assertEqual(2,len(called))
 
     def test_symlinks_and_noncanonical_paths_are_refused(self):
         (self.old/'unsafe').symlink_to(self.old/'driver')

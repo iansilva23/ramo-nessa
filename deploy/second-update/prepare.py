@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import pwd
 from pathlib import Path, PurePosixPath
 import shutil
 import stat
@@ -20,6 +21,8 @@ SOURCE = '484f31979d80a0ea03cc6e17dabbb925d031322d'
 PRODUCT_SOURCE = '3f6a9f57b447c1308ec587ad0e053fada4142fc3'
 BASELINE = '2b3c3891a89dca2f4da9100b830dcb00cf142ff41a021a77e43c42949a2e3ce3'
 BASE_WEB = Path('/opt/ramo-nessa-web/releases/restore-exact-guide-68329f854044/bundles')
+SITE_COMPOSE = Path('/opt/ramo-nessa-site/compose.yml')
+SITE_COMPOSE_SHA = '35d31dcf3e398c3f7db653fe1f5b06dc55a6574eb6de4ea24da6c799177270c6'
 INVENTORY_SHA = '034ec10182c0fef822a2854d88189e8db60de2dd97e81f65d65e700c26baddb7'
 HELPER = ROOT / 'active-screen-lock-e2dfhu83/activate-lock-candidate.py'
 HELPER_SHA = '71268d209c4483b13c23ad3117e74196a65245e118f1bc9317f4bde3ee8b762f'
@@ -105,6 +108,28 @@ def compose(h, project, workdir, config):
     return json.loads(h.run(['docker', 'compose', '--project-directory', workdir, '--project-name', project,
                              '--env-file', '/dev/null', '-f', str(config), 'config', '--format', 'json']))
 
+def site_compose_source(path):
+    # The deployed public site Compose belongs to ubuntu, unlike private Core/Gateway plans.
+    require(path == SITE_COMPOSE and path.resolve() == path, 'Caminho do Compose do site difere do inventário.')
+    allowed_owners = {0}
+    try:
+        allowed_owners.add(pwd.getpwnam('ubuntu').pw_uid)
+    except KeyError:
+        pass
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_uid in allowed_owners and
+            not before.st_mode & 0o022 and before.st_size <= 1024**2,
+            'Proprietário, tipo ou permissões do Compose do site exigem revisão.')
+    identity = lambda st: (st.st_dev,st.st_ino,st.st_uid,st.st_mode,st.st_size,st.st_mtime_ns,st.st_ctime_ns)
+    descriptor = os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+    with os.fdopen(descriptor,'rb') as stream:
+        require(identity(os.fstat(stream.fileno())) == identity(before), 'Compose do site mudou antes da leitura.')
+        raw = stream.read(1024**2+1)
+    require(identity(path.lstat()) == identity(before) and len(raw) == before.st_size,
+            'Compose do site mudou durante a leitura.')
+    require(sha(raw) == SITE_COMPOSE_SHA, 'Checksum do Compose do site difere do inventário.')
+    return raw
+
 def snapshot(h, before, service, project):
     labels = before['Config'].get('Labels') or {}
     require(labels.get('com.docker.compose.project') == project and labels.get('com.docker.compose.service') == service,
@@ -112,7 +137,7 @@ def snapshot(h, before, service, project):
     path = labels.get('com.docker.compose.project.config_files', '')
     workdir = labels.get('com.docker.compose.project.working_dir', '')
     require(path.startswith('/') and ',' not in path and workdir.startswith('/'), 'Compose precisa de revisão.')
-    raw = h.private_file(Path(path))
+    raw = site_compose_source(Path(path)) if (service,project) == ('institutional-site','ramo-nessa-site') else h.private_file(Path(path))
     model = compose(h, project, workdir, path)
     require(set(model['services']) == {service} and not model['services'][service].get('env_file'), 'Compose deve ser autocontido e isolado.')
     alias = {**model, 'services': {'core': model['services'][service]}}
