@@ -34,3 +34,11 @@ Sucesso esperado: `APP_REDESIGN_WEB_PREPARED`, `changesApplied=false`, `services
 Os testes isolados cobrem hashes, origem, path traversal, duplicatas ZIP, mudanças de provedor, links, preservação da árvore ativa/ADM/arquivos opcionais, exclusividade dos comandos de leitura, confidencialidade da saída e permissões do plano. O teste com Docker Compose real compara modelos antes/depois e valores literais com `$`. Localmente ele é ignorado quando Docker não está disponível; o workflow existente do inventário executa a suíte no GitHub.
 
 Os pacotes e testes do produto já aprovados continuam nas mesmas fontes. Não há reconstrução dos apps, alteração de mapas, Core, banco ou ADM. A instalação Web e a homologação física continuam pendentes.
+
+## Resultado da preparação do pacote
+
+Fonte do preparador: `a8140620018dab4d2138c31ed52cd78736af6d3a`. Run `42142340064` aprovado, com os 15 testes e Docker Compose real. A primeira execução do CI parou na propriedade dos arquivos simulados; o runner foi ajustado para criar/executar as fixtures como root, mantendo as exigências de permissão do procedimento.
+
+Pacote de transferência: `RamoNessa-Preparacao-Web-20261105.zip`, 36.792.751 bytes, SHA-256 `244021b714756afcf2afe26f61ff9e49db45ea703b52d3b3eb323f10dee33b7b`. Contém os dois ZIPs Web aprovados, preparador, inventário original, instruções e checksums internos. Os 51 arquivos do Motorista e 54 do Passageiro foram conferidos pelo próprio leitor do preparador; índices e push correspondem aos hashes informados pelo operador. Os seis arquivos do ZIP de transferência também foram conferidos.
+
+A âncora real ainda não foi criada na VPS. Próxima ação: transferir o pacote conferido e executar somente `prepare-web.py prepare`. Obter a saída pública com âncora e hash do plano. Não enviar o arquivo privado de plano ou seu conteúdo ao chat. A instalação e o código de ativação/retorno continuam pendentes.
