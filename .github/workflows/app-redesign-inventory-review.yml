@@ -1,4 +1,4 @@
-name: App redesign read-only inventory review
+name: App redesign Web deployment rehearsal
 on:
   push:
     branches: [ops/app-redesign-packages-20261105]
@@ -7,11 +7,11 @@ permissions: {contents: read}
 jobs:
   inventory-review:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Verify read-only inventory using isolated fixtures
         run: |
           command -v docker
           docker compose version
-          sudo python3 -m unittest discover -s deploy/app-redesign -p 'test_*.py' -v
+          sudo env RAMO_REDESIGN_DOCKER_REHEARSAL=1 python3 -m unittest discover -s deploy/app-redesign -p 'test_*.py' -v
