@@ -95,13 +95,13 @@ class HttpDriverPrivacyService implements DriverPrivacyService, RamoAccountDelet
     final response = await _client.get(_baseUrl.resolve('/v1/me/account-deletion'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
     if (response.statusCode == 404) return const RamoDeletionOverview(available:false,eligible:false);
     final json = _decode(response);
-    return RamoDeletionOverview(available:json['available']==true,eligible:json['eligible']==true,reason:json['reason'] as String?);
+    return RamoDeletionOverview(available:json['available']==true,eligible:json['eligible']==true,reason:json['reason'] as String?,requestId:json['requestId'] as String?);
   }
   @override
   Future<RamoDeletionResult> deleteOwnAccount() async {
     final response = await _client.post(_baseUrl.resolve('/v1/me/account-deletion'),headers:_headers,body:jsonEncode({'confirmed':true})).timeout(const Duration(seconds:45));
     final json = _decode(response);
-    return RamoDeletionResult(id:json['id'] as String,deleted:json['status']=='deleted');
+    return RamoDeletionResult(id:json['id'] as String,deleted:json['status']=='deleted',waiting:json['status']=='waiting');
   }
 
   Map<String, dynamic> _decode(http.Response response) {
