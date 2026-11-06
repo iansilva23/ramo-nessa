@@ -9,6 +9,8 @@ CATEGORIES={'conta_e_acesso','documentos_e_perfil','cartoes','localizacao_atual'
 
 
 def render(config, template_root):
+    facts=json.loads((template_root/'legal-facts.json').read_text())
+    config={**facts,**config}
     def required(name):
         value=config.get(name)
         if not isinstance(value,str) or not value.strip() or len(value)>10000:
