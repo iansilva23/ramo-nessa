@@ -98,11 +98,12 @@ export class SelfAccountDeletion {
   if(!r.rowCount)throw new AccountDeletionError(404,'DELETE_RECEIPT_NOT_FOUND','Protocolo não encontrado.');
   return r.rows[0]!;
  }
- async processPending(storage:DeletablePrivateDocumentStorage|null,removeCard:(card:Card)=>Promise<void>,limit=5,cardScope?:string) {
+ async processPending(storage:DeletablePrivateDocumentStorage|null,removeCard:(card:Card)=>Promise<void>,limit=5,cardScope?:string,onSessionsRevoked?:(sessions:string[])=>void) {
   const requests=await this.pool.query<{id:string;subject_type:AuthSubjectType;subject_id:string;receipt_hash:string}>("SELECT id,subject_type,subject_id,receipt_hash FROM self_account_deletion_requests WHERE status='waiting' ORDER BY updated_at,id LIMIT $1",[limit]);
   for(const request of requests.rows){
    try{
     const started=await this.start(request.subject_type,request.subject_id,true,Boolean(storage),cardScope,{id:request.id,receiptHash:request.receipt_hash});
+    onSessionsRevoked?.(started.sessions);
     await this.pool.query('UPDATE self_account_deletion_requests SET status=$2,reason=NULL,checked_at=now(),updated_at=now() WHERE id=$1',[request.id,started.status]);
    }catch(error){
     const reason=error instanceof AccountDeletionError?error.message:'Não foi possível processar agora; a solicitação permanece registrada.';

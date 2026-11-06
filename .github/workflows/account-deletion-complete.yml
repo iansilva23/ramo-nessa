@@ -64,6 +64,9 @@ jobs:
         name: driver-offer-navigation-web
         path: apps/driver/build/web
         if-no-files-found: error
+    needs:
+    - changes
+    if: needs.changes.outputs.apps == 'true'
   core:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -87,6 +90,8 @@ jobs:
     - uses: actions/setup-node@v4
       with:
         node-version: '22'
+    - name: Verify read-only operational readiness probe
+      run: python3 -m unittest discover -s deploy/privacy-finalization -p 'test_*.py' -v
     - run: npm ci --prefix backend/core --no-audit --no-fund
     - run: npm run typecheck --prefix backend/core && npm run build --prefix backend/core
     - run: node backend/core/dist/scripts/migrate.js
@@ -104,6 +109,9 @@ jobs:
         node --test scripts/web/account_deletion_page_test.mjs
 
         '
+    needs:
+    - changes
+    if: needs.changes.outputs.core == 'true'
   passenger:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -143,6 +151,23 @@ jobs:
         name: pending-passenger-web
         path: apps/passenger/build/web
         if-no-files-found: error
+    needs:
+    - changes
+    if: needs.changes.outputs.apps == 'true'
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      apps: ${{ steps.scope.outputs.apps }}
+      core: ${{ steps.scope.outputs.core }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - id: scope
+      run: "python3 - <<'PYCODE'\nimport os,subprocess\npaths=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines()\n\
+        with open(os.environ['GITHUB_OUTPUT'],'a') as f:\n f.write('apps='+str(any(p.startswith(('apps/','packages/')) for\
+        \ p in paths)).lower()+'\\n')\n f.write('core='+str(any(p.startswith(('backend/','deploy/privacy-finalization/'))\
+        \ for p in paths)).lower()+'\\n')\nPYCODE"
 'on':
   push:
     branches:
@@ -152,3 +177,4 @@ jobs:
     - apps/**
     - packages/**
     - .github/workflows/account-deletion-complete.yml
+    - deploy/privacy-finalization/**

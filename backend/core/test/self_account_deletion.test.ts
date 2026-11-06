@@ -207,7 +207,9 @@ test('concurrent confirmed requests are idempotent and do not revoke access unti
   assert.equal(results[0]!.id,results[1]!.id);
   assert.equal((await f.pool.query('SELECT 1 FROM self_account_deletion_requests WHERE subject_id=$1',[f.id])).rowCount,1);
   assert.equal((await f.pool.query('SELECT 1 FROM auth_sessions WHERE id=$1',[f.session])).rowCount,1);
-  await f.store.processPending(null,noCard);
+  const revoked:string[]=[];
+  await f.store.processPending(null,noCard,5,undefined,ids=>revoked.push(...ids));
+  assert.deepEqual(revoked,[f.session]);
   const result=results.find(r=>'receipt'in r);assert.ok(result&&'receipt'in result);
   assert.equal((await f.store.receiptStatus(result.receipt)).status,'deleted');
  }finally{await f.cleanup();}
