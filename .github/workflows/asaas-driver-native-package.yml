@@ -1,0 +1,158 @@
+name: Asaas driver native packages
+on:
+  push:
+    branches: [ops/asaas-pricing-integration-20261019]
+    paths: [.github/workflows/asaas-driver-native-package.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: asaas-driver-native-packages-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 1b72444f091d525ea985488c78fbc767ebb168eb
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="Driver Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="Driver Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - name: Analyze and test driver including dynamic payout terms
+        working-directory: apps/driver
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/driver
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number=$((100000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.driver.preview'\"))throw Error('Unexpected APK application ID')"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-Motorista-Android-21ae1f310144.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          cd artifacts/android
+          sha256sum RamoNessa-Motorista-Android-21ae1f310144.apk > SHA256SUMS
+          printf '%s\n' 'Motorista Android conectado a https://app.ramonessa.com.br. Fonte 1b72444f091d525ea985488c78fbc767ebb168eb (mesmo codigo do motorista publicado na Web, 21ae1f310144). RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.driver.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Envios Asaas continuam bloqueados no servidor.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-android-conectado-21ae1f310144
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 1b72444f091d525ea985488c78fbc767ebb168eb
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="Driver iOS connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="Driver iOS connected"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/driver/ios/Flutter/GoogleMaps.local.xcconfig
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - name: Build iPhone device without Apple signing
+        working-directory: apps/driver
+        run: |
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number=$((100000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package unsigned iPhone app separately
+        run: |
+          test -d apps/driver/build/ios/iphoneos/Runner.app
+          mkdir -p artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent apps/driver/build/ios/iphoneos/Runner.app artifacts/ios/RamoNessa-Motorista-iPhone-SEM-ASSINATURA-21ae1f310144.zip
+          printf '%s\n' 'Build para iPhone SEM ASSINATURA APPLE. Nao pode ser instalado diretamente por este ZIP. Exige assinatura e provisionamento Apple pelo Xcode ou processo de distribuicao autorizado. Fonte 1b72444f091d525ea985488c78fbc767ebb168eb; Core https://app.ramonessa.com.br; RAMO_PREVIEW_MODE=false. GPS, login e push exigem aceite no aparelho; APNs exige provisionamento. Envios Asaas continuam bloqueados no servidor.' > artifacts/ios/LEIA-ME.txt
+          cd artifacts/ios
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-iphone-sem-assinatura-21ae1f310144
+          path: artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build simulator with the same application configuration
+        working-directory: apps/driver
+        run: |
+          flutter build ios --simulator --debug --no-codesign --no-pub \
+            --build-number=$((100000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package simulator app
+        run: |
+          test -d apps/driver/build/ios/iphonesimulator/Runner.app
+          mkdir -p artifacts/simulator
+          ditto -c -k --sequesterRsrc --keepParent apps/driver/build/ios/iphonesimulator/Runner.app artifacts/simulator/RamoNessa-Motorista-SIMULADOR-21ae1f310144.zip
+          cd artifacts/simulator
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-ios-simulador-21ae1f310144
+          path: artifacts/simulator/
+          if-no-files-found: error
+          retention-days: 14
