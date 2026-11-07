@@ -113,8 +113,14 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     for (final service in widget.availableServices) {
       // An occupancy change does not change the route. A manual retry can
       // check an unavailable category again without showing it prematurely.
-      if (!retry && _unavailableServices.contains(service)) continue;
       final count = _passengersFor(service);
+      if (!retry && _unavailableServices.contains(service)) {
+        if (_requestedQuotes[service]?.passengerCount != count) {
+          _requestedQuotes.remove(service);
+          _scheduledQuotes.remove(service);
+        }
+        continue;
+      }
       if (!retry && _requestedQuotes[service]?.passengerCount == count) {
         continue;
       }

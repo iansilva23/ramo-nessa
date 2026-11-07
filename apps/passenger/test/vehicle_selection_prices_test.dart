@@ -169,7 +169,8 @@ void main() {
           case ServiceType.comfortBlack:
             throw const PricingQuoteException('Sem tarifa', code: 'UNKNOWN_ROUTE');
           case ServiceType.buggy:
-            return selection.passengerCount == 2 ? two.future : price(4000);
+            if (selection.passengerCount == 2) return two.future;
+            return price(4000);
           default:
             return price(800);
         }
