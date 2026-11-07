@@ -1,3 +1,4 @@
+import { legalDocumentPage } from './privacy/legal-document-page.js';
 import { AccountDeletionError } from './account-deletion/self-account-deletion.js';
 import { accountDeletionRoutes } from './account-deletion/account-deletion-routes.js';
 import { AdminAccountDeletionError } from './admin/admin-account-deletion.js';
@@ -737,7 +738,7 @@ async function processSelfDeletions(){
   try{await gateway.removeCustomerCard(card.customer,card.card);}catch(error){
    if(!(error instanceof MercadoPagoOrdersError&&error.statusCode===404))throw error;
   }
- });}finally{selfDeletionRunning=false;}
+ },5,mercadoPagoOrdersClient?.cardStorageScope,ids=>ids.forEach(id=>realtimeServer.disconnectBrowserSession(id)));}finally{selfDeletionRunning=false;}
 }
 
 const documentInspectionEncryptionKey =
@@ -1882,6 +1883,15 @@ const server = createServer(async (request, response) => {
         200,
         await adminCommunicationsRepository.getSocialLinks(),
       );
+      return;
+    }
+
+    if (request.method === 'GET' && ['/v1/legal/privacy-policy','/v1/legal/terms-of-use'].includes(requestUrl.pathname)) {
+      const type = requestUrl.pathname.endsWith('/privacy-policy') ? 'privacy_policy' : 'terms_of_use';
+      const {documents} = await publicLegalDocuments({repository:privacyRepository});
+      const document = documents.find(item=>item.documentType===type);
+      response.writeHead(document?200:404,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",'x-content-type-options':'nosniff'});
+      response.end(legalDocumentPage(document));
       return;
     }
 

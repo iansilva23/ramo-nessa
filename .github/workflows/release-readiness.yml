@@ -1,0 +1,27 @@
+name: Final signing readiness (presence only)
+on:
+  push:
+    branches: [feature/account-deletion-complete-20261106]
+    paths: ['.github/workflows/release-readiness.yml']
+permissions: {contents: read}
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Report configured signing inputs without exposing values
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.RAMO_ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+          IOS_CERTIFICATE: ${{ secrets.RAMO_IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.RAMO_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PASSENGER_PROFILE: ${{ secrets.RAMO_IOS_PASSENGER_PROVISIONING_PROFILE_BASE64 }}
+          IOS_DRIVER_PROFILE: ${{ secrets.RAMO_IOS_DRIVER_PROVISIONING_PROFILE_BASE64 }}
+          IOS_TEAM: ${{ secrets.RAMO_APPLE_TEAM_ID }}
+        run: |
+          python3 - <<'PY'
+          import os,json
+          print(json.dumps({name:bool(os.environ.get(name)) for name in ['ANDROID_KEYSTORE','ANDROID_STORE_PASSWORD','ANDROID_ALIAS','ANDROID_KEY_PASSWORD','IOS_CERTIFICATE','IOS_CERTIFICATE_PASSWORD','IOS_PASSENGER_PROFILE','IOS_DRIVER_PROFILE','IOS_TEAM']},indent=2))
+          PY

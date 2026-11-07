@@ -34,7 +34,7 @@ test('external page requires confirmation, preserves a pending balance and resum
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const login=async()=>{await page.fill('#identifier','person@example.test');await page.fill('#password','synthetic-password');await page.click('#login-button');await page.waitForSelector('#confirm:not([hidden])');};
   await page.goto(`http://127.0.0.1:${address.port}/excluir-conta`);await login();
-  assert.equal(await page.isDisabled('#confirmation'),true);assert.equal(starts,0);
+  assert.equal(await page.isDisabled('#confirmation'),false);assert.equal(await page.isDisabled('#delete-button'),true);assert.equal(starts,0);
   assert.match(await page.textContent('#eligibility'),/12,34/);
   await page.click('#cancel-button');await page.waitForSelector('#login:not([hidden])');assert.equal(logouts,1);assert.equal(starts,0);
   eligible=true;await page.selectOption('#role','driver');await login();

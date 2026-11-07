@@ -1,0 +1,191 @@
+name: Account deletion requests - final app checks
+permissions:
+  contents: read
+jobs:
+  driver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Preserve approved maps, Guide, cards, audio and deferred site
+      run: git diff --exit-code 9eb6aa071db458c57c6298cfd656ad2bd2ba3227 HEAD -- apps/driver/lib/src/features/home apps/driver/lib/src/core/map
+        apps/driver/web apps/driver/assets apps/passenger/lib/src/features/guide packages/design_system/lib/src/map packages/design_system/lib/src/theme
+        apps/admin apps/institutional-site
+    - name: Analyze and test shared privacy controls
+      working-directory: packages/design_system
+      run: flutter pub get && flutter analyze && flutter test
+    - name: Analyze and test Driver
+      working-directory: apps/driver
+      run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+    - name: Prepare configured Web
+      run: 'python3 -m pip install --quiet Pillow==11.3.0
+
+        python3 scripts/web/generate_pwa_icons.py
+
+        node scripts/web/prepare_configured_web.mjs --role=driver
+
+        '
+    - name: Preserve Cinema, test camera, and build Web
+      working-directory: apps/driver
+      run: 'flags=(--dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b)
+
+        flutter test --platform chrome test/driver_web_heading_config_test.dart test/driver_web_cinematic_camera_test.dart
+        "${flags[@]}"
+
+        flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ --dart-define=RAMO_CORE_BASE_URL=
+        --dart-define=RAMO_PREVIEW_MODE=false "${flags[@]}"
+
+        python3 -c "from pathlib import Path; assert ''de20bf289d6db3ad15fdb14b'' in Path(''build/web/main.dart.js'').read_text();
+        assert Path(''build/web/ramo_offer_tone.js'').is_file()"
+
+        '
+    - name: Verify compiled shell and original audio
+      run: 'node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+
+        cmp apps/driver/assets/audio/nova_corrida.mp3 apps/driver/build/web/assets/assets/audio/nova_corrida.mp3
+
+        '
+    - uses: actions/upload-artifact@v4
+      with:
+        name: driver-offer-navigation-web
+        path: apps/driver/build/web
+        if-no-files-found: error
+    needs:
+    - changes
+    if: needs.changes.outputs.apps == 'true'
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports:
+        - 5432:5432
+        options: --health-cmd "pg_isready -U ramonessa" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Verify read-only operational readiness probe
+      run: python3 -m unittest discover -s deploy/privacy-finalization -p 'test_*.py' -v
+    - run: npm ci --prefix backend/core --no-audit --no-fund
+    - run: npm run typecheck --prefix backend/core && npm run build --prefix backend/core
+    - run: node backend/core/dist/scripts/migrate.js
+    - name: Account and existing financial and authentication regressions
+      working-directory: backend/core
+      run: npm test
+    - name: Validate the public deletion route in Caddy
+      run: docker run --rm -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" -e APP_DOMAIN=app.example.test -e ACME_EMAIL=ci@example.test
+        caddy:2.11.7-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+    - name: Test the external page with a real browser and synthetic API
+      run: 'npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+
+        node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium
+
+        node --test scripts/web/account_deletion_page_test.mjs
+
+        '
+    needs:
+    - changes
+    if: needs.changes.outputs.core == 'true'
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Analyze and test Passenger and shared privacy controls
+      working-directory: apps/passenger
+      run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+    - name: Prepare configured Passenger Web
+      run: 'python3 -m pip install --quiet Pillow==11.3.0
+
+        python3 scripts/web/generate_pwa_icons.py
+
+        node scripts/web/prepare_configured_web.mjs --role=passenger'
+    - name: Build Passenger Web
+      working-directory: apps/passenger
+      run: flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL=
+        --dart-define=RAMO_PREVIEW_MODE=false
+    - name: Verify compiled Passenger shell
+      run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+    - uses: actions/upload-artifact@v4
+      with:
+        name: pending-passenger-web
+        path: apps/passenger/build/web
+        if-no-files-found: error
+    needs:
+    - changes
+    if: needs.changes.outputs.apps == 'true'
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      apps: ${{ steps.scope.outputs.apps }}
+      core: ${{ steps.scope.outputs.core }}
+      ops: ${{ steps.scope.outputs.ops }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - id: scope
+      run: "python3 - <<'PYCODE'\nimport os,subprocess\npaths=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines()\n\
+        with open(os.environ['GITHUB_OUTPUT'],'a') as f:\n f.write('apps='+str(any(p.startswith(('apps/','packages/')) for\
+        \ p in paths)).lower()+'\\n')\n f.write('core='+str(any(p.startswith('backend/') for p in paths)).lower()+'\\n')\n\
+        PYCODE\npython3 - <<'PYCODE'\nimport os,subprocess\npaths=subprocess.check_output(['git','diff','--name-only','HEAD^','HEAD']).decode().splitlines()\n\
+        with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ops='+str(any(p.startswith('deploy/privacy-finalization/')\
+        \ for p in paths)).lower()+'\\n')\nPYCODE\n"
+  ops:
+    needs:
+    - changes
+    if: needs.changes.outputs.ops == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - run: python3 -m unittest discover -s deploy/privacy-finalization -p 'test_*.py' -v
+'on':
+  push:
+    branches:
+    - feature/account-deletion-complete-20261106
+    paths:
+    - backend/core/**
+    - apps/**
+    - packages/**
+    - .github/workflows/account-deletion-complete.yml
+    - deploy/privacy-finalization/**
