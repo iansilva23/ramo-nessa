@@ -68,8 +68,13 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   List<ServiceType> get _visibleServices => widget.availableServices
       .where((service) => !_unavailableServices.contains(service))
       .toList(growable: false);
+  static const _quoteReuseWindow = Duration(seconds: 30);
   Timer? _quoteDebounce;
-  int _quoteGeneration = 0;
+  final _requestedQuotes = <ServiceType, VehicleSelectionResult>{};
+  final _scheduledQuotes = <ServiceType, VehicleSelectionResult>{};
+  final _pendingQuotes = <(ServiceType, int), Future<PricingQuote>>{};
+  final _recentQuotes =
+      <(ServiceType, int), ({PricingQuote price, DateTime expiresAt})>{};
 
   @override
   void initState() {
@@ -80,7 +85,6 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   @override
   void dispose() {
     _quoteDebounce?.cancel();
-    _quoteGeneration++;
     super.dispose();
   }
 
@@ -96,30 +100,55 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     return 1;
   }
 
-  void _refreshPrices({bool debounce = false}) {
+  void _refreshPrices({bool debounce = false, bool retry = false}) {
     _quoteDebounce?.cancel();
-    final generation = ++_quoteGeneration;
     final quote = widget.onQuote;
-    _priceFailures.clear();
-    _unavailableServices.clear();
-    _confirmedQuotes.clear();
-    for (final service in widget.availableServices) {
-      _priceLabels[service] = quote == null ? 'Falha na cotação' : 'Calculando…';
-      if (quote == null) _priceFailures.add(service);
+    final now = DateTime.now();
+    if (retry) {
+      _recentQuotes.clear();
+    } else {
+      _recentQuotes.removeWhere((_, value) => !value.expiresAt.isAfter(now));
     }
-    if (quote == null) return;
-    final selections = [
-      for (final service in widget.availableServices)
-        VehicleSelectionResult(
-          service: service,
-          passengerCount: _passengersFor(service),
-        ),
-    ];
-    void load() {
-      for (final selection in selections) {
-        unawaited(_loadPrice(selection, generation, quote));
+
+    for (final service in widget.availableServices) {
+      // An occupancy change does not change the route. A manual retry can
+      // check an unavailable category again without showing it prematurely.
+      if (!retry && _unavailableServices.contains(service)) continue;
+      final count = _passengersFor(service);
+      if (!retry && _requestedQuotes[service]?.passengerCount == count) {
+        continue;
+      }
+      final selection = VehicleSelectionResult(
+        service: service,
+        passengerCount: count,
+      );
+      _requestedQuotes[service] = selection;
+      _scheduledQuotes.remove(service);
+      _priceFailures.remove(service);
+      _confirmedQuotes.remove(service);
+
+      final cached = _recentQuotes[(service, count)];
+      if (cached != null) {
+        _confirmedQuotes[service] = cached.price;
+        _priceLabels[service] = cached.price.formatted;
+      } else if (quote != null) {
+        _priceLabels[service] = 'Calculando…';
+        _scheduledQuotes[service] = selection;
+      } else {
+        _priceLabels[service] = 'Falha na cotação';
+        _priceFailures.add(service);
       }
     }
+    if (quote == null || _scheduledQuotes.isEmpty) return;
+
+    void load() {
+      final selections = _scheduledQuotes.values.toList(growable: false);
+      _scheduledQuotes.clear();
+      for (final selection in selections) {
+        unawaited(_loadPrice(selection, quote));
+      }
+    }
+
     if (debounce) {
       _quoteDebounce = Timer(const Duration(milliseconds: 250), load);
     } else {
@@ -127,41 +156,71 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     }
   }
 
+  Future<PricingQuote> _requestPrice(
+    VehicleSelectionResult selection,
+    Future<PricingQuote> Function(VehicleSelectionResult) quote,
+  ) {
+    final key = (selection.service, selection.passengerCount);
+    return _pendingQuotes.putIfAbsent(key, () async {
+      try {
+        final result = await Future.sync(() => quote(selection));
+        if (mounted && result.isExact) {
+          _recentQuotes[key] = (
+            price: result,
+            expiresAt: DateTime.now().add(_quoteReuseWindow),
+          );
+        }
+        return result;
+      } finally {
+        _pendingQuotes.remove(key);
+      }
+    });
+  }
+
   Future<void> _loadPrice(
     VehicleSelectionResult selection,
-    int generation,
     Future<PricingQuote> Function(VehicleSelectionResult) quote,
   ) async {
+    final service = selection.service;
     try {
-      final result = await quote(selection);
-      if (!mounted || generation != _quoteGeneration) return;
+      final result = await _requestPrice(selection, quote);
+      if (!mounted || _requestedQuotes[service] != selection) return;
       setState(() {
-        _confirmedQuotes[selection.service] = result;
-        _priceLabels[selection.service] = result.formatted;
+        _unavailableServices.remove(service);
+        _confirmedQuotes[service] = result;
+        _priceLabels[service] = result.formatted;
+        _selectAvailableFallback();
       });
     } catch (error) {
-      if (!mounted || generation != _quoteGeneration) return;
+      if (!mounted || _requestedQuotes[service] != selection) return;
       setState(() {
         final code = error is PricingQuoteException ? error.code : null;
         if (code == 'UNAVAILABLE_CATEGORY' || code == 'UNKNOWN_ROUTE') {
-          // Business rejection is authoritative, not a temporary offline error.
-          _unavailableServices.add(selection.service);
-          if (_selected == selection.service) {
-            final candidates = widget.availableServices
-                .where((service) => !_unavailableServices.contains(service));
-            if (candidates.isNotEmpty) {
-              _selected = candidates.first;
-              _passengerCount = _selected == ServiceType.buggy
-                  ? widget.buggyMinPassengers : 1;
-            }
-          }
+          _unavailableServices.add(service);
+          _recentQuotes.removeWhere((key, _) => key.$1 == service);
+          _selectAvailableFallback();
         } else {
-          _priceLabels[selection.service] = code == 'UNKNOWN_LOCALITY'
-              ? 'Local não reconhecido' : 'Falha na cotação';
-          _priceFailures.add(selection.service);
+          _priceLabels[service] = switch (code) {
+            'UNKNOWN_LOCALITY' => 'Local não reconhecido',
+            'INVALID_PASSENGER_COUNT' => 'Lotação incompatível',
+            'PRICING_RATE_LIMITED' => 'Muitas cotações. Aguarde.',
+            _ => 'Falha na cotação',
+          };
+          _priceFailures.add(service);
         }
       });
     }
+  }
+
+  void _selectAvailableFallback() {
+    if (!_unavailableServices.contains(_selected)) return;
+    final visible = _visibleServices;
+    if (visible.isEmpty) return;
+    _selected = visible.first;
+    _passengerCount = _selected == ServiceType.buggy
+        ? widget.buggyMinPassengers
+        : 1;
+    _refreshPrices();
   }
 
   void _select(ServiceType service) {
@@ -178,7 +237,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   bool get _hasPassengerCounter => [ServiceType.buggy, ServiceType.car, ServiceType.comfortBlack].contains(_selected);
 
   void _changePassengers(int value) {
-    if (!_hasPassengerCounter || _submitting) return;
+    if (!_hasPassengerCounter || _submitting || value == _passengerCount) return;
     if (
       value < widget.buggyMinPassengers ||
       value > widget.buggyMaxPassengers
@@ -341,7 +400,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                     TextButton.icon(
                       onPressed: _submitting
                           ? null
-                          : () => setState(() => _refreshPrices()),
+                          : () => setState(() => _refreshPrices(retry: true)),
                       icon: const Icon(Icons.refresh_rounded),
                       label: const Text('Atualizar preços'),
                     ),

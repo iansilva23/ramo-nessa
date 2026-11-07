@@ -150,4 +150,89 @@ void main() {
     expect(find.text('Falha na cotação'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('toques no Buggy preservam categorias ocultas e cotações válidas',
+      (tester) async {
+    final requests = <(ServiceType, int)>[];
+    final two = Completer<PricingQuote>();
+    var continued = 0;
+    await tester.pumpWidget(screen(
+      services: const [
+        ServiceType.buggy, ServiceType.delivery, ServiceType.comfortBlack,
+        ServiceType.moto,
+      ],
+      quote: (selection) async {
+        requests.add((selection.service, selection.passengerCount));
+        switch (selection.service) {
+          case ServiceType.delivery:
+            throw const PricingQuoteException('Indisponível', code: 'UNAVAILABLE_CATEGORY');
+          case ServiceType.comfortBlack:
+            throw const PricingQuoteException('Sem tarifa', code: 'UNKNOWN_ROUTE');
+          case ServiceType.buggy:
+            return selection.passengerCount == 2 ? two.future : price(4000);
+          default:
+            return price(800);
+        }
+      },
+      onContinue: (_) async { continued++; return null; },
+    ));
+    await tester.pumpAndSettle();
+    final initialCalls = requests.length;
+    final add = find.byTooltip('Adicionar passageiro');
+    final remove = find.byTooltip('Remover passageiro');
+    final continueButton = find.byKey(const Key('continue-vehicle-button'));
+    await tester.ensureVisible(add);
+    for (var i = 0; i < 6; i++) {
+      await tester.tap(add);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.text('Entrega'), findsNothing);
+      expect(find.text('Comfort 4x4'), findsNothing);
+      expect(find.text(r'R$ 8,00'), findsOneWidget);
+      expect(tester.widget<FilledButton>(continueButton).onPressed, isNull);
+      await tester.tap(remove);
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(requests.length, initialCalls);
+    await tester.tap(add);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(remove);
+    await tester.pump();
+    await tester.tap(add);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(requests.skip(initialCalls), [(ServiceType.buggy, 2)]);
+    two.complete(price(4600));
+    await tester.pumpAndSettle();
+    expect(find.text(r'R$ 46,00'), findsOneWidget);
+    await tester.tap(remove);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text(r'R$ 40,00'), findsOneWidget);
+    expect(requests.skip(initialCalls), [(ServiceType.buggy, 2)]);
+    expect(tester.widget<FilledButton>(continueButton).onPressed, isNotNull);
+    expect(continued, 0);
+  });
+
+  testWidgets('retry mantém categoria ocultada até nova cotação bem-sucedida',
+      (tester) async {
+    final retryQuote = Completer<PricingQuote>();
+    var requests = 0;
+    await tester.pumpWidget(screen(services: const [ServiceType.delivery],
+      quote: (_) async {
+        if (++requests == 1) {
+          throw const PricingQuoteException('Indisponível', code: 'UNAVAILABLE_CATEGORY');
+        }
+        return retryQuote.future;
+      },
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Entrega'), findsNothing);
+    await tester.tap(find.text('Atualizar preços'));
+    await tester.pump();
+    expect(requests, 2);
+    expect(find.text('Entrega'), findsNothing);
+    retryQuote.complete(price(1200));
+    await tester.pumpAndSettle();
+    expect(find.text('Entrega'), findsOneWidget);
+    expect(find.text(r'R$ 12,00'), findsOneWidget);
+  });
+
 }
