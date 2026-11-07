@@ -153,6 +153,10 @@ void main() {
 
   testWidgets('toques no Buggy preservam categorias ocultas e cotações válidas',
       (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1050);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final requests = <(ServiceType, int)>[];
     final two = Completer<PricingQuote>();
     var continued = 0;
@@ -214,6 +218,10 @@ void main() {
 
   testWidgets('retry mantém categoria ocultada até nova cotação bem-sucedida',
       (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1050);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final retryQuote = Completer<PricingQuote>();
     var requests = 0;
     await tester.pumpWidget(screen(services: const [ServiceType.delivery],
