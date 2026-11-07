@@ -1,0 +1,29 @@
+name: Passenger vehicle selection restoration
+on:
+  push:
+    branches: [fix/passenger-vehicle-selection-20261107]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Confirm the exact former layout and the limited change
+        run: |
+          git diff --exit-code 9e913c89de373945cb99b3b3150feb9c012d2983 HEAD -- apps/passenger/lib/src/features/home/presentation/vehicle_selection_screen.dart apps/passenger/lib/src/features/home/presentation/widgets/service_selector.dart
+          diff -u <(printf '%s\n' .github/workflows/passenger-vehicle-restore-review.yml apps/passenger/lib/src/features/home/presentation/vehicle_selection_screen.dart apps/passenger/lib/src/features/home/presentation/widgets/service_selector.dart | sort) <(git diff --name-only 3e1c72c2b68f835ad41d739a228f6c2511eb0562 HEAD | sort)
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Verify prices, continuation, buggy eligibility and visual states
+        working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test test/vehicle_selection_prices_test.dart test/buggy_passenger_policy_ui_test.dart test/password_access_visual_test.dart

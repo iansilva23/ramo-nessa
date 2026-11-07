@@ -223,9 +223,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
         title: const Text('Escolha o veículo'),
       ),
       body: SafeArea(
-        child: Center(child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: RamoReveal(child: Column(
+        child: Column(
           children: [
             Expanded(
               child: ListView(
@@ -408,7 +406,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
               ),
             ),
           ],
-        )))),
+        ),
       ),
     );
   }
