@@ -182,6 +182,10 @@ class PassengerPricingPolicy {
 
 abstract interface class PricingPolicyService {
   Future<PassengerPricingPolicy> load();
+  Future<Set<String>> availableCategoriesForTrip({
+    required String originRegionId,
+    required String destinationRegionId,
+  });
 }
 
 class HttpPricingPolicyService implements PricingPolicyService {
@@ -196,22 +200,46 @@ class HttpPricingPolicyService implements PricingPolicyService {
 
   @override
   Future<PassengerPricingPolicy> load() async {
+    final decoded = await _loadPolicyResponse(_baseUrl.resolve('/v1/pricing/policy'));
+    try {
+      return PassengerPricingPolicy.fromJson(decoded);
+    } catch (_) {
+      throw const PricingPolicyException(
+        'O servidor retornou uma política de serviços inválida.',
+      );
+    }
+  }
+
+  @override
+  Future<Set<String>> availableCategoriesForTrip({
+    required String originRegionId,
+    required String destinationRegionId,
+  }) async {
+    final uri = _baseUrl.resolve('/v1/pricing/policy').replace(queryParameters: {
+      'originRegionId': originRegionId,
+      'destinationRegionId': destinationRegionId,
+    });
+    final decoded = await _loadPolicyResponse(uri);
+    final categories = decoded['availableRouteCategories'];
+    if (categories is! List || categories.any((category) => category is! String)) {
+      throw const PricingPolicyException(
+        'O servidor retornou uma lista de serviços inválida.',
+      );
+    }
+    return categories.cast<String>().toSet();
+  }
+
+  Future<Map<String, dynamic>> _loadPolicyResponse(Uri uri) async {
     final response = await _client
         .get(
-          _baseUrl.resolve('/v1/pricing/policy'),
+          uri,
           headers: const {'accept': 'application/json'},
         )
         .timeout(RamoCoreConfig.requestTimeout);
     final decoded = decodeJsonObject(response.body);
 
     if (response.statusCode == 200 && decoded != null) {
-      try {
-        return PassengerPricingPolicy.fromJson(decoded);
-      } catch (_) {
-        throw const PricingPolicyException(
-          'O servidor retornou uma política de serviços inválida.',
-        );
-      }
+      return decoded;
     }
 
     throw PricingPolicyException(

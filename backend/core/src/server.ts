@@ -7970,11 +7970,28 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === 'GET' && request.url === '/v1/pricing/policy') {
+    if (request.method === 'GET' && requestPath === '/v1/pricing/policy') {
+      const originRegionId = requestUrl.searchParams.get('originRegionId');
+      const destinationRegionId = requestUrl.searchParams.get('destinationRegionId');
+      const tripRequested = originRegionId != null || destinationRegionId != null;
+      if (tripRequested && (!originRegionId || !destinationRegionId ||
+          originRegionId.length > 100 || destinationRegionId.length > 100)) {
+        json(response, 400, { error: 'INVALID_REGION_PAIR', message: 'Informe as duas regiões do trajeto.' });
+        return;
+      }
+      const at = new Date();
       const pricing = await resolvePricingCatalogContext({
         versions: pricingCatalogVersionRepository,
+        at,
       });
-      json(response, 200, publicPricingPolicyView(pricing));
+      if (originRegionId && destinationRegionId) {
+        const { availableRouteCategories } = publicPricingPolicyView(
+          pricing, { originRegionId, destinationRegionId, at },
+        );
+        json(response, 200, { availableRouteCategories });
+      } else {
+        json(response, 200, publicPricingPolicyView(pricing));
+      }
       return;
     }
 

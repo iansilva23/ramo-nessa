@@ -58,6 +58,12 @@ class ControlledPolicy implements PricingPolicyService {
   Completer<PassengerPricingPolicy>? delayed;
   @override
   Future<PassengerPricingPolicy> load() => delayed?.future ?? Future.value(policy);
+
+  @override
+  Future<Set<String>> availableCategoriesForTrip({
+    required String originRegionId,
+    required String destinationRegionId,
+  }) async => throw StateError('The legacy policy does not request managed availability.');
 }
 class RecordingRoutes implements RouteService {
   final destinations = <LatLng>[];
