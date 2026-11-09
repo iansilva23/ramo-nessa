@@ -133,6 +133,12 @@ export function rateMatches(rate: ManagedRate, origin: string, destination: stri
   return rate.originRegionId === origin && rate.destinationRegionId === destination ||
     rate.bidirectional && rate.originRegionId === destination && rate.destinationRegionId === origin;
 }
+export function rateAvailableForTrip(
+  rate: ManagedRate, origin: string, destination: string, period: 'day' | 'night',
+): boolean {
+  return rate.enabled && !rate.archived && rate[period] != null &&
+    rateMatches(rate, origin, destination);
+}
 export function validateOperations(input: ManagedOperations): ManagedOperations {
   if (input.schema !== 1 || input.regions.length > 300 || input.categories.length > 100 || input.rates.length > 3000) fail('Catálogo excede o limite permitido.');
   const ops: ManagedOperations = { schema: 1, regions: input.regions.map(parseRegion), categories: input.categories.map(parseCategory), rates: input.rates.map(parseRate) };
@@ -180,7 +186,7 @@ export function quoteManagedFare(request: QuoteRequest, catalog: PricingCatalogS
   if (!Number.isSafeInteger(passengers) || passengers < 1 || passengers > category.maxPassengers)
     throw new PricingError('INVALID_PASSENGER_COUNT','Quantidade de passageiros incompatível com a categoria.');
   const period = request.period === 'day' ? 'day' : 'night';
-  const candidates = ops.rates.filter(r=>r.enabled&&!r.archived&&r.categoryId===category.id&&r[period]!=null&&rateMatches(r,origin.id,destination.id));
+  const candidates = ops.rates.filter(r=>r.categoryId===category.id&&rateAvailableForTrip(r,origin.id,destination.id,period));
   // Conflict validation forbids equal-priority rules. Sorting remains stable
   // for historical/corrupt snapshots and never depends on array insertion.
   candidates.sort((a,b)=>(a.kind==='fixed'?0:1)-(b.kind==='fixed'?0:1)||a.id.localeCompare(b.id));

@@ -204,6 +204,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
   int? _pendingRouteFitId;
   AgencyPromotion? _agencyPromotion;
   PassengerPricingPolicy? _pricingPolicy;
+  bool _openingVehicleSelection = false;
   bool _releaseDialogShown = false;
 
   @override
@@ -1020,6 +1021,16 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
   }
 
   Future<void> _continueToVehicleSelection() async {
+    if (_openingVehicleSelection) return;
+    _openingVehicleSelection = true;
+    try {
+      await _openVehicleSelection();
+    } finally {
+      _openingVehicleSelection = false;
+    }
+  }
+
+  Future<void> _openVehicleSelection() async {
     final origin = _origin;
     final destination = _destination;
     final route = _route;
@@ -1035,6 +1046,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
     if (route == null) {
       await _loadRoute();
       return;
+    }
+    if (_pricingPolicy == null && _pricingPolicyService != null) {
+      await _loadPricingPolicy();
+      if (!mounted || !identical(route, _route) ||
+          !identical(origin, _origin) || !identical(destination, _destination)) {
+        return;
+      }
+      if (_pricingPolicy == null) {
+        _showMessage('Não conseguimos atualizar os serviços disponíveis agora. Tente novamente.');
+        return;
+      }
     }
 
     final coverage = RamoServiceArea.checkPlaceTrip(
@@ -1072,7 +1094,30 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
       return;
     }
 
-    final services = _servicesForCoverage(coverage);
+    var services = _servicesForCoverage(coverage);
+    if (services.isNotEmpty && _pricingPolicy?.usesManagedRegions == true) {
+      Set<String>? available;
+      try {
+        available = await _pricingPolicyService!.availableCategoriesForTrip(
+          originRegionId: coverage.originZone!.localityId ?? originZoneId,
+          destinationRegionId: coverage.destinationZone!.localityId ?? destinationZoneId,
+        );
+      } catch (_) {
+        // An unavailable policy is distinct from a route with no active fare.
+      }
+      if (!mounted || !identical(route, _route) ||
+          !identical(origin, _origin) || !identical(destination, _destination)) {
+        return;
+      }
+      if (available == null) {
+        _showMessage('Não conseguimos atualizar os serviços disponíveis agora. Tente novamente.');
+        return;
+      }
+      final routeCategories = available;
+      services = services
+          .where((service) => routeCategories.contains(service.backendKey))
+          .toList(growable: false);
+    }
     if (services.isEmpty) {
       _showMessage('Essa rota ainda não tem serviço configurado.');
       return;

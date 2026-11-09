@@ -103,4 +103,23 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('consulta categorias tarifadas pelo par de regiões', () async {
+    final service = HttpPricingPolicyService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/v1/pricing/policy');
+        expect(request.url.queryParameters, {
+          'originRegionId': 'jericoacoara',
+          'destinationRegionId': 'prea',
+        });
+        return http.Response('{"availableRouteCategories":["buggy"]}', 200);
+      }),
+    );
+    expect(await service.availableCategoriesForTrip(
+      originRegionId: 'jericoacoara',
+      destinationRegionId: 'prea',
+    ), {'buggy'});
+  });
 }

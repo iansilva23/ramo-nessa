@@ -36,11 +36,11 @@ Map<String, dynamic> policyJson({bool allowDestination = true}) => {
   ],
   'regions': [
     {'id': 'jericoacoara', 'name': jeri.name, 'enabled': true, 'archived': false,
-      'categoryIds': ['comfort_black']},
+      'categoryIds': ['comfort_black', 'moto']},
     for (var i = 0; i < destinations.length; i++)
       {'id': 'region-generated-$i', 'name': destinations[i].name,
         'enabled': true, 'archived': false,
-        'categoryIds': allowDestination ? ['comfort_black', 'moto'] : ['moto']},
+        'categoryIds': allowDestination ? ['comfort_black', 'moto'] : []},
   ],
   'localityGeofences': [
     {'zoneId': 'jericoacoara', 'localityId': 'jericoacoara',
@@ -54,11 +54,22 @@ Map<String, dynamic> policyJson({bool allowDestination = true}) => {
 };
 
 class CatalogPolicy implements PricingPolicyService {
-  CatalogPolicy({this.allowDestination = true});
+  CatalogPolicy({this.allowDestination = true, this.routeCategories = const ['comfort_black']});
   final bool allowDestination;
+  final List<String> routeCategories;
+  final trips = <({String originRegionId, String destinationRegionId})>[];
   @override
   Future<PassengerPricingPolicy> load() async =>
       PassengerPricingPolicy.fromJson(policyJson(allowDestination: allowDestination));
+
+  @override
+  Future<Set<String>> availableCategoriesForTrip({
+    required String originRegionId,
+    required String destinationRegionId,
+  }) async {
+    trips.add((originRegionId: originRegionId, destinationRegionId: destinationRegionId));
+    return routeCategories.toSet();
+  }
 }
 
 class RecordingQuotes implements PricingQuoteService {
@@ -78,13 +89,13 @@ class RecordingQuotes implements PricingQuoteService {
 }
 
 Future<RecordingRoutes> openTrip(WidgetTester tester, RamoPlace origin,
-    RamoPlace destination, RecordingQuotes quotes, {bool allowDestination = true}) async {
+    RamoPlace destination, RecordingQuotes quotes, {CatalogPolicy? policy}) async {
   final location = DelayedLocation();
   final routes = RecordingRoutes();
   await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(
     releasePolicyService: NoRelease(), agencyPromotionService: NoAgency(),
     locationService: location, routeService: routes, placeSearchService: NoSearch(),
-    pricingPolicyService: CatalogPolicy(allowDestination: allowDestination),
+    pricingPolicyService: policy ?? CatalogPolicy(),
     pricingQuoteService: quotes, networkTilesEnabled: false,
   )));
   location.response.complete(origin.position);
@@ -109,11 +120,11 @@ void main() {
     final policy = PassengerPricingPolicy.fromJson(json);
     expect(policy.usesManagedRegions, isTrue);
     expect(policy.managedCategoriesForTrip('jericoacoara', 'region-generated-0'),
-      {'comfort_black'});
+      {'comfort_black', 'moto'});
     for (final id in ['disabled', 'archived', 'unknown']) {
       expect(policy.managedCategoriesForTrip('jericoacoara', id), isEmpty);
     }
-    json['enabledCategories'] = ['moto'];
+    json['enabledCategories'] = ['buggy'];
     expect(PassengerPricingPolicy.fromJson(json)
       .managedCategoriesForTrip('jericoacoara', 'region-generated-0'), isEmpty);
     json['managementMode'] = 'legacy';
@@ -124,13 +135,20 @@ void main() {
     for (final reverse in [false, true]) {
       testWidgets('managed route ${destination.name}, reverse=$reverse reaches authoritative quote', (tester) async {
         final quotes = RecordingQuotes();
+        final policy = CatalogPolicy();
         final routes = await openTrip(tester,
-          reverse ? destination : jeri, reverse ? jeri : destination, quotes);
+          reverse ? destination : jeri, reverse ? jeri : destination, quotes,
+          policy: policy);
         expect(routes.destinations, isNotEmpty,
           reason: 'MANAGED_GENERATED_REGION_MUST_REACH_ROUTE');
         tester.widget<RideBottomSheet>(find.byType(RideBottomSheet)).onContinue();
         await tester.pumpAndSettle();
         expect(find.byType(VehicleSelectionScreen), findsOneWidget);
+        final externalId = 'region-generated-${destinations.indexOf(destination)}';
+        expect(policy.trips, [(
+          originRegionId: reverse ? externalId : 'jericoacoara',
+          destinationRegionId: reverse ? 'jericoacoara' : externalId,
+        )]);
         expect(quotes.categories, [ServiceType.comfortBlack]);
         expect(find.text('R\$ 123,45'), findsOneWidget);
         await tester.pumpWidget(const SizedBox.shrink());
@@ -141,9 +159,22 @@ void main() {
 
   testWidgets('region without shared category never requests a route or quote', (tester) async {
     final quotes = RecordingQuotes();
-    final routes = await openTrip(tester, jeri, destinations.first, quotes, allowDestination: false);
+    final routes = await openTrip(tester, jeri, destinations.first, quotes,
+      policy: CatalogPolicy(allowDestination: false));
     expect(routes.destinations, isEmpty);
     expect(quotes.categories, isEmpty);
+    expect(find.text('Essa rota ainda não tem serviço configurado.'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('route with no active fares never starts any quote', (tester) async {
+    final quotes = RecordingQuotes();
+    await openTrip(tester, jeri, destinations.first, quotes,
+      policy: CatalogPolicy(routeCategories: const []));
+    tester.widget<RideBottomSheet>(find.byType(RideBottomSheet)).onContinue();
+    await tester.pumpAndSettle();
+    expect(quotes.categories, isEmpty);
+    expect(find.byType(VehicleSelectionScreen), findsNothing);
     expect(find.text('Essa rota ainda não tem serviço configurado.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
