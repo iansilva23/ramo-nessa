@@ -1,0 +1,102 @@
+name: Package Passenger route quote update
+on:
+  push:
+    branches: [ops/passenger-route-quote-vps-20261109]
+    paths: ['.github/workflows/passenger-route-quote-package.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE: 580be890da88c0aab544bb9f205336b9933eaac8
+      CORE_BASE: 2925c1a15a208e4404e662eab92aef13960c1f78
+      WEB_BASE: 8d44ba76c7a49cc7140a187ed16b2cc1ddeb78e5
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '580be890da88c0aab544bb9f205336b9933eaac8', fetch-depth: 0}
+      - name: Verify tested source and scope
+        run: |
+          gh run view 42663752380 --json conclusion --jq '.conclusion' | grep -x success
+          test "$(git rev-parse HEAD)" = "$SOURCE"
+          diff -u <(printf '%s\n' backend/core/src/pricing/managed-operations.ts backend/core/src/pricing/public-pricing-policy.ts backend/core/src/server.ts backend/core/test/public_pricing_policy.test.ts | sort) <(git diff --name-only "$CORE_BASE" "$SOURCE" -- backend/core | sort)
+          diff -u <(printf '%s\n' apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart apps/passenger/lib/src/features/home/presentation/vehicle_selection_screen.dart apps/passenger/lib/src/features/pricing/data/pricing_policy_service.dart apps/passenger/test/managed_route_availability_test.dart apps/passenger/test/pricing_policy_http_test.dart apps/passenger/test/vehicle_selection_prices_test.dart apps/passenger/test/web_map_selection_race_test.dart | sort) <(git diff --name-only "$WEB_BASE" "$SOURCE" -- apps/passenger packages scripts/web | sort)
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Build Core from both pinned sources
+        run: |
+          mkdir -p "$RUNNER_TEMP/ramo-quote-base"
+          git archive "$CORE_BASE" backend/core | tar -x -C "$RUNNER_TEMP/ramo-quote-base"
+          for dir in "$RUNNER_TEMP/ramo-quote-base/backend/core" backend/core; do
+            npm ci --prefix "$dir" --no-audit --no-fund
+            npm run build --prefix "$dir"
+          done
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Prepare existing Passenger Web configuration
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_PASSENGER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+          RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=passenger
+      - name: Build Passenger Web
+        working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Package verified Core overlay and Passenger Web
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+          python3 - <<'PY'
+          import hashlib, json, os, zipfile
+          from pathlib import Path
+
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def package(role, root, names, extra):
+              files = {n: digest(root/n) for n in sorted(names)}
+              target = Path(f'RamoNessa-Cotacao-{role}.zip')
+              with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
+                  manifest = dict(schema=1, component=role, source=os.environ['SOURCE'], files=files, **extra)
+                  archive.writestr('manifest.json', json.dumps(manifest))
+                  for name in files:
+                      archive.write(root/name, role+'/'+name)
+              return f'{digest(target)}  {target.name}'
+
+          core = Path('backend/core')
+          base = Path(os.environ['RUNNER_TEMP'])/'ramo-quote-base/backend/core'
+          def modules(root):
+              return {p.relative_to(root).as_posix(): digest(p) for p in (root/'dist').rglob('*.js')}
+          before, after = modules(base), modules(core)
+          assert before.keys() == after.keys()
+          changed = {n for n in before if before[n] != after[n]}
+          assert changed == {'dist/src/server.js', 'dist/src/pricing/managed-operations.js',
+                             'dist/src/pricing/public-pricing-policy.js'}
+          core_sum = package('core', core, changed, {
+              'baselineSource': os.environ['CORE_BASE'],
+              'baseline': {n: before[n] for n in sorted(changed)},
+          })
+          web = Path('apps/passenger/build/web')
+          web_sum = package('passenger', web, {p.relative_to(web).as_posix() for p in web.rglob('*') if p.is_file()}, {
+              'basePath': '/passageiro/',
+          })
+          Path('SHA256SUMS').write_text(core_sum+'\n'+web_sum+'\n')
+          PY
+          cat SHA256SUMS
+      - name: Publish pinned candidate for VPS transfer
+        run: gh release create route-quote-580be890da88 --target "$SOURCE" --title 'Passenger route quote candidate' --notes 'Tested candidate Core overlay and Passenger Web. No VPS activation.' RamoNessa-Cotacao-core.zip RamoNessa-Cotacao-passenger.zip SHA256SUMS
