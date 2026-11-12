@@ -1,0 +1,81 @@
+<section id="view-audit" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">AUDITORIA</span>
+                <h1>Trilha administrativa</h1>
+                <p>Ações realizadas por usuários humanos e integrações autorizadas.</p>
+              </div>
+              <button id="refresh-audit-button" class="button button--ghost-dark" type="button">
+                Atualizar
+              </button>
+            </div>
+
+            <article class="panel-card panel-card--table">
+              <form id="audit-filter-form" class="directory-toolbar audit-toolbar">
+                <label class="field directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="audit-query"
+                    maxlength="120"
+                    placeholder="Operador, ação ou alvo"
+                  >
+                </label>
+                <label class="field">
+                  <span>Ator</span>
+                  <select id="audit-actor-kind">
+                    <option value="">Todos</option>
+                    <option value="user">Usuário humano</option>
+                    <option value="api_key">API key</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Ação exata</span>
+                  <input
+                    id="audit-action"
+                    maxlength="120"
+                    placeholder="passenger.auth.status_changed"
+                  >
+                </label>
+                <label class="field">
+                  <span>Tipo de alvo</span>
+                  <input
+                    id="audit-target-type"
+                    maxlength="80"
+                    placeholder="passenger"
+                  >
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Quando</th>
+                      <th>Operador</th>
+                      <th>Ação</th>
+                      <th>Alvo</th>
+                      <th>Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-table-body"></tbody>
+                </table>
+              </div>
+              <div id="audit-empty" class="empty-state" hidden>
+                Nenhum evento de auditoria encontrado.
+              </div>
+              <div class="directory-footer">
+                <span id="audit-directory-count">0 carregados</span>
+                <button
+                  id="audit-load-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
+          </section>

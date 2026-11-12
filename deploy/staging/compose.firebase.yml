@@ -1,0 +1,14 @@
+# Opt-in: start.mjs selects this file only after validating the private credential.
+# Only Core receives the credential; it is not added to images or other services.
+services:
+  core:
+    environment:
+      PUSH_PROVIDER: fcm
+      FIREBASE_SERVICE_ACCOUNT_FILE: /run/secrets/ramo-nessa-firebase.json
+    volumes:
+      - type: bind
+        source: ${FIREBASE_SERVICE_ACCOUNT_HOST_FILE:?Firebase credential path is required}
+        target: /run/secrets/ramo-nessa-firebase.json
+        read_only: true
+        bind:
+          create_host_path: false

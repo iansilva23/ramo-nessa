@@ -1,0 +1,116 @@
+name: Checkout Window configured Web package and isolated rollout
+on:
+  push:
+    branches: [fix/checkout-reservation-window-20261023]
+    paths:
+      - 'deploy/staging/checkout*'
+      - 'deploy/staging/stage-checkout.py'
+      - 'deploy/staging/test-checkout-web-update.mjs'
+      - 'deploy/staging/test_stage_checkout.py'
+      - 'scripts/web/package_checkout_window.mjs'
+      - '.github/workflows/checkout-web-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checkout-web-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve the tested application revision
+        run: git diff --exit-code 032e973b552bcfad3208450630cbd5f9181ef2d1 HEAD -- backend apps packages config/web
+      - name: Unit checks for extraction, scoped plans and argument guards
+        run: |
+          node --check deploy/staging/checkout-web-update.mjs
+          node --check deploy/staging/checkout-migration.mjs
+          node --check deploy/staging/test-checkout-web-update.mjs
+          node --test deploy/staging/checkout-web.test.mjs deploy/staging/google-search-update.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_checkout.py
+      - name: Build the exact compiled Guide baseline and the checkout patch
+        run: |
+          mkdir -p baseline
+          git archive e84e33da018375230bfaee26bf4c7ec633d9bf9d backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Build only configured Passenger Web, with same-origin real Core
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=passenger
+          cd apps/passenger
+          flutter pub get --enforce-lockfile
+          flutter build web --release --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Verify production Web configuration and stage the reviewed payload
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+          node scripts/web/package_checkout_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib, zipfile
+          with zipfile.ZipFile('checkout-window-web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum checkout-window-web.zip > checkout-window-web.zip.sha256
+      - name: Use Ubuntu archive for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Configured compiled Web session, installed launch, foreground and logout
+        env:
+          RAMO_WEB_TEST_ROLE: passenger
+        run: |
+          for engine in chromium webkit; do
+            RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+          done
+      - name: Real Docker backup, nullable column, two rollback paths, GPS and HTTP installation
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-checkout-web-update.mjs "$PWD/checkout-window-web.zip" "$PWD/baseline"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checkout-window-configured-web-tested
+          path: |
+            checkout-window-web.zip
+            checkout-window-web.zip.sha256
+            release/checkout-manifest.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checkout-window-web-session-evidence
+          path: artifacts/web-csp/
+          if-no-files-found: ignore
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: checkout-window-configured-web-tested, path: package}
+      - name: Publish only a verified installation package, no server deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd package
+          sha256sum -c checkout-window-web.zip.sha256
+          gh release create checkout-window-web-032e973b checkout-window-web.zip checkout-window-web.zip.sha256 --target 032e973b552bcfad3208450630cbd5f9181ef2d1 --prerelease --latest=false --title 'Checkout Web — reserva de 1 minuto, pagamento de 10 minutos' --notes 'Pacote Passageiro Web, delta Core/ADM e coluna aditiva. Aplicativo fonte 032e973b; backup, retorno e GPS ensaiados em CI. Nenhuma implantação automática na VPS. Android/iOS e Web do motorista não são atualizados.'

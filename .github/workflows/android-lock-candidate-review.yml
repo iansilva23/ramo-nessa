@@ -1,0 +1,18 @@
+name: Android lock candidate preparation review
+on:
+  push:
+    branches: [feature/android-lock-offer-safety-20261031]
+    paths: ['deploy/android-lock/**', '.github/workflows/android-lock-candidate-review.yml']
+permissions:
+  contents: read
+jobs:
+  patch-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python3 deploy/android-lock/test_prepare_candidate.py
+      - run: python3 deploy/android-lock/test_candidate_runner_guards.py
+      - run: python3 deploy/android-lock/test_activate_lock_candidate.py
+      - run: node --check deploy/android-lock/lock-candidate.test.mjs
