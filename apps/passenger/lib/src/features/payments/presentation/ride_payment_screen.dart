@@ -1770,6 +1770,12 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       canPop: _leaving,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
+          if (_reservationExpired) {
+            // No modal is pushed on the expired path; start the server check
+            // directly, and let the guarded exit rebuild before popping.
+            unawaited(_leavePayment());
+            return;
+          }
           // Finish the system Back dispatch before adding a new modal route.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) unawaited(_leavePayment());

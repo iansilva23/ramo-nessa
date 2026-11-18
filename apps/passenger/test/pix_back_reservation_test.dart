@@ -103,7 +103,10 @@ void main() {
     await finishBack(tester);
     expect(reservation.releases, 1, reason: 'server checks: ${tracking.calls}');
     expect(find.text('Deseja sair do pagamento?'), findsNothing);
-    expect(find.text('Pagar com Pix'), findsNothing);
+    expect(find.text('Pagar com Pix'), findsNothing,
+      reason: 'checks=${tracking.calls}; scopes=${tester.widgetList<PopScope>(
+        find.byWidgetPredicate((widget) => widget is PopScope)).map((widget) => widget.canPop).toList()}; '
+        'releaseError=${find.textContaining("Não foi possível liberar").evaluate().length}');
     expect(reservation.releases, 1);
     await tester.pumpWidget(const SizedBox());
   });
