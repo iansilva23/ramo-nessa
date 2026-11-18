@@ -1449,7 +1449,6 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   String _statusMessage = 'Aguardando confirmação do Pix…';
 
   Future<void> _leavePayment() async {
-    assert(() { debugPrint('PIX_DEBUG leave expired=$_reservationExpired requested=$_expiredExitRequested checking=$_checking releasing=$_releasing leaving=$_leaving navigating=$_navigating'); return true; }());
     if (_exitDialog != null || _releasing || _navigating || _leaving ||
         _expiredExitRequested) return;
     if (_reservationExpired) {
@@ -1507,7 +1506,6 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   }
 
   Future<void> _releaseAndLeave() async {
-    assert(() { debugPrint('PIX_DEBUG release releasing=$_releasing navigating=$_navigating leaving=$_leaving'); return true; }());
     if (_releasing || _navigating || _leaving) return;
     setState(() => _releasing = true);
     try {
@@ -1524,20 +1522,15 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       _pollTimer?.cancel();
       _holdTimer?.cancel();
       setState(() => _leaving = true);
-      assert(() { debugPrint('PIX_DEBUG close scheduled'); return true; }());
-      // A server reply can finish inside a post-frame callback. Waiting for
-      // that frame's end is too early: PopScope needs its next rebuild first.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        assert(() { debugPrint('PIX_DEBUG close callback mounted=$mounted'); return true; }());
-        if (!mounted) return;
-        if (widget.onRecoveryClose != null) {
-          widget.onRecoveryClose!();
-        } else {
-          Navigator.of(context).pop();
-        }
-      });
-    } catch (error) {
-      assert(() { debugPrint('PIX_DEBUG release error $error'); return true; }());
+      // PopScope must rebuild before a programmatic pop is allowed.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (widget.onRecoveryClose != null) {
+        widget.onRecoveryClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (_) {
       if (!mounted) return;
       setState(() => _releasing = false);
       // A payment may have won the server-side lock while Back was pressed.
@@ -1630,7 +1623,6 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     _checking = true;
     try {
       final snapshot = await tracking.tracking(widget.rideId);
-      assert(() { debugPrint('PIX_DEBUG snapshot=${snapshot.state} requested=$_expiredExitRequested mounted=$mounted releasing=$_releasing leaving=$_leaving'); return true; }());
       if (!mounted || _releasing || _leaving) return;
 
       final exitAfterCheck = _expiredExitRequested;
@@ -1776,12 +1768,6 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       canPop: _leaving,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          if (_reservationExpired) {
-            // No modal is pushed on the expired path; start the server check
-            // directly, and let the guarded exit rebuild before popping.
-            unawaited(_leavePayment());
-            return;
-          }
           // Finish the system Back dispatch before adding a new modal route.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) unawaited(_leavePayment());

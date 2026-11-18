@@ -15,7 +15,7 @@ class Reservation implements DriverConfirmationService {
   bool fail = false;
   @override
   Future<void> releaseDriverReservation(String rideId) async {
-    expect(rideId, 'reserved-ride');
+    expectSync(rideId, 'reserved-ride');
     releases++;
     if (pending != null) await pending!.future;
     if (fail) throw const PassengerPaymentException('A reserva não pode mais ser cancelada.');
