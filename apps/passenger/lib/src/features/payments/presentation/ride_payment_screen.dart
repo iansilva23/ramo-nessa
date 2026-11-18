@@ -1444,9 +1444,55 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   bool _navigating = false;
   bool _releasing = false;
   bool _leaving = false;
+  DialogRoute<bool>? _exitDialog;
   String _statusMessage = 'Aguardando confirmação do Pix…';
 
   Future<void> _leavePayment() async {
+    if (_exitDialog != null || _releasing || _navigating || _leaving) return;
+    final navigator = Navigator.of(context);
+    final dialog = DialogRoute<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Deseja sair do pagamento?'),
+        content: const Text(
+          'Se você ainda não pagou, pode desistir e liberar o motorista. '
+          'Se já fez o Pix, aguarde a confirmação. '
+          'A corrida será aberta automaticamente quando o pagamento for confirmado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Continuar no pagamento'),
+          ),
+          if (widget.trackingService != null)
+            TextButton(
+              onPressed: _checkStatus,
+              child: const Text('Já paguei · verificar'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Não paguei · desistir'),
+          ),
+        ],
+      ),
+    );
+    _exitDialog = dialog;
+    final shouldLeave = await navigator.push<bool>(dialog);
+    if (_exitDialog == dialog) _exitDialog = null;
+    if (!mounted || shouldLeave != true || _navigating) return;
+    await _releaseAndLeave();
+  }
+
+  void _dismissExitDialog() {
+    final dialog = _exitDialog;
+    _exitDialog = null;
+    if (dialog != null && dialog.isActive) {
+      Navigator.of(context).removeRoute(dialog);
+    }
+  }
+
+  Future<void> _releaseAndLeave() async {
     if (_releasing || _navigating || _leaving) return;
     setState(() => _releasing = true);
     try {
@@ -1569,6 +1615,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       if (snapshot.state.startsWith('CANCELLED_')) {
         _pollTimer?.cancel();
         _navigating = true;
+        _dismissExitDialog();
         await Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
           builder: (_) => RideTrackingScreen(
             rideId: widget.rideId, remainingWalletCents: null,
@@ -1618,6 +1665,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
 
       _pollTimer?.cancel();
       _navigating = true;
+      _dismissExitDialog();
 
       final dispatchStatus =
           const {

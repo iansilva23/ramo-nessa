@@ -55,6 +55,14 @@ Future<void> openPix(WidgetTester tester, Reservation reservation,
   await tester.pump(const Duration(seconds: 1));
 }
 
+Future<void> confirmExit(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 350));
+  expect(find.text('Deseja sair do pagamento?'), findsOneWidget);
+  await tester.tap(find.text('Não paguei · desistir'));
+  await tester.pump();
+}
+
 Future<void> finishBack(WidgetTester tester) async {
   await tester.pump();
   await tester.pump();
@@ -62,11 +70,68 @@ Future<void> finishBack(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('continue payment closes the notice without releasing the driver', (tester) async {
+    final reservation = Reservation();
+    await openPix(tester, reservation);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(reservation.releases, 0);
+    await tester.tap(find.text('Continuar no pagamento'));
+    await finishBack(tester);
+    expect(find.text('Deseja sair do pagamento?'), findsNothing);
+    expect(find.text('Pagar com Pix'), findsOneWidget);
+    expect(reservation.releases, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('automatic confirmation closes an open notice and starts tracking', (tester) async {
+    final reservation = Reservation();
+    final tracking = Tracking();
+    await openPix(tester, reservation, tracking: tracking);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Deseja sair do pagamento?'), findsOneWidget);
+    tracking.state = 'DRIVER_ASSIGNED';
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Deseja sair do pagamento?'), findsNothing);
+    expect(find.text('Pagar com Pix'), findsNothing);
+    expect(find.text('Escolher categoria').hitTestable(), findsNothing);
+    expect(reservation.releases, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('already paid checks status without releasing the reservation', (tester) async {
+    final reservation = Reservation();
+    final tracking = Tracking();
+    await openPix(tester, reservation, tracking: tracking);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.text('Já paguei · verificar'));
+    await tester.pump();
+    expect(find.text('Deseja sair do pagamento?'), findsOneWidget);
+    expect(reservation.releases, 0);
+    tracking.state = 'DRIVER_ASSIGNED';
+    await tester.tap(find.text('Já paguei · verificar'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Deseja sair do pagamento?'), findsNothing);
+    expect(find.text('Pagar com Pix'), findsNothing);
+    expect(reservation.releases, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('QR Back waits for release and ignores repeated taps', (tester) async {
     final reservation = Reservation()..pending = Completer<void>();
     await openPix(tester, reservation);
     await tester.tap(find.byType(BackButton));
-    await tester.pump();
+    expect(reservation.releases, 0);
+    await confirmExit(tester);
     await tester.tap(find.byType(BackButton));
     expect(reservation.releases, 1);
     expect(find.text('Pagar com Pix'), findsOneWidget);
@@ -81,6 +146,8 @@ void main() {
     final reservation = Reservation();
     await openPix(tester, reservation);
     await tester.binding.handlePopRoute();
+    expect(reservation.releases, 0);
+    await confirmExit(tester);
     await finishBack(tester);
     expect(reservation.releases, 1);
     expect(find.text('Pagar com Pix'), findsNothing);
@@ -91,11 +158,13 @@ void main() {
     final reservation = Reservation()..fail = true;
     await openPix(tester, reservation);
     await tester.tap(find.byType(BackButton));
+    await confirmExit(tester);
     await finishBack(tester);
     expect(find.text('Pagar com Pix'), findsOneWidget);
     expect(find.textContaining('Não foi possível liberar'), findsOneWidget);
     reservation.fail = false;
     await tester.tap(find.byType(BackButton));
+    await confirmExit(tester);
     await finishBack(tester);
     expect(reservation.releases, 2);
     expect(find.text('Pagar com Pix'), findsNothing);
@@ -107,7 +176,7 @@ void main() {
     var closed = false;
     await openPix(tester, reservation, recoveryClose: () => closed = true);
     await tester.tap(find.byType(BackButton));
-    await tester.pump();
+    await confirmExit(tester);
     expect(closed, false);
     reservation.pending!.complete();
     await finishBack(tester);
@@ -117,11 +186,13 @@ void main() {
   });
 
   testWidgets('payment confirmed during Back opens tracking instead of categories', (tester) async {
-    final reservation = Reservation()..fail = true;
+    final reservation = Reservation()..fail = true..pending = Completer<void>();
     final tracking = Tracking();
     await openPix(tester, reservation, tracking: tracking);
-    tracking.state = 'DRIVER_ASSIGNED';
     await tester.tap(find.byType(BackButton));
+    await confirmExit(tester);
+    tracking.state = 'DRIVER_ASSIGNED';
+    reservation.pending!.complete();
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
