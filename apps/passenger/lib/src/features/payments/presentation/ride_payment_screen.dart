@@ -1522,14 +1522,16 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       _pollTimer?.cancel();
       _holdTimer?.cancel();
       setState(() => _leaving = true);
-      // PopScope must rebuild before a programmatic pop is allowed.
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-      if (widget.onRecoveryClose != null) {
-        widget.onRecoveryClose!();
-      } else {
-        Navigator.of(context).pop();
-      }
+      // A server reply can finish inside a post-frame callback. Waiting for
+      // that frame's end is too early: PopScope needs its next rebuild first.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (widget.onRecoveryClose != null) {
+          widget.onRecoveryClose!();
+        } else {
+          Navigator.of(context).pop();
+        }
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _releasing = false);
