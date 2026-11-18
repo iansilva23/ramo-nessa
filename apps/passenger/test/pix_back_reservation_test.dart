@@ -97,9 +97,11 @@ void main() {
 
   testWidgets('expired system Back also returns without a notice', (tester) async {
     final reservation = Reservation();
-    await openPix(tester, reservation, tracking: Tracking(), expired: true);
+    final tracking = Tracking();
+    await openPix(tester, reservation, tracking: tracking, expired: true);
     await tester.binding.handlePopRoute();
     await finishBack(tester);
+    expect(reservation.releases, 1, reason: 'server checks: ${tracking.calls}');
     expect(find.text('Deseja sair do pagamento?'), findsNothing);
     expect(find.text('Pagar com Pix'), findsNothing);
     expect(reservation.releases, 1);
