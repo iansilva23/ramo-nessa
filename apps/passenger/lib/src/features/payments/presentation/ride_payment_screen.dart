@@ -627,6 +627,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             holdExpiresAt: _ride.holdExpiresAt,
             amountLabel: PreparedRide.formatCents(_pixTotalAmountCents),
             driverReserved: _ride.driverConsentRequired,
+            confirmationService: _confirmationService,
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -1404,6 +1405,7 @@ class PixRidePaymentScreen extends StatefulWidget {
   const PixRidePaymentScreen({
     super.key,
     this.onRecoveryClose,
+    this.confirmationService,
     required this.rideId,
     required this.holdExpiresAt,
     required this.amountLabel,
@@ -1416,6 +1418,7 @@ class PixRidePaymentScreen extends StatefulWidget {
   });
 
   final String rideId;
+  final DriverConfirmationService? confirmationService;
   final VoidCallback? onRecoveryClose;
   final DateTime holdExpiresAt;
   final String amountLabel;
@@ -1439,7 +1442,49 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   Timer? _copyTimer;
   bool _checking = false;
   bool _navigating = false;
+  bool _releasing = false;
+  bool _leaving = false;
   String _statusMessage = 'Aguardando confirmação do Pix…';
+
+  Future<void> _leavePayment() async {
+    if (_releasing || _navigating || _leaving) return;
+    setState(() => _releasing = true);
+    try {
+      if (widget.driverReserved) {
+        final service = widget.confirmationService;
+        if (service == null) {
+          throw const PassengerPaymentException(
+            'Não foi possível liberar a reserva. Tente voltar novamente.',
+          );
+        }
+        await service.releaseDriverReservation(widget.rideId);
+      }
+      if (!mounted) return;
+      _pollTimer?.cancel();
+      _holdTimer?.cancel();
+      setState(() => _leaving = true);
+      // PopScope must rebuild before a programmatic pop is allowed.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (widget.onRecoveryClose != null) {
+        widget.onRecoveryClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _releasing = false);
+      // A payment may have won the server-side lock while Back was pressed.
+      // In that case keep the paid ride and open its tracking screen.
+      await _checkStatus();
+      if (mounted && !_navigating && !_leaving) {
+        setState(() {
+          _statusMessage =
+              'Não foi possível liberar a reserva. Tente voltar novamente.';
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -1495,7 +1540,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   }
 
   Future<void> _copyPix() async {
-    if (_reservationExpired || _navigating) return;
+    if (_reservationExpired || _navigating || _releasing) return;
     final code = widget.result.qrCode.trim();
     if (code.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: code));
@@ -1512,14 +1557,14 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
 
   Future<void> _checkStatus() async {
     final tracking = widget.trackingService;
-    if (tracking == null || _checking || _navigating || !mounted) {
+    if (tracking == null || _checking || _navigating || _releasing || !mounted) {
       return;
     }
 
     _checking = true;
     try {
       final snapshot = await tracking.tracking(widget.rideId);
-      if (!mounted) return;
+      if (!mounted || _releasing || _leaving) return;
 
       if (snapshot.state.startsWith('CANCELLED_')) {
         _pollTimer?.cancel();
@@ -1636,12 +1681,15 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     final hasCopyCode = widget.result.qrCode.trim().isNotEmpty;
     final reservationExpired = _reservationExpired;
 
-    return Scaffold(
+    return PopScope(
+      canPop: _leaving,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_leavePayment());
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Pagar com Pix'),
-        leading: widget.onRecoveryClose == null
-            ? null
-            : BackButton(onPressed: widget.onRecoveryClose),
+        leading: BackButton(onPressed: _leavePayment),
       ),
       body: SafeArea(
         child: Center(child: ConstrainedBox(
@@ -1755,6 +1803,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
             ],
           ],
         )))),
+      ),
       ),
     );
   }
