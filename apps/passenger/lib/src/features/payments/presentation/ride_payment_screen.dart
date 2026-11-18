@@ -1444,11 +1444,24 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   bool _navigating = false;
   bool _releasing = false;
   bool _leaving = false;
+  bool _expiredExitRequested = false;
   DialogRoute<bool>? _exitDialog;
   String _statusMessage = 'Aguardando confirmação do Pix…';
 
   Future<void> _leavePayment() async {
-    if (_exitDialog != null || _releasing || _navigating || _leaving) return;
+    if (_exitDialog != null || _releasing || _navigating || _leaving ||
+        _expiredExitRequested) return;
+    if (_reservationExpired) {
+      if (widget.trackingService == null) {
+        setState(() => _statusMessage =
+            'Não foi possível conferir o pagamento. Tente voltar novamente.');
+        return;
+      }
+      // An in-flight poll consumes this request too, using its server response.
+      _expiredExitRequested = true;
+      await _checkStatus();
+      return;
+    }
     final navigator = Navigator.of(context);
     final dialog = DialogRoute<bool>(
       context: context,
@@ -1612,6 +1625,16 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       final snapshot = await tracking.tracking(widget.rideId);
       if (!mounted || _releasing || _leaving) return;
 
+      final exitAfterCheck = _expiredExitRequested;
+      _expiredExitRequested = false;
+      if (exitAfterCheck &&
+          (snapshot.state == 'AWAITING_PAYMENT' ||
+           snapshot.state == 'PAYMENT_FAILED')) {
+        // The release endpoint guards a payment confirmed after this read.
+        await _releaseAndLeave();
+        return;
+      }
+
       if (snapshot.state.startsWith('CANCELLED_')) {
         _pollTimer?.cancel();
         _navigating = true;
@@ -1704,6 +1727,12 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       );
     } on PassengerRideTrackingException {
       if (!mounted) return;
+      if (_expiredExitRequested) {
+        _expiredExitRequested = false;
+        setState(() => _statusMessage =
+            'Não foi possível conferir o pagamento. Tente voltar novamente.');
+        return;
+      }
       setState(() {
         _statusMessage = _reservationExpired
             ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
@@ -1712,6 +1741,12 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       });
     } catch (_) {
       if (!mounted) return;
+      if (_expiredExitRequested) {
+        _expiredExitRequested = false;
+        setState(() => _statusMessage =
+            'Não foi possível conferir o pagamento. Tente voltar novamente.');
+        return;
+      }
       setState(() {
         _statusMessage = _reservationExpired
             ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
