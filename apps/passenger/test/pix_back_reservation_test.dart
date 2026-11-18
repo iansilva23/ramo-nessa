@@ -72,9 +72,11 @@ Future<void> confirmExit(WidgetTester tester) async {
 }
 
 Future<void> finishBack(WidgetTester tester) async {
-  await tester.pump();
-  await tester.pump();
-  await tester.pump(const Duration(seconds: 1));
+  // System Back is deferred, then the server check/release and route pop each
+  // finish in later frames. Allow the pop animation to complete as well.
+  for (var frame = 0; frame < 8; frame++) {
+    await tester.pump(const Duration(milliseconds: 150));
+  }
 }
 
 void main() {
