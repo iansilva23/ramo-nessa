@@ -62,6 +62,37 @@ test('cancelar libera reserva e bloqueia pagamento tardio; não troca motorista'
   assert.equal((await dispatchRideAfterPayment({ ride: paid, ...ctx, now })).kind, 'NOT_PREPARED');
 });
 
+test('voltar após gerar Pix permite preparar novamente com o único motorista', async () => {
+  const ctx = await setup();
+  const ride = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ ride, matching: ctx.matching, now });
+  const accepted = await ctx.matching.acceptOffer({
+    offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString(),
+  });
+  await createPaymentForRide(ctx.finance, { ride: accepted.ride, method: 'pix',
+    processor: 'test', idempotencyKey: 'pix-before-back', now });
+  await assert.rejects(ctx.prepare(), { code: 'NO_ELIGIBLE_DRIVER' });
+  await ctx.matching.releasePrepaymentHold({ rideId: ride.id, at: now.toISOString() });
+  const retry = await ctx.prepare();
+  assert.notEqual(retry.id, ride.id);
+  assert.equal(retry.reservedDriverId, offer.driverId);
+  assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, retry.id);
+});
+
+test('voltar não libera o motorista quando a confirmação do pagamento venceu', async () => {
+  const ctx = await setup();
+  const ride = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ ride, matching: ctx.matching, now });
+  const accepted = await ctx.matching.acceptOffer({
+    offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString(),
+  });
+  await ctx.rides.save({ ...accepted.ride, state: 'PAID', paymentStatus: 'paid', paymentMethod: 'pix' });
+  await assert.rejects(ctx.matching.releasePrepaymentHold({ rideId: ride.id, at: now.toISOString() }),
+    { code: 'RIDE_NOT_READY' });
+  assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, ride.id);
+  assert.equal((await ctx.rides.findById(ride.id))?.state, 'PAID');
+});
+
 test('recusa e prazo de aceite liberam o motorista e não permitem cobrar', async () => {
   for (const action of ['reject', 'expire']) {
     const ctx = await setup(); const ride = await ctx.prepare();
