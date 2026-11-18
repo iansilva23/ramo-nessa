@@ -1732,7 +1732,12 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     return PopScope(
       canPop: _leaving,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) unawaited(_leavePayment());
+        if (!didPop) {
+          // Finish the system Back dispatch before adding a new modal route.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_leavePayment());
+          });
+        }
       },
       child: Scaffold(
       appBar: AppBar(
