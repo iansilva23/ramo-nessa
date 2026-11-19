@@ -1526,7 +1526,6 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       // completes inside a post-frame callback. This frame's end is too early.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        assert(() { debugPrint('PIX_POP current=${ModalRoute.of(context)?.isCurrent} disposition=${ModalRoute.of(context)?.popDisposition} canPop=${Navigator.of(context).canPop()} phase=${WidgetsBinding.instance.schedulerPhase}'); return true; }());
         if (widget.onRecoveryClose != null) {
           widget.onRecoveryClose!();
         } else {
@@ -1770,7 +1769,6 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     return PopScope(
       canPop: _leaving,
       onPopInvokedWithResult: (didPop, result) {
-        assert(() { debugPrint('PIX_POP event didPop=$didPop leaving=$_leaving expired=$_reservationExpired'); return true; }());
         if (!didPop) {
           // Finish the system Back dispatch before adding a new modal route.
           WidgetsBinding.instance.addPostFrameCallback((_) {

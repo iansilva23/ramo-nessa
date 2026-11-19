@@ -99,14 +99,20 @@ void main() {
     final reservation = Reservation();
     final tracking = Tracking();
     await openPix(tester, reservation, tracking: tracking, expired: true);
+    final paymentRoute = ModalRoute.of(
+      tester.element(find.byType(PixRidePaymentScreen)))!;
     await tester.binding.handlePopRoute();
     await finishBack(tester);
     expect(reservation.releases, 1, reason: 'server checks: ${tracking.calls}');
     expect(find.text('Deseja sair do pagamento?'), findsNothing);
-    expect(find.text('Pagar com Pix'), findsNothing,
-      reason: 'checks=${tracking.calls}; scopes=${tester.widgetList<PopScope>(
-        find.byWidgetPredicate((widget) => widget is PopScope)).map((widget) => widget.canPop).toList()}; '
-        'releaseError=${find.textContaining("Não foi possível liberar").evaluate().length}');
+    expect(paymentRoute.isCurrent, false);
+    // An outgoing route may still paint during the system Back transition.
+    // Verify that categories are interactive and a fresh attempt can start.
+    expect(find.text('Escolher categoria').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('Escolher categoria'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Pagar com Pix'), findsOneWidget);
     expect(reservation.releases, 1);
     await tester.pumpWidget(const SizedBox());
   });
