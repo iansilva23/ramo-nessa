@@ -33,6 +33,7 @@ void main() {
           home: const Scaffold(body: RamoBrandLockup()),
         ),
       );
+      await tester.pumpAndSettle();
       final mark = tester.widget<Image>(find.byType(Image)).image as AssetImage;
       final variant = theme.brightness == Brightness.dark
           ? 'driver'

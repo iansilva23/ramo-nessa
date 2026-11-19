@@ -53,14 +53,14 @@ jobs:
           flutter test test/ramo_brand_test.dart
       - if: matrix.platform == 'android-web'
         run: |
-          flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
-          test -s build/app/outputs/flutter-apk/app-debug.apk
-      - if: matrix.platform == 'android-web'
-        run: |
           flutter build web --release --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
           test -s build/web/main.dart.js
           for icon in web/icons/*.png; do cmp "$icon" "build/$icon"; done
           cmp web/manifest.json build/web/manifest.json
+      - if: matrix.platform == 'android-web'
+        run: |
+          flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+          test -s build/app/outputs/flutter-apk/app-debug.apk
       - if: matrix.platform == 'ios-simulator'
         run: |
           flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
