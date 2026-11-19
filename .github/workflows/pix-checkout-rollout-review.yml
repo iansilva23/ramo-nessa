@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
-      PIX_GUARD_PATH: ${{ runner.temp }}/prepare-guard.py
-      PIX_PACKAGE_PATH: ${{ runner.temp }}/passenger-web.zip
+      PIX_GUARD_PATH: /tmp/pix-rollout-prepare-guard.py
+      PIX_PACKAGE_PATH: /tmp/pix-rollout-passenger-web.zip
     steps:
       - uses: actions/checkout@v4
       - name: Fetch exactly the already reviewed guard and published package
