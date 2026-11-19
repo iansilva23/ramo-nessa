@@ -52,7 +52,7 @@ export interface CancelRideByAdminResult {
 export interface RideMatchingRepository {
   lockDriverScreen?(input: {driverId:string; at:string}): Promise<{outcome:'OFFLINE' | 'ACCEPTED' | 'OFFER_PENDING'; offerId?:string}>;
   lockScreenPendingOffer?(input: { offerId: string; driverId: string; at: string }): Promise<'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'INACTIVE'>;
-  releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string }): Promise<RideRecord>;
+  releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string; cancelledByPassenger?: boolean }): Promise<RideRecord>;
   createOffer(
     input: CreateRideOfferInput,
   ): Promise<RideOfferMutationResult>;

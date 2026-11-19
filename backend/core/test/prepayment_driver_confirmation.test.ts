@@ -12,7 +12,47 @@ import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from '../sr
 import { createPaymentForRide } from '../src/payments/create-payment.js';
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { performDriverRideAction } from '../src/drivers/driver-ride-service.js';
+import { passengerActivityForApp } from '../src/rides/passenger-activity-service.js';
+import { confirmRidePayment } from '../src/rides/confirm-payment.js';
 const now = new Date('2026-10-03T12:00:00Z');
+test('desistência Pix encerra atividades, libera motorista e repetição não solta nova reserva', async () => {
+  const ctx = await setup();
+  const ride = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ ride, matching: ctx.matching, now });
+  const accepted = await ctx.matching.acceptOffer({ offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() });
+  const payment = await createPaymentForRide(ctx.finance, { ride: accepted.ride, method: 'pix',
+    processor: 'test', idempotencyKey: 'explicit-pix-cancellation', now });
+  const cancelled = await ctx.matching.releasePrepaymentHold({ rideId: ride.id,
+    at: now.toISOString(), cancelledByPassenger: true });
+  assert.equal(cancelled.state, 'CANCELLED_BY_PASSENGER');
+  assert.equal(cancelled.driverId, undefined);
+  assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, undefined);
+  assert.equal(await ctx.rides.findRecoverableByPassengerId(ride.passengerId), null);
+  const activity = await passengerActivityForApp({ rides: ctx.rides, finance: ctx.finance,
+    passengerId: ride.passengerId, now });
+  assert.equal(activity.rides.find(r => r.id === ride.id)?.state, 'CANCELLED_BY_PASSENGER');
+  const retry = await ctx.prepare();
+  await ctx.matching.releasePrepaymentHold({ rideId: ride.id, at: now.toISOString(), cancelledByPassenger: true });
+  assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, retry.id);
+  const late = await confirmRidePayment(ctx.rides, { rideId: ride.id,
+    payment: { ...payment, status: 'paid' }, confirmedAt: now, notifyPassenger: false });
+  assert.equal(late.state, 'CANCELLED_BY_PASSENGER');
+  assert.equal(late.paymentStatus, 'paid');
+  assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, retry.id);
+});
+
+test('desistência explícita não cancela pagamento confirmado nem libera seu motorista', async () => {
+  const ctx = await setup();
+  const ride = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ ride, matching: ctx.matching, now });
+  const accepted = await ctx.matching.acceptOffer({ offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() });
+  for (const state of ['PAID', 'AWAITING_PAYMENT'] as const) {
+    await ctx.rides.save({ ...accepted.ride, state, paymentStatus: 'paid', paymentMethod: 'pix' });
+    await assert.rejects(ctx.matching.releasePrepaymentHold({ rideId: ride.id,
+      at: now.toISOString(), cancelledByPassenger: true }), { code: 'RIDE_NOT_READY' });
+    assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, ride.id);
+  }
+});
 async function setup(routedKm = 1) {
   const rides = new InMemoryRideRepository(); const drivers = new InMemoryDriverSupplyRepository();
   const promotions = new InMemoryPromotionRepository();
