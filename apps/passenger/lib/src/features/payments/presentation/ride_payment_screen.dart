@@ -1522,24 +1522,14 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       _pollTimer?.cancel();
       _holdTimer?.cancel();
       setState(() => _leaving = true);
-      // Schedule after the next rebuild, including when a server reply
-      // completes inside a post-frame callback. This frame's end is too early.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (widget.onRecoveryClose != null) {
-          widget.onRecoveryClose!();
-        } else {
-          final navigator = Navigator.of(context);
-          final route = ModalRoute.of(context);
-          if (_reservationExpired && route != null && route.isCurrent) {
-            // Expired checkout returns directly after verification, without
-            // resuming the system Back transition that was blocked earlier.
-            navigator.removeRoute(route);
-          } else {
-            navigator.pop();
-          }
-        }
-      });
+      // PopScope must rebuild before a programmatic pop is allowed.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (widget.onRecoveryClose != null) {
+        widget.onRecoveryClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _releasing = false);

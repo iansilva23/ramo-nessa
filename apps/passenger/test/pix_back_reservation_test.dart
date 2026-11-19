@@ -72,10 +72,10 @@ Future<void> confirmExit(WidgetTester tester) async {
 }
 
 Future<void> finishBack(WidgetTester tester) async {
-  // System Back is deferred, then the server check/release and route pop each
-  // finish in later frames. Allow the pop animation to complete as well.
-  for (var frame = 0; frame < 8; frame++) {
-    await tester.pump(const Duration(milliseconds: 150));
+  // Advance real rendering-sized frames: jumping a long duration in one pump
+  // does not render the intermediate frames needed by deferred navigation.
+  for (var frame = 0; frame < 90; frame++) {
+    await tester.pump(const Duration(milliseconds: 16));
   }
 }
 
