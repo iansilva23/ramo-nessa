@@ -8,13 +8,13 @@ import { PostgresRidePreparationRepository } from '../src/rides/postgres-ride-pr
 import { PostgresRideMatchingRepository } from '../src/matching/postgres-ride-matching-repository.js';
 import { PostgresDriverSupplyRepository } from '../src/drivers/repositories/postgres-driver-supply-repository.js';
 import { PostgresPromotionRepository } from '../src/promotions/repositories/postgres-promotion-repository.js';
-import { prepareRideForPayment } from '../src/rides/prepare-ride.js';
+import { prepareRideForPayment, preparePassengerRideForPayment } from '../src/rides/prepare-ride.js';
 import { createPrepaymentDriverOffer } from '../src/rides/prepayment-driver-confirmation.js';
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { applyPromotionToRide, createPromotionCampaignRecord, savePassengerPromotionPreference } from '../src/promotions/promotion-service.js';
 const databaseUrl = process.env.DATABASE_URL?.trim();
 
-test('PostgreSQL: desistência encerra corrida e pagamento concorrente confirmado impede cancelamento', { skip: !databaseUrl }, async () => {
+for (const passengerFlow of [false, true]) test('PostgreSQL: desistência e proteção de pagamento concorrente passengerFlow=' + passengerFlow, { skip: !databaseUrl }, async () => {
   const pool = createPostgresPool(databaseUrl!);
   const now = new Date();
   const suffix = randomUUID();
@@ -32,12 +32,13 @@ test('PostgreSQL: desistência encerra corrida e pagamento concorrente confirmad
       latitude: -2.8205, longitude: -40.4145,
       locationUpdatedAt: now.toISOString(), updatedAt: now.toISOString() });
     async function prepareAndAccept() {
-      const ride = await prepareRideForPayment({ repository: new PostgresRidePreparationRepository(pool),
+      const ride = await (passengerFlow ? preparePassengerRideForPayment : prepareRideForPayment)({ repository: new PostgresRidePreparationRepository(pool),
         drivers, routing: { routeDistanceKm: async () => 1 }, passengerId, now,
-        requireDriverConsent: true, maxPickupDistanceKm: 5, canUseDriver: async id => id === driverId,
+        ...(passengerFlow ? {} : { requireDriverConsent: true }), maxPickupDistanceKm: 5, canUseDriver: async id => id === driverId,
         quoteRequest: { origin: { zoneId: 'prea' }, destination: { zoneId: 'jijoca' }, category: 'car', period: 'day' },
         pickup: { latitude: -2.82017, longitude: -40.41467 }, dropoff: { latitude: -2.8986, longitude: -40.4506 } });
       ids.push(ride.id);
+      if (passengerFlow) return { ride, offer: null };
       const offer = await createPrepaymentDriverOffer({ ride, matching, now });
       await matching.acceptOffer({ offerId: offer.id, driverId, acceptedAt: now.toISOString() });
       return { ride, offer };
@@ -47,7 +48,8 @@ test('PostgreSQL: desistência encerra corrida e pagamento concorrente confirmad
       at: now.toISOString(), cancelledByPassenger: true });
     assert.equal(cancelled.state, 'CANCELLED_BY_PASSENGER');
     assert.equal((await rides.findById(first.ride.id))?.state, 'CANCELLED_BY_PASSENGER');
-    assert.equal((await matching.findOfferById(first.offer.id))?.status, 'CANCELLED');
+    if (first.offer != null) assert.equal((await matching.findOfferById(first.offer.id))?.status, 'CANCELLED');
+    else assert.equal((await matching.listOffersForRide(first.ride.id)).length, 0);
     assert.equal((await drivers.findByDriverId(driverId))?.reservedRideId, undefined);
     assert.equal(await rides.findRecoverableByPassengerId(passengerId), null);
     const retry = await prepareAndAccept();

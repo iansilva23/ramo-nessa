@@ -1502,15 +1502,14 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     if (_releasing || _navigating || _leaving) return;
     setState(() => _releasing = true);
     try {
-      if (widget.driverReserved) {
-        final service = widget.confirmationService;
-        if (service == null) {
-          throw const PassengerPaymentException(
-            'Não foi possível liberar a reserva. Tente voltar novamente.',
-          );
-        }
-        await service.releaseDriverReservation(widget.rideId);
+      final service = widget.confirmationService;
+      if (service == null) {
+        throw const PassengerPaymentException(
+          'Não foi possível cancelar a tentativa. Tente voltar novamente.',
+        );
       }
+      // Explicit abandonment ends the checkout even without driver consent.
+      await service.releaseDriverReservation(widget.rideId);
       if (!mounted) return;
       _pollTimer?.cancel();
       _holdTimer?.cancel();

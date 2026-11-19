@@ -38,9 +38,9 @@ export class InMemoryRideMatchingRepository
     if (ride != null && ['paid', 'authorized', 'refunded'].includes(ride.paymentStatus)) {
       throw new RideOfferError('RIDE_NOT_READY', 'O pagamento já foi confirmado.');
     }
-    if (input.cancelledByPassenger && ride?.state === 'CANCELLED_BY_PASSENGER' && ride.driverConsentRequired) return ride;
+    if (input.cancelledByPassenger && ride?.state === 'CANCELLED_BY_PASSENGER') return ride;
     if (input.cancelledByDriverId != null && ride?.state === 'CANCELLED_BY_DRIVER') return ride;
-    if (ride?.state !== 'AWAITING_PAYMENT' || !ride.driverConsentRequired) {
+    if (ride?.state !== 'AWAITING_PAYMENT' || (!ride.driverConsentRequired && !input.cancelledByPassenger)) {
       throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pode mais ser cancelada.');
     }
     for (const [id, offer] of this.offers) {
