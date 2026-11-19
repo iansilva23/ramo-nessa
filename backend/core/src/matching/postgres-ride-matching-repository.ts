@@ -204,13 +204,13 @@ export class PostgresRideMatchingRepository
       if (ride != null && ['paid', 'authorized', 'refunded'].includes(ride.payment_status)) {
         throw new RideOfferError('RIDE_NOT_READY', 'O pagamento já foi confirmado.');
       }
-      if (input.cancelledByPassenger && ride?.state === 'CANCELLED_BY_PASSENGER' && ride.driver_consent_required) {
+      if (input.cancelledByPassenger && ride?.state === 'CANCELLED_BY_PASSENGER') {
         await client.query('COMMIT'); return mapRide(ride);
       }
       if (input.cancelledByDriverId != null && ride?.state === 'CANCELLED_BY_DRIVER') {
         await client.query('COMMIT'); return mapRide(ride);
       }
-      if (ride?.state !== 'AWAITING_PAYMENT' || !ride.driver_consent_required) {
+      if (ride?.state !== 'AWAITING_PAYMENT' || (!ride.driver_consent_required && !input.cancelledByPassenger)) {
         throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pode mais ser cancelada.');
       }
       await client.query(`UPDATE driver_supply SET reserved_ride_id = NULL, reserved_until = NULL,

@@ -7,6 +7,7 @@ import '../../payments/data/passenger_payment_service.dart';
 import '../../payments/domain/pix_ride_payment_result.dart';
 import '../../payments/presentation/ride_payment_screen.dart';
 import '../data/passenger_ride_resume_service.dart';
+import '../data/driver_confirmation_service.dart';
 import '../data/passenger_ride_tracking_service.dart';
 import '../data/passenger_ride_realtime_service.dart';
 import '../domain/prepared_ride.dart';
@@ -87,6 +88,9 @@ class ResumedRideScreen extends StatelessWidget {
                   .toInt(),
             ),
             driverReserved: ride['driverConsentRequired'] == true,
+            confirmationService: payments is DriverConfirmationService
+                ? payments as DriverConfirmationService
+                : null,
             result: PixRidePaymentResult.fromJson(pix),
             trackingService: tracking,
             realtimeService: realtime,
