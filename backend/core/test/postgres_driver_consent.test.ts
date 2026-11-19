@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { createPostgresPool } from '../src/db/postgres.js';
@@ -12,6 +13,69 @@ import { createPrepaymentDriverOffer } from '../src/rides/prepayment-driver-conf
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { applyPromotionToRide, createPromotionCampaignRecord, savePassengerPromotionPreference } from '../src/promotions/promotion-service.js';
 const databaseUrl = process.env.DATABASE_URL?.trim();
+
+test('PostgreSQL: desistência encerra corrida e pagamento concorrente confirmado impede cancelamento', { skip: !databaseUrl }, async () => {
+  const pool = createPostgresPool(databaseUrl!);
+  const now = new Date();
+  const suffix = randomUUID();
+  const driverId = `pix-abandon-${suffix}`;
+  const passengerId = `pix-abandon-passenger-${suffix}`;
+  const rides = new PostgresRideRepository(pool);
+  const drivers = new PostgresDriverSupplyRepository(pool);
+  const matching = new PostgresRideMatchingRepository(pool);
+  const ids: string[] = [];
+  let blocker: PoolClient | undefined;
+  let cancelling: Promise<unknown> | undefined;
+  try {
+    await drivers.upsert({ driverId, vehicleId: `vehicle-${suffix}`, categories: ['car'],
+      fourByFour: false, seatCapacity: 4, online: true, busy: false,
+      latitude: -2.8205, longitude: -40.4145,
+      locationUpdatedAt: now.toISOString(), updatedAt: now.toISOString() });
+    async function prepareAndAccept() {
+      const ride = await prepareRideForPayment({ repository: new PostgresRidePreparationRepository(pool),
+        drivers, routing: { routeDistanceKm: async () => 1 }, passengerId, now,
+        requireDriverConsent: true, maxPickupDistanceKm: 5, canUseDriver: async id => id === driverId,
+        quoteRequest: { origin: { zoneId: 'prea' }, destination: { zoneId: 'jijoca' }, category: 'car', period: 'day' },
+        pickup: { latitude: -2.82017, longitude: -40.41467 }, dropoff: { latitude: -2.8986, longitude: -40.4506 } });
+      ids.push(ride.id);
+      const offer = await createPrepaymentDriverOffer({ ride, matching, now });
+      await matching.acceptOffer({ offerId: offer.id, driverId, acceptedAt: now.toISOString() });
+      return { ride, offer };
+    }
+    const first = await prepareAndAccept();
+    const cancelled = await matching.releasePrepaymentHold({ rideId: first.ride.id,
+      at: now.toISOString(), cancelledByPassenger: true });
+    assert.equal(cancelled.state, 'CANCELLED_BY_PASSENGER');
+    assert.equal((await rides.findById(first.ride.id))?.state, 'CANCELLED_BY_PASSENGER');
+    assert.equal((await matching.findOfferById(first.offer.id))?.status, 'CANCELLED');
+    assert.equal((await drivers.findByDriverId(driverId))?.reservedRideId, undefined);
+    assert.equal(await rides.findRecoverableByPassengerId(passengerId), null);
+    const retry = await prepareAndAccept();
+    await matching.releasePrepaymentHold({ rideId: first.ride.id,
+      at: now.toISOString(), cancelledByPassenger: true });
+    assert.equal((await drivers.findByDriverId(driverId))?.reservedRideId, retry.ride.id);
+    blocker = await pool.connect();
+    await blocker.query('BEGIN');
+    await blocker.query("UPDATE rides SET state='PAID', payment_status='paid', payment_method='pix' WHERE id=$1", [retry.ride.id]);
+    // Cancellation must wait for the ride row and re-check the committed payment.
+    cancelling = matching.releasePrepaymentHold({ rideId: retry.ride.id,
+      at: now.toISOString(), cancelledByPassenger: true });
+    const rejected = assert.rejects(cancelling, { code: 'RIDE_NOT_READY' });
+    await blocker.query('COMMIT');
+    blocker.release(); blocker = undefined;
+    await rejected;
+    assert.equal((await rides.findById(retry.ride.id))?.state, 'PAID');
+    assert.equal((await drivers.findByDriverId(driverId))?.reservedRideId, retry.ride.id);
+  } finally {
+    if (blocker) { await blocker.query('ROLLBACK'); blocker.release(); }
+    await cancelling?.catch(() => {});
+    await pool.query('DELETE FROM ride_offers WHERE ride_id = ANY($1::uuid[])', [ids]);
+    await pool.query('UPDATE driver_supply SET reserved_ride_id=NULL,reserved_until=NULL WHERE driver_id=$1', [driverId]);
+    await pool.query('DELETE FROM rides WHERE id = ANY($1::uuid[])', [ids]);
+    await pool.query('DELETE FROM driver_supply WHERE driver_id=$1', [driverId]);
+    await pool.end();
+  }
+});
 
 test('PostgreSQL: aceite reserva motorista e cupom, protege tarifa e só ativa após pagamento', { skip: !databaseUrl }, async () => {
   const pool = createPostgresPool(databaseUrl!); const now = new Date('2026-10-03T12:00:00Z');

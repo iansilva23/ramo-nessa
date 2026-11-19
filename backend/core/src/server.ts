@@ -8082,7 +8082,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authIdentityRepository });
       const ride = await rideRepository.findById(confirmationMatch[1]!);
       if (ride == null || ride.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
-      const released = await rideMatchingRepository.releasePrepaymentHold({ rideId: ride.id, at: new Date().toISOString() });
+      const released = await rideMatchingRepository.releasePrepaymentHold({ rideId: ride.id, at: new Date().toISOString(), cancelledByPassenger: true });
       await releaseRidePromotionReservation({ promotions: promotionRepository, ride });
       if (ride.reservedDriverId != null) realtimeHub.publishDriver(ride.reservedDriverId,
         { type: 'driver.ride.updated', ride: null, serverTime: new Date().toISOString() });

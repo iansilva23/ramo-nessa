@@ -193,13 +193,19 @@ export class PostgresRideMatchingRepository
     implements RideMatchingRepository {
   constructor(private readonly pool: Pool) {}
 
-  async releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string }) {
+  async releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string; cancelledByPassenger?: boolean }) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const ride = await lockRide(client, input.rideId);
       if (input.cancelledByDriverId != null && ride?.driver_id !== input.cancelledByDriverId) {
         throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pertence a este motorista.');
+      }
+      if (ride != null && ['paid', 'authorized', 'refunded'].includes(ride.payment_status)) {
+        throw new RideOfferError('RIDE_NOT_READY', 'O pagamento já foi confirmado.');
+      }
+      if (input.cancelledByPassenger && ride?.state === 'CANCELLED_BY_PASSENGER' && ride.driver_consent_required) {
+        await client.query('COMMIT'); return mapRide(ride);
       }
       if (input.cancelledByDriverId != null && ride?.state === 'CANCELLED_BY_DRIVER') {
         await client.query('COMMIT'); return mapRide(ride);
@@ -212,9 +218,9 @@ export class PostgresRideMatchingRepository
       await client.query(`UPDATE ride_offers SET status = 'CANCELLED', updated_at = $2
         WHERE ride_id = $1 AND status IN ('OFFERED', 'ACCEPTED')`, [ride.id, input.at]);
       const updated = await client.query<RideRow>(`UPDATE rides SET driver_id = CASE WHEN $3::text IS NULL THEN NULL ELSE driver_id END,
-        state = CASE WHEN $3::text IS NULL THEN state ELSE 'CANCELLED_BY_DRIVER' END,
+        state = CASE WHEN $3::text IS NOT NULL THEN 'CANCELLED_BY_DRIVER' WHEN $4::boolean THEN 'CANCELLED_BY_PASSENGER' ELSE state END,
         driver_hold_expires_at = $2, updated_at = $2 WHERE id = $1 RETURNING ${RIDE_COLUMNS}`,
-        [ride.id, input.at, input.cancelledByDriverId ?? null]);
+        [ride.id, input.at, input.cancelledByDriverId ?? null, input.cancelledByPassenger ?? false]);
       await client.query('COMMIT');
       return mapRide(updated.rows[0]!);
     } catch (error) { await client.query('ROLLBACK'); throw error; }
