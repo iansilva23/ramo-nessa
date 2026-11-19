@@ -1,0 +1,165 @@
+name: Pending app updates and Driver repairs - site paused
+permissions:
+  contents: read
+jobs:
+  driver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Preserve approved Guide, maps, original sound and deferred site
+      run: 'git diff --exit-code 3f6a9f57b447c1308ec587ad0e053fada4142fc3 HEAD -- apps/passenger backend packages apps/driver/assets
+
+        git diff --exit-code 9e913c89de373945cb99b3b3150feb9c012d2983 HEAD -- apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart
+
+        node --test scripts/web/driver_offer_tone_test.mjs
+
+        git diff --exit-code 68329f8540447b6994ef8d7255fcd69b04d7d3a1 HEAD -- apps/institutional-site apps/admin
+
+        '
+    - name: Analyze and test Driver
+      working-directory: apps/driver
+      run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+    - name: Prepare configured Web
+      run: 'python3 -m pip install --quiet Pillow==11.3.0
+
+        python3 scripts/web/generate_pwa_icons.py
+
+        node scripts/web/prepare_configured_web.mjs --role=driver
+
+        '
+    - name: Preserve Cinema, test camera, and build Web
+      working-directory: apps/driver
+      run: 'flags=(--dart-define=RAMO_WEB_2D_HEADING_ENABLED=true --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b)
+
+        flutter test --platform chrome test/driver_web_heading_config_test.dart test/driver_web_cinematic_camera_test.dart
+        "${flags[@]}"
+
+        flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ --dart-define=RAMO_CORE_BASE_URL=
+        --dart-define=RAMO_PREVIEW_MODE=false "${flags[@]}"
+
+        python3 -c "from pathlib import Path; assert ''de20bf289d6db3ad15fdb14b'' in Path(''build/web/main.dart.js'').read_text();
+        assert Path(''build/web/ramo_offer_tone.js'').is_file()"
+
+        '
+    - name: Verify compiled shell and original audio
+      run: 'node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+
+        cmp apps/driver/assets/audio/nova_corrida.mp3 apps/driver/build/web/assets/assets/audio/nova_corrida.mp3
+
+        '
+    - uses: actions/upload-artifact@v4
+      with:
+        name: driver-offer-navigation-web
+        path: apps/driver/build/web
+        if-no-files-found: error
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - name: Real browser audio regression
+      run: 'npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+
+        node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium
+
+        node --test scripts/web/driver_offer_tone_browser_test.mjs
+
+        '
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: 'false'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports:
+        - 5432:5432
+        options: --health-cmd "pg_isready -U ramonessa" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - run: npm ci --prefix backend/core --no-audit --no-fund
+    - run: npm run typecheck --prefix backend/core && npm run build --prefix backend/core
+    - run: node backend/core/dist/scripts/migrate.js
+    - name: Account and existing financial and authentication regressions
+      working-directory: backend/core
+      run: npm test
+    - name: Validate the public deletion route in Caddy
+      run: docker run --rm -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" -e APP_DOMAIN=app.example.test -e ACME_EMAIL=ci@example.test
+        caddy:2.11.7-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+    - name: Test the external page with a real browser and synthetic API
+      run: 'npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+
+        node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium
+
+        node --test scripts/web/account_deletion_page_test.mjs
+
+        '
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: subosito/flutter-action@v2.23.0
+      with:
+        flutter-version: 3.47.5
+        channel: stable
+        cache: true
+    - name: Analyze and test Passenger and shared privacy controls
+      working-directory: apps/passenger
+      run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+    - name: Prepare configured Passenger Web
+      run: 'python3 -m pip install --quiet Pillow==11.3.0
+
+        python3 scripts/web/generate_pwa_icons.py
+
+        node scripts/web/prepare_configured_web.mjs --role=passenger'
+    - name: Build Passenger Web
+      working-directory: apps/passenger
+      run: flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL=
+        --dart-define=RAMO_PREVIEW_MODE=false
+    - name: Verify compiled Passenger shell
+      run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+    - uses: actions/upload-artifact@v4
+      with:
+        name: pending-passenger-web
+        path: apps/passenger/build/web
+        if-no-files-found: error
+'on':
+  push:
+    branches:
+    - feature/apps-pending-no-site-20261106

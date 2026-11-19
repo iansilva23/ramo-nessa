@@ -1,0 +1,64 @@
+<section id="view-costs" class="view-panel" hidden>
+<div data-company-dashboard></div>
+<details class="panel-card" data-company-cost-details><summary>Despesas, custos fixos e relatório detalhado</summary>
+  <div class="page-heading"><span class="eyebrow eyebrow--dark">GESTÃO DA EMPRESA</span>
+    <h1>Custos e Resultados</h1><p>Saiba quanto a empresa ganha, quanto gasta e o que sobra no período.</p></div>
+  <p class="finance-readonly-note">Controle informativo. Estes registros não movimentam dinheiro. O resultado não é o saldo disponível para saque; inclui apenas despesas cadastradas e os lançamentos indicados abaixo.</p>
+  <form id="cost-period-form" class="cost-form panel-card">
+    <label>De<input id="cost-from" type="date" required></label>
+    <label>Até<input id="cost-to" type="date" required></label>
+    <button class="button button--dark" type="submit">Consultar período</button>
+    <button id="cost-this-month" class="button button--ghost-dark" type="button">Este mês</button>
+  </form>
+  <p id="cost-status" role="status" aria-live="polite"></p>
+  <div id="cost-summary" class="cost-summary"></div>
+  <p class="muted-copy">Confirmado: custos registrados e cupons financiados pela empresa. Estimado: regras por operação e ajustes externos em revisão. As regras usam o horário de Fortaleza. Custos mensais entram na data de vencimento e não são rateados por corrida.</p>
+  <div class="cost-workspace-heading"><div><h2>Controle seus gastos</h2><p>Uma despesa registra um gasto. Uma regra calcula custos recorrentes.</p></div></div>
+  <div class="cost-presets" aria-label="Modelos de custo"><button type="button" id="cost-preset-pix">Taxa Pix <small>Percentual por recebimento</small></button><button type="button" id="cost-preset-card">Taxa de cartão <small>Fixa ou percentual</small></button><button type="button" id="cost-preset-monthly">Custo mensal <small>Servidor, ferramentas e assinaturas</small></button></div>
+  <div class="cost-forms">
+    <details class="panel-card cost-editor"><summary>Registrar despesa <small>Um gasto que você já teve</small></summary><h2 id="cost-expense-title">Cadastrar despesa</h2>
+      <form id="cost-expense-form" class="cost-form">
+        <label>Nome<input id="cost-expense-name" maxlength="100" required placeholder="Ex.: Divulgação no Instagram"></label>
+        <label>Categoria<input id="cost-expense-category" maxlength="60" required list="cost-categories" placeholder="Divulgação"></label>
+        <label>Valor (R$)<input id="cost-expense-amount" inputmode="decimal" required placeholder="0,00"></label>
+        <label>Data<input id="cost-expense-date" type="date" required></label>
+        <label>Confirmação<select id="cost-expense-certainty"><option value="confirmed">Confirmado</option><option value="estimated">Estimado</option></select></label>
+        <details class="cost-advanced"><summary>Vincular a uma operação (opcional)</summary><div class="cost-form">        <label>Tipo de custo<input id="cost-expense-slot" maxlength="50" pattern="[a-z][a-z0-9_-]*" required value="general"><small>Ex.: servidor, whatsapp, processing_fee. Mesmo tipo e operação substituem a estimativa.</small></label>
+        <label>ID da corrida (opcional)<input id="cost-expense-ride" maxlength="36"></label>
+        <label>ID do pagamento (opcional)<input id="cost-expense-payment" maxlength="36"><small>Obrigatório para confirmar uma taxa individual de pagamento.</small></label>
+        <label>ID da regra mensal (opcional)<input id="cost-expense-rule" maxlength="36"><small>Vincule à regra para substituir a previsão do mês, sem somar duas vezes.</small></label>
+</div></details>
+        <label>Observação<textarea id="cost-expense-notes" maxlength="500"></textarea></label>
+        <label>Comprovante (PDF, PNG ou JPEG até 500 KB)<input id="cost-expense-proof" type="file" accept=".pdf,.png,.jpg,.jpeg"></label>
+        <p id="cost-expense-feedback" class="cost-form-feedback" role="status" aria-live="polite"></p>
+        <button class="button button--dark" type="submit">Salvar despesa</button>
+        <button id="cost-expense-reset" class="button button--ghost-dark" type="button">Limpar formulário</button>
+      </form>
+    </details>
+    <details class="panel-card cost-editor" id="cost-rule-editor"><summary>Criar regra de custo <small>Calcule automaticamente custos fixos ou percentuais</small></summary>
+      <form id="cost-rule-form" class="cost-form">
+        <label>Frequência dos custos fixos<select id="cost-rule-frequency"><option value="monthly">Mensal</option><option value="quarterly">Trimestral</option><option value="yearly">Anual</option></select></label>
+        <label>Nome<input id="cost-rule-name" maxlength="100" required placeholder="Ex.: VPS mensal"></label>
+        <label>Categoria<input id="cost-rule-category" maxlength="60" required list="cost-categories" placeholder="Infraestrutura"></label>
+        <label>Grupo do custo<select id="cost-rule-slot"><option value="general">Outros gastos</option><option value="processing_fee">Taxa do meio de pagamento</option><option value="server">Servidor</option><option value="whatsapp">WhatsApp</option><option value="maps">Mapas</option><option value="marketing">Divulgação</option><option value="tax">Impostos</option></select></label>
+        <label>Aplicação<select id="cost-rule-basis"><option value="monthly">Mensal, no dia da data inicial</option><option value="ride">Por corrida liquidada</option><option value="pix_payment">Por pagamento Pix recebido</option><option value="card_payment">Por pagamento de cartão recebido</option><option value="commission_percent">Percentual sobre a comissão</option></select></label>
+        <label id="cost-rule-calculation-label">Como calcular?<select id="cost-rule-calculation"><option value="fixed">Valor fixo em reais</option><option value="percent">Porcentagem</option><option value="combined">Valor fixo + porcentagem</option></select></label>
+        <p id="cost-rule-example" class="cost-example" aria-live="polite"></p>
+        <label id="cost-rule-amount-label">Valor (R$)<input id="cost-rule-amount" inputmode="decimal" value="0,00" required></label>
+        <label id="cost-rule-rate-label" hidden>Percentual (%)<input id="cost-rule-rate" inputmode="decimal" value="0" required></label>
+        <label>Data inicial / primeiro vencimento<input id="cost-rule-start" type="date" required></label>
+        <label>Data final (opcional)<input id="cost-rule-end" type="date"></label>
+        <label>Custos mensais<select id="cost-rule-certainty"><option value="estimated">Estimados</option><option value="confirmed">Confirmados por contrato</option></select><small>Regras por operação são sempre estimativas até registrar o custo efetivo.</small></label>
+        <label>Observação<textarea id="cost-rule-notes" maxlength="500"></textarea></label>
+        <p id="cost-rule-feedback" class="cost-form-feedback" role="status" aria-live="polite"></p>
+        <button class="button button--dark" type="submit">Salvar regra</button><button id="cost-rule-reset" class="button button--ghost-dark" type="button">Limpar</button>
+      </form>
+    </details>
+  </div>
+  <datalist id="cost-categories"><option value="Pagamentos"></option><option value="Infraestrutura"></option><option value="WhatsApp"></option><option value="Mapas"></option><option value="Divulgação"></option><option value="Impostos"></option><option value="Outros"></option></datalist>
+  <article class="panel-card"><h2>Gastos por categoria</h2><div id="cost-categories-summary"></div></article>
+  <article class="panel-card"><h2>Regras cadastradas</h2><p class="muted-copy">Encerre uma regra para parar os cálculos futuros. Exclua uma regra incorreta para retirar seus cálculos de todos os períodos. Despesas confirmadas continuam registradas.</p><div id="cost-rules" class="cost-list"></div></article>
+  <article class="panel-card"><h2>Despesas cadastradas</h2><div id="cost-expenses" class="cost-list"></div></article>
+  <details class="panel-card cost-disclosure"><summary>Detalhamento do período</summary><p id="cost-lines-count" class="muted-copy"></p><div id="cost-lines" class="cost-list"></div></details>
+  <details class="panel-card cost-disclosure"><summary>Resultado por corrida</summary><p class="muted-copy">Comissão e acréscimos recuperados, menos custos vinculados e registrados neste período. Despesas sem vínculo e mensais entram apenas no resumo geral.</p><div id="cost-rides" class="cost-list"></div></details>
+</details></section>

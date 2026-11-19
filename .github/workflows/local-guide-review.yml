@@ -1,0 +1,100 @@
+name: Local Guide Review
+on:
+  push:
+    branches: [feature/local-guide-20261022]
+    paths-ignore: ['docs/**']
+permissions:
+  contents: read
+concurrency:
+  group: local-guide-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ramo_v5_ci
+          POSTGRES_USER: ramo_ci
+          POSTGRES_PASSWORD: ramo_ci_ephemeral_only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U ramo_ci -d ramo_v5_ci" --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_ATOMIC_PG_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_EPHEMERAL_PG: 'true'
+      DB_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve financial and native projects and approved map sheet
+        run: git diff --exit-code ccd7db77152180a01c649a3da5b04da9ef392e20 -- backend/core/src/payments backend/core/src/finance backend/core/src/pricing backend/core/src/wallet apps/driver apps/passenger/android apps/passenger/ios apps/passenger/lib/src/features/home/presentation/widgets/ride_bottom_sheet.dart apps/admin/src/regions-pricing-admin.js apps/admin/pages/regions-pricing.html
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund && npm run db:migrate && npm run db:migrate && npm run typecheck && npm run build
+      - name: Use Ubuntu archive when Azure mirror is unavailable
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+      - name: Browser dependency for existing PostgreSQL locality regression
+        working-directory: scripts/web/browser-tests
+        run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
+      - working-directory: backend/core
+        run: node --import tsx --test --test-concurrency=1 test/*.test.ts
+  admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove previous captures from this disposable checkout
+        run: rm -f apps/admin/guide-browser-artifacts/*.png apps/admin/guide-browser-artifacts/*.json
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - working-directory: apps/admin
+        run: npm run check && node --check src/guide-admin.js && npm test
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Use Ubuntu archive when Azure mirror is unavailable
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+      - working-directory: scripts/web/browser-tests
+        run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium webkit
+      - name: Real controller and API, mobile and desktop scenarios
+        run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/local-guide-flow.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-guide-admin-evidence
+          path: apps/admin/guide-browser-artifacts/
+  passenger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Remove previous captures from this disposable checkout
+        run: rm -f apps/passenger/guide-test-artifacts/*.png
+      - name: Format shared Dart changes for review
+        run: |
+          dart format apps/passenger/lib/src/features/guide apps/passenger/lib/src/features/home/presentation/passenger_main_shell.dart apps/passenger/test/local_guide_test.dart apps/passenger/test/local_guide_map_test.dart apps/passenger/test/local_guide_visual_review.dart
+          git diff -- apps/passenger > /tmp/guide-format.patch
+      - working-directory: apps/passenger
+        run: flutter pub get --enforce-lockfile && flutter analyze --no-fatal-infos && flutter test
+      - working-directory: apps/passenger
+        run: flutter test --update-goldens test/local_guide_visual_review.dart
+      - working-directory: apps/passenger
+        run: flutter build web --release --base-href /passageiro/ --dart-define=RAMO_PREVIEW_MODE=true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-guide-passenger-evidence
+          path: |
+            /tmp/guide-format.patch
+            apps/passenger/guide-test-artifacts/

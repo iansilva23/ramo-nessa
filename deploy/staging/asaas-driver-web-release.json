@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "21ae1f3101440336559647d11799fe4cb02978ef",
+  "archiveSha256": "ab596459229c1ca2b7da126d74c6f30b4028fe76ea1b178c157743c31e3bec52",
+  "archiveBytes": 18192502,
+  "workflowRun": 39280173246,
+  "artifactId": 12199498878,
+  "artifactUrl": "https://github.com/iansilva23/ramo-nessa/actions/runs/39280173246/artifacts/12199498878",
+  "role": "driver",
+  "browserChromium": true,
+  "browserWebKit": true,
+  "realProviderAcceptance": false
+}
