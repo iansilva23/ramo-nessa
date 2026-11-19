@@ -1459,6 +1459,23 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       }
       // An in-flight poll consumes this request too, using its server response.
       _expiredExitRequested = true;
+      final dialog = DialogRoute<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: Text('Conferindo pagamento'),
+            content: Row(children: [
+              SizedBox.square(dimension: 22, child: CircularProgressIndicator()),
+              SizedBox(width: 16),
+              Expanded(child: Text('Aguarde um instante…')),
+            ]),
+          ),
+        ),
+      );
+      _exitDialog = dialog;
+      unawaited(Navigator.of(context).push<bool>(dialog));
       await _checkStatus();
       return;
     }
@@ -1521,6 +1538,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       if (!mounted) return;
       _pollTimer?.cancel();
       _holdTimer?.cancel();
+      _dismissExitDialog();
       setState(() => _leaving = true);
       // PopScope must rebuild before a programmatic pop is allowed.
       await WidgetsBinding.instance.endOfFrame;
@@ -1532,6 +1550,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       }
     } catch (_) {
       if (!mounted) return;
+      _dismissExitDialog();
       setState(() => _releasing = false);
       // A payment may have won the server-side lock while Back was pressed.
       // In that case keep the paid ride and open its tracking screen.
@@ -1674,6 +1693,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       };
 
       if (!confirmedStates.contains(snapshot.state)) {
+        if (exitAfterCheck) _dismissExitDialog();
         if (mounted) {
           setState(() {
             _statusMessage = _reservationExpired
@@ -1729,6 +1749,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       if (!mounted) return;
       if (_expiredExitRequested) {
         _expiredExitRequested = false;
+        _dismissExitDialog();
         setState(() => _statusMessage =
             'Não foi possível conferir o pagamento. Tente voltar novamente.');
         return;
@@ -1743,6 +1764,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       if (!mounted) return;
       if (_expiredExitRequested) {
         _expiredExitRequested = false;
+        _dismissExitDialog();
         setState(() => _statusMessage =
             'Não foi possível conferir o pagamento. Tente voltar novamente.');
         return;
