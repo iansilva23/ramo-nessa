@@ -1,0 +1,20 @@
+name: Read-only routing diagnostic checks
+on:
+  push:
+    branches: [ops/routing-diagnosis-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci && npm run build
+        working-directory: backend/core
+      - name: Check redaction, bounded calls and existing routing provider without external requests
+        run: python3 -m unittest discover -s deploy/routing-diagnosis -p test_inspect.py -v
