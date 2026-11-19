@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: pix-premium-packages-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 env:
   RAMO_PRODUCTION_SIGNING: 'false'
   RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
@@ -154,7 +154,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create pix-premium-20261119 --target "$GITHUB_SHA" --prerelease --title 'Passageiro: aviso Pix premium' --notes 'Aviso Pix premium com a mesma logica de pagamento e reserva. Testes e capturas no workflow desta release. Pacote candidato do Passageiro; nao altera a VPS automaticamente. Android com assinatura de homologacao sera anexado ao terminar.' package/RamoNessa-Passageiro-Pix-Premium-Web-20261119.zip package/SHA256SUMS package/BUILD-INFO.json
+          gh release create "pix-premium-20261119-${GITHUB_SHA:0:12}" --target "$GITHUB_SHA" --prerelease --title 'Passageiro: aviso Pix premium' --notes 'Aviso Pix premium com a mesma logica de pagamento e reserva. Testes e capturas no workflow desta release. Pacote candidato do Passageiro; nao altera a VPS automaticamente. Android com assinatura de homologacao sera anexado ao terminar.' package/RamoNessa-Passageiro-Pix-Premium-Web-20261119.zip package/SHA256SUMS package/BUILD-INFO.json
   release-android:
     needs: [android, release-web]
     runs-on: ubuntu-24.04
@@ -171,4 +171,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           cp package/SHA256SUMS package/ANDROID-SHA256SUMS
-          gh release upload pix-premium-20261119 package/RamoNessa-Passageiro-Pix-Premium-Android-20261119.apk package/ANDROID-SHA256SUMS
+          gh release upload "pix-premium-20261119-${GITHUB_SHA:0:12}" package/RamoNessa-Passageiro-Pix-Premium-Android-20261119.apk package/ANDROID-SHA256SUMS
