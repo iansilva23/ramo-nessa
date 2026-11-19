@@ -30,7 +30,8 @@ class PixExitDialog extends StatelessWidget {
       foregroundColor: const Color(0xFF171A1B),
       minimumSize: const Size.fromHeight(54),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+        fontSize: 15, fontWeight: FontWeight.w700),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
     );
 
@@ -118,7 +119,8 @@ class PixExitDialog extends StatelessWidget {
                         side: BorderSide(color: border),
                         minimumSize: const Size.fromHeight(52),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
-                        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontSize: 15, fontWeight: FontWeight.w600),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       ),
                     ),
