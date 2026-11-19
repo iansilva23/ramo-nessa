@@ -1,0 +1,165 @@
+<section id="view-privacy" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">LGPD</span>
+      <h1>Privacidade e direitos do titular</h1>
+      <p>Publique os documentos legais vigentes e acompanhe solicitações LGPD de passageiros e motoristas.</p>
+    </div>
+    <button id="refresh-privacy-button" class="button button--ghost-dark" type="button">
+      Atualizar
+    </button>
+  </div>
+
+  <div class="content-grid content-grid--two">
+    <article class="panel-card">
+      <div class="panel-card__header">
+        <div>
+          <span class="eyebrow eyebrow--dark">DOCUMENTOS</span>
+          <h2>Política de Privacidade</h2>
+          <p id="privacy-policy-current" class="muted-copy">Nenhuma versão publicada.</p>
+        </div>
+      </div>
+
+      <form id="privacy-policy-form" class="stack-form">
+        <label class="field">
+          <span>Título</span>
+          <input id="privacy-policy-title" type="text" minlength="3" maxlength="120" required>
+        </label>
+        <label class="field">
+          <span>Conteúdo</span>
+          <textarea
+            id="privacy-policy-content"
+            rows="12"
+            minlength="50"
+            maxlength="30000"
+            required
+            placeholder="Cole aqui o texto jurídico revisado da Política de Privacidade."
+          ></textarea>
+        </label>
+        <label class="field">
+          <span>Vigência</span>
+          <input id="privacy-policy-effective-at" type="datetime-local">
+        </label>
+        <button id="privacy-policy-submit" class="button button--primary" type="submit">
+          Publicar nova versão
+        </button>
+      </form>
+    </article>
+
+    <article class="panel-card">
+      <div class="panel-card__header">
+        <div>
+          <span class="eyebrow eyebrow--dark">DOCUMENTOS</span>
+          <h2>Termos de Uso</h2>
+          <p id="terms-of-use-current" class="muted-copy">Nenhuma versão publicada.</p>
+        </div>
+      </div>
+
+      <form id="terms-of-use-form" class="stack-form">
+        <label class="field">
+          <span>Título</span>
+          <input id="terms-of-use-title" type="text" minlength="3" maxlength="120" required>
+        </label>
+        <label class="field">
+          <span>Conteúdo</span>
+          <textarea
+            id="terms-of-use-content"
+            rows="12"
+            minlength="50"
+            maxlength="30000"
+            required
+            placeholder="Cole aqui o texto jurídico revisado dos Termos de Uso."
+          ></textarea>
+        </label>
+        <label class="field">
+          <span>Vigência</span>
+          <input id="terms-of-use-effective-at" type="datetime-local">
+        </label>
+        <button id="terms-of-use-submit" class="button button--primary" type="submit">
+          Publicar nova versão
+        </button>
+      </form>
+    </article>
+  </div>
+
+  <article class="panel-card">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">DIREITOS DO TITULAR</span>
+        <h2>Solicitações LGPD</h2>
+      </div>
+      <span id="privacy-summary" class="pill">0 solicitações</span>
+    </div>
+
+    <form id="privacy-filter-form" class="directory-toolbar">
+      <label class="field directory-status">
+        <span>Status</span>
+        <select id="privacy-status-filter">
+          <option value="">Todos</option>
+          <option value="open">Abertos</option>
+          <option value="in_progress">Em atendimento</option>
+          <option value="completed">Concluídos</option>
+          <option value="rejected">Rejeitados</option>
+        </select>
+      </label>
+      <button class="button button--dark" type="submit">Filtrar</button>
+    </form>
+
+    <div id="privacy-request-list" class="support-list"></div>
+    <div id="privacy-empty" class="empty-state">
+      Nenhuma solicitação LGPD foi encontrada.
+    </div>
+    <div class="directory-footer">
+      <span id="privacy-loaded-count">0 carregadas</span>
+      <button
+        id="privacy-load-more"
+        class="button button--ghost-dark"
+        type="button"
+        hidden
+      >
+        Carregar mais
+      </button>
+    </div>
+  </article>
+
+  <article id="privacy-response-card" class="panel-card" hidden>
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">ATENDIMENTO</span>
+        <h2 id="privacy-response-title">Responder solicitação</h2>
+        <p id="privacy-response-meta" class="muted-copy"></p>
+      </div>
+      <span id="privacy-response-status" class="pill pill--neutral">Aberto</span>
+    </div>
+
+    <div class="support-message-box">
+      <strong>Observação do titular</strong>
+      <p id="privacy-request-note">Sem observação adicional.</p>
+    </div>
+
+    <form id="privacy-response-form" class="stack-form">
+      <input id="privacy-request-id" type="hidden">
+      <label class="field">
+        <span>Status</span>
+        <select id="privacy-request-status" required>
+          <option value="in_progress">Em atendimento</option>
+          <option value="completed">Concluído</option>
+          <option value="rejected">Rejeitado</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Resposta ao titular</span>
+        <textarea
+          id="privacy-request-response"
+          rows="6"
+          minlength="3"
+          maxlength="4000"
+          placeholder="Obrigatória para concluir ou rejeitar a solicitação."
+        ></textarea>
+      </label>
+      <button id="privacy-response-button" class="button button--primary" type="submit">
+        Salvar atendimento
+      </button>
+    </form>
+  </article>
+</section>

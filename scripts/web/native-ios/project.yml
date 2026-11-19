@@ -1,0 +1,35 @@
+name: PwaColdAudit
+options:
+  deploymentTarget:
+    iOS: '18.0'
+settings:
+  base:
+    CODE_SIGNING_ALLOWED: NO
+    SWIFT_VERSION: '5.0'
+    GENERATE_INFOPLIST_FILE: YES
+targets:
+  AuditHost:
+    type: application
+    platform: iOS
+    sources: [Host]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.ramonessa.fixture.host
+  ColdAudit:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: AuditHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.ramonessa.fixture.coldaudit
+        TEST_TARGET_NAME: AuditHost
+schemes:
+  Audit:
+    build:
+      targets:
+        AuditHost: all
+        ColdAudit: [test]
+    test:
+      targets: [ColdAudit]
