@@ -1,0 +1,113 @@
+name: Native Compatibility - Web and Permissions
+
+on:
+  push:
+    branches: [feature/flutter-web-permissions-20261013, feature/access-ux-20261104, feature/ride-access-integration-20261104, feature/settings-ux-20261105, feature/support-notifications-ux-20261105, feature/privacy-security-ux-20261105, feature/documents-benefits-ux-20261105, feature/profile-history-chat-ux-20261105, feature/checkout-tours-ux-20261105]
+    paths:
+      - '.github/workflows/flutter-native-web-regression.yml'
+      - 'apps/passenger/**'
+      - 'apps/driver/**'
+      - 'packages/design_system/**'
+      - 'packages/ramo_push/**'
+      - 'packages/ramo_realtime/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-web-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-compile:
+    name: Compile ${{ matrix.app }} - ${{ matrix.platform }} (no deploy)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            platform: android
+            runner: ubuntu-24.04
+          - app: driver
+            platform: android
+            runner: ubuntu-24.04
+          - app: passenger
+            platform: ios-simulator
+            runner: macos-15
+          - app: driver
+            platform: ios-simulator
+            runner: macos-15
+    # Compile-only: no real Core/Maps/Firebase/Mercado Pago credentials.
+    # Do not install these debug/simulator outputs or publish them to stores.
+    env:
+      RAMO_PREVIEW_SIGNING: 'false'
+      RAMO_PRODUCTION_SIGNING: 'false'
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ''
+      RAMO_MERCADO_PAGO_PUBLIC_KEY: ''
+      SWIFT_VERSION: '5.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java for Android compilation
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve the committed dependency lock (no upgrades)
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and run app regression tests on native host
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+      - name: Test shared notification and permission flows
+        if: (github.ref_name == 'feature/support-notifications-ux-20261105' || (github.ref_name == 'feature/privacy-security-ux-20261105' || (github.ref_name == 'feature/documents-benefits-ux-20261105' || (github.ref_name == 'feature/profile-history-chat-ux-20261105' || github.ref_name == 'feature/checkout-tours-ux-20261105')))) && matrix.app == 'driver' && matrix.platform == 'android'
+        working-directory: packages/design_system
+        run: |
+          flutter pub get
+          flutter test test/ramo_theme_test.dart test/ramo_notification_settings_test.dart test/ramo_permission_onboarding_test.dart
+      - name: Compile Android debug without release signing or providers
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build apk --debug --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify Android compilation output (not an installer deliverable)
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
+      - name: Compile iOS simulator without codesigning or providers
+        if: matrix.platform == 'ios-simulator'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build ios --simulator --debug --no-pub --no-codesign
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify simulator compilation output (not an IPA)
+        if: matrix.platform == 'ios-simulator'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Compile Web with shared access changes
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104' || github.ref_name == 'feature/settings-ux-20261105' || (github.ref_name == 'feature/support-notifications-ux-20261105' || (github.ref_name == 'feature/privacy-security-ux-20261105' || (github.ref_name == 'feature/documents-benefits-ux-20261105' || (github.ref_name == 'feature/profile-history-chat-ux-20261105' || github.ref_name == 'feature/checkout-tours-ux-20261105'))))) && matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: flutter build web --release --no-pub
+      - name: Upload login and registration screenshots
+        if: (github.ref_name == 'feature/access-ux-20261104' || github.ref_name == 'feature/ride-access-integration-20261104' || github.ref_name == 'feature/settings-ux-20261105' || (github.ref_name == 'feature/support-notifications-ux-20261105' || (github.ref_name == 'feature/privacy-security-ux-20261105' || (github.ref_name == 'feature/documents-benefits-ux-20261105' || (github.ref_name == 'feature/profile-history-chat-ux-20261105' || github.ref_name == 'feature/checkout-tours-ux-20261105'))))) && matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: access-shots-${{ matrix.app }}
+          path: release/access-shots/${{ matrix.app }}-*.png
+          if-no-files-found: error
+      - name: Check that review did not change source or dependency lock
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
+

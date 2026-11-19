@@ -1,0 +1,34 @@
+name: Driver strict style review
+on:
+  push:
+    branches: [feature/android-lock-offer-safety-20261031]
+    paths: ['.github/workflows/android-lock-style-review.yml']
+permissions:
+  contents: read
+jobs:
+  prepare-fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - run: dart format lib/src/features/home/presentation/driver_home_screen.dart lib/src/features/home/presentation/widgets/driver_live_map.dart
+        working-directory: apps/driver
+      - run: dart fix --apply --code=curly_braces_in_flow_control_structures
+        working-directory: apps/driver
+      - run: flutter analyze
+        working-directory: apps/driver
+      - name: Export reviewed source
+        if: always()
+        shell: python
+        run: |
+          import base64
+          from pathlib import Path
+          for name in ["apps/driver/lib/src/features/home/presentation/driver_home_screen.dart","apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart"]:
+              print("SOURCE_BEGIN " + name)
+              encoded=base64.b64encode(Path(name).read_bytes()).decode()
+              for pos in range(0,len(encoded),3000):
+                  print("SOURCE_DATA " + encoded[pos:pos+3000])
+              print("SOURCE_END " + name)

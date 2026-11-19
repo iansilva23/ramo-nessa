@@ -1,0 +1,172 @@
+name: Driver route economy - disabled by default, no deploy
+on:
+  push:
+    branches: [feature/driver-route-budget-20261026]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: driver-route-budget-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: ramo, POSTGRES_PASSWORD: ramo, POSTGRES_DB: ramo}
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramo:ramo@127.0.0.1:5432/ramo
+      DB_SSL: 'false'
+      RAMO_BOARDING_POSTGRES: 'true'
+      RAMO_NAVIGATION_POSTGRES: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run typecheck && npm run db:migrate && npm run db:migrate && node --import tsx --test --test-concurrency=1 test/**/*.test.ts test/driver_navigation_control.test.ts && npm run build
+        working-directory: backend/core
+      - run: node --test scripts/web/push_worker_test.mjs
+      - run: npm test --prefix apps/admin
+      - run: node --test deploy/staging/inspect-ride-consistency.test.mjs
+  apps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: {app: [passenger, driver]}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - run: flutter pub get --enforce-lockfile && flutter analyze && flutter test && flutter build web --no-pub
+        working-directory: apps/${{ matrix.app }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+      - run: npx --no-install playwright install --with-deps chromium webkit
+        working-directory: scripts/web/browser-tests
+      - name: Reopen Activities, recover the same payment and link help to the selected ride
+        env:
+          RAMO_WEB_TEST_ROLE: ${{ matrix.app }}
+        run: |
+          for engine in chromium webkit; do
+            RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/activities_web_browser_test.mjs
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: activities-${{ matrix.app }}
+          path: artifacts/ride-activities/
+          if-no-files-found: ignore
+  admin-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: {engine: [chromium, webkit]}
+    env:
+      RAMO_BROWSER_ENGINE: ${{ matrix.engine }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+      - run: npx --no-install playwright install --with-deps ${{ matrix.engine }}
+        working-directory: scripts/web/browser-tests
+      - run: node --test scripts/web/navigation_admin_browser_test.mjs scripts/web/boarding_admin_browser_test.mjs scripts/web/occurrences_admin_browser_test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boarding-admin-${{ matrix.engine }}
+          path: |
+            artifacts/ride-recovery/
+            artifacts/navigation-economy/
+          if-no-files-found: ignore
+
+  shared-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - run: flutter pub get && flutter analyze && flutter test
+        working-directory: packages/design_system
+
+  native-compile:
+    name: Compile ${{ matrix.app }} - ${{ matrix.platform }} (no deploy)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            platform: android
+            runner: ubuntu-24.04
+          - app: driver
+            platform: android
+            runner: ubuntu-24.04
+          - app: passenger
+            platform: ios-simulator
+            runner: macos-15
+          - app: driver
+            platform: ios-simulator
+            runner: macos-15
+    # Compile-only: no real Core/Maps/Firebase/Mercado Pago credentials.
+    # Do not install these debug/simulator outputs or publish them to stores.
+    env:
+      RAMO_PREVIEW_SIGNING: 'false'
+      RAMO_PRODUCTION_SIGNING: 'false'
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ''
+      RAMO_MERCADO_PAGO_PUBLIC_KEY: ''
+      SWIFT_VERSION: '5.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java for Android compilation
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve the committed dependency lock (no upgrades)
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and run app regression tests on native host
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+      - name: Compile Android debug without release signing or providers
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build apk --debug --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify Android compilation output (not an installer deliverable)
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
+      - name: Compile iOS simulator without codesigning or providers
+        if: matrix.platform == 'ios-simulator'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build ios --simulator --debug --no-pub --no-codesign
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify simulator compilation output (not an IPA)
+        if: matrix.platform == 'ios-simulator'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Check that review did not change source or dependency lock
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/

@@ -2,6 +2,9 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("https://artifacts.mercadolibre.com/repository/android-releases")
+        }
     }
 }
 
