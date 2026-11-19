@@ -2,10 +2,6 @@ name: Passenger Pix Web rollout checks
 on:
   push:
     branches: [ops/pix-checkout-rollout-20261119]
-    paths:
-      - deploy/pix-checkout/rollout-web.py
-      - deploy/pix-checkout/test_rollout_web.py
-      - .github/workflows/pix-checkout-rollout-review.yml
   workflow_dispatch:
 permissions:
   contents: read
