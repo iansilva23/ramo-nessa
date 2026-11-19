@@ -1,0 +1,32 @@
+name: Regions Admin - Safe Help Update
+on:
+  push:
+    branches: [feature/admin-regions-pricing-simple-20261020]
+    paths: [deploy/staging/update-regions-admin*, deploy/staging/admin-update-ci.mjs, .github/workflows/regions-admin-update-review.yml]
+permissions:
+  contents: read
+jobs:
+  admin-update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [success, rollback]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: ADM update contracts
+        run: node --test deploy/staging/update-regions-admin.test.mjs
+      - name: Actual Core, Caddy and PostgreSQL; success/idempotence or safe return
+        run: sudo env GITHUB_ACTIONS=true RAMO_ADMIN_CI_ORIGIN=http://127.0.0.1:18080 ADMIN_UPDATE_SCENARIO=${{ matrix.scenario }} "$(command -v node)" deploy/staging/admin-update-ci.mjs
+      - name: Synthetic diagnostics only
+        if: failure()
+        run: |
+          sudo find /opt/ramo-nessa-regions/admin-updates -type f \( -name last-command.private.log -o -name error.private.log \) -exec tail -c 8000 {} \; || true
+          docker logs --tail 30 ramo-nessa-staging-core-1 || true
+          docker logs --tail 30 ramo-nessa-staging-gateway-1 || true

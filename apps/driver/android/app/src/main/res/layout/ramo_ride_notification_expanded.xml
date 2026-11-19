@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ride_card" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="12dp" android:background="@drawable/ramo_ride_card_background">
+    <TextView android:id="@+id/ride_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#101114" android:textSize="18sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+    <TextView android:id="@+id/ride_destination" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:textColor="#353942" android:textSize="14sp" android:maxLines="2" android:ellipsize="end"/>
+    <TextView android:id="@+id/ride_eta" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textColor="#353942" android:textSize="13sp" android:maxLines="1" android:ellipsize="end"/>
+    <TextView android:id="@+id/ride_identity" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textColor="#353942" android:textSize="12sp" android:maxLines="1" android:ellipsize="end"/>
+    <LinearLayout android:id="@+id/ride_journey" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="5dp">
+        <ImageView android:id="@+id/ride_progress" android:layout_width="match_parent" android:layout_height="34dp" android:scaleType="fitXY"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Seu local" android:textColor="#101114" android:textSize="11sp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Destino" android:textColor="#101114" android:textSize="11sp"/>
+        </LinearLayout>
+    </LinearLayout>
+    <TextView android:id="@+id/ride_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:gravity="center" android:textColor="#101114" android:textSize="12sp" android:maxLines="1" android:ellipsize="end"/>
+</LinearLayout>

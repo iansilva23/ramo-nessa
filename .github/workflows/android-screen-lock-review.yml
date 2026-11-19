@@ -1,0 +1,44 @@
+name: Android screen lock event validation
+on:
+  push:
+    branches: [feature/android-lock-offer-safety-20261031]
+    paths:
+      - 'apps/driver/android/app/src/main/kotlin/**'
+      - 'apps/driver/lib/src/core/availability/**'
+      - 'apps/driver/test/driver_screen_lock_events_test.dart'
+      - 'apps/driver/test/driver_screen_lock_api_test.dart'
+      - 'apps/driver/lib/src/features/home/data/driver_api.dart'
+      - 'apps/driver/lib/src/features/home/presentation/driver_home_screen.dart'
+      - 'apps/driver/lib/src/features/home/data/http_driver_api.dart'
+      - '.github/workflows/android-screen-lock-review.yml'
+concurrency:
+  group: android-screen-lock-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - name: Analyze event bridge
+        run: flutter analyze lib/src/core/availability/driver_screen_lock_events.dart lib/src/features/home/data/http_driver_api.dart lib/src/features/home/presentation/driver_home_screen.dart test/driver_screen_lock_events_test.dart test/driver_screen_lock_api_test.dart
+        working-directory: apps/driver
+      - name: Test event adapter
+        run: flutter test test/driver_screen_lock_events_test.dart test/driver_screen_lock_api_test.dart
+        working-directory: apps/driver
+      - name: Compile Android debug without publishing
+        run: flutter build apk --debug --no-pub
+        working-directory: apps/driver

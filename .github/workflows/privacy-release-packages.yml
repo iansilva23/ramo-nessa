@@ -1,0 +1,60 @@
+name: Package verified privacy update without site or native builds
+on:
+  push:
+    branches: [feature/account-deletion-complete-20261106]
+    paths: ['.github/workflows/privacy-release-packages.yml']
+permissions: {contents: write, actions: read}
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '2925c1a15a208e4404e662eab92aef13960c1f78', fetch-depth: 0}
+      - name: Require verified product checks and preserve compiled Web source
+        run: |
+          gh run view 42273514917 --json conclusion --jq '.conclusion' | grep -x success
+          gh run view 42275069630 --json conclusion --jq '.conclusion' | grep -x success
+          git diff --exit-code 998cc4d29c1309a42a2e88b239a817283e1c693e HEAD -- backend/core
+          git diff --exit-code 8d44ba76c7a49cc7140a187ed16b2cc1ddeb78e5 HEAD -- apps packages
+      - uses: actions/download-artifact@v4
+        with: {name: driver-offer-navigation-web, path: payload/driver, run-id: 42273514917, github-token: '${{ github.token }}'}
+      - uses: actions/download-artifact@v4
+        with: {name: pending-passenger-web, path: payload/passenger, run-id: 42273514917, github-token: '${{ github.token }}'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Build exact baseline and candidate Core
+        run: |
+          mkdir -p /tmp/privacy-baseline
+          git archive 9eb6aa071db458c57c6298cfd656ad2bd2ba3227 backend/core | tar -x -C /tmp/privacy-baseline
+          npm ci --prefix /tmp/privacy-baseline/backend/core --no-audit --no-fund
+          npm run build --prefix /tmp/privacy-baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Package only verified app files and changed Core modules
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,zipfile
+          from pathlib import Path
+          source='2925c1a15a208e4404e662eab92aef13960c1f78'
+          sums=[]
+          def package(role,root,names,extra):
+              files={n:hashlib.sha256((root/n).read_bytes()).hexdigest()for n in names}
+              name='RamoNessa-Privacidade-'+role+'.zip'
+              with zipfile.ZipFile(name,'w',zipfile.ZIP_DEFLATED)as z:
+                  z.writestr('manifest.json',json.dumps({'source':source,'productSource':source,'component':role,'files':files,**extra}))
+                  for n in sorted(files):z.write(root/n,role+'/'+n)
+              sums.append(hashlib.sha256(Path(name).read_bytes()).hexdigest()+'  '+name)
+          for role,route in [('driver','motorista'),('passenger','passageiro')]:
+              root=Path('payload')/role
+              package(role,root,[str(p.relative_to(root))for p in root.rglob('*')if p.is_file()],{'basePath':'/'+route+'/','compiledSource':'8d44ba76c7a49cc7140a187ed16b2cc1ddeb78e5'})
+          changed=['dist/src/server.js',*[f'dist/src/account-deletion/{n}.js'for n in ['self-account-deletion','account-deletion-routes','account-deletion-page']]]
+          new=['dist/src/privacy/legal-document-page.js','migrations/106_account_deletion_requests.sql']
+          base=Path('/tmp/privacy-baseline/backend/core')
+          assert all(not (base/n).exists()for n in new)
+          package('core',Path('backend/core'),changed+new,{'baseline':{n:hashlib.sha256((base/n).read_bytes()).hexdigest()for n in changed},'newFiles':new})
+          Path('SHA256SUMS').write_text('\n'.join(sums)+'\n')
+          PY
+      - name: Publish candidate packages only
+        run: gh release create privacy-final-2925c1a15a20 --target 2925c1a15a208e4404e662eab92aef13960c1f78 --title 'Account deletion candidate - no VPS activation' --notes 'Verified app/Core candidates. No site or final native generation. Legal text publication and operator activation are separate steps.' RamoNessa-Privacidade-driver.zip RamoNessa-Privacidade-passenger.zip RamoNessa-Privacidade-core.zip SHA256SUMS

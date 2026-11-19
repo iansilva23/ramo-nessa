@@ -1,0 +1,9 @@
+name: Company Costs Review
+on:
+  push:
+    branches: [feature/company-costs-20261006]
+permissions:
+  contents: read
+jobs:
+  validate:
+    uses: ./.github/workflows/preflight.yml
