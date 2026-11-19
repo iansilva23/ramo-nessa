@@ -106,8 +106,8 @@ void main() {
     expect(reservation.releases, 1, reason: 'server checks: ${tracking.calls}');
     expect(find.text('Deseja sair do pagamento?'), findsNothing);
     expect(paymentRoute.isCurrent, false);
-    // An outgoing route may still paint during the system Back transition.
-    // Verify that categories are interactive and a fresh attempt can start.
+    expect(find.text('Pagar com Pix'), findsNothing);
+    // Verify both the direct return and that a fresh attempt can start.
     expect(find.text('Escolher categoria').hitTestable(), findsOneWidget);
     await tester.tap(find.text('Escolher categoria'));
     await tester.pump();
