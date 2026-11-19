@@ -1,0 +1,27 @@
+name: Passenger Pix Web rollout checks
+on:
+  push:
+    branches: [ops/pix-checkout-rollout-20261119]
+    paths:
+      - deploy/pix-checkout/rollout-web.py
+      - deploy/pix-checkout/test_rollout_web.py
+      - .github/workflows/pix-checkout-rollout-review.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PIX_GUARD_PATH: ${{ runner.temp }}/prepare-guard.py
+      PIX_PACKAGE_PATH: ${{ runner.temp }}/passenger-web.zip
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exactly the already reviewed guard and published package
+        run: |
+          curl -fLsS --retry 2 --max-time 45 https://raw.githubusercontent.com/iansilva23/ramo-nessa/437d951ff1327fbd45cf305f41e90c686846181c/deploy/second-update/prepare.py -o "$PIX_GUARD_PATH"
+          curl -fLsS --retry 2 --max-time 120 https://github.com/iansilva23/ramo-nessa/releases/download/pix-checkout-20261119/RamoNessa-Passageiro-Pix-Web-20261119.zip -o "$PIX_PACKAGE_PATH"
+          printf '%s  %s\n' aa586db1ce856ab7d86d6cefc4380847024a096750451dd281db9e651da65393 "$PIX_GUARD_PATH" cfd3ce183128180eeb2728acdaec6de2d2a66f94f2ad7ed76c7aa56d2b7b4870 "$PIX_PACKAGE_PATH" | sha256sum -c -
+      - name: Validate preparation, narrow scope, failure recovery and real bundle
+        run: python3 -m unittest discover -s deploy/pix-checkout -p test_rollout_web.py -v
