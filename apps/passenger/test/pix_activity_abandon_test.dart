@@ -84,11 +84,16 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Aguardando pagamento'), findsWidgets);
         await tester.tap(find.text('Ver pagamento'));
-        await tester.pumpAndSettle();
+        // Pix has a continuous waiting indicator: settle route frames, not all animations.
+        for (var frame = 0; frame < 90; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
         expect(requests.where((r) => r.method == 'DELETE'), isEmpty);
         expect(find.text('Copiar código Pix'), findsOneWidget);
         await tester.tap(find.byType(BackButton));
-        await tester.pumpAndSettle();
+        for (var frame = 0; frame < 30; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
         await tester.ensureVisible(find.text('Não paguei · desistir'));
         await tester.tap(find.text('Não paguei · desistir'));
         await tester.pump();
