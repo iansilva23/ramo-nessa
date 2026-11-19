@@ -1,0 +1,290 @@
+name: Guide menu appearance - verified Web Android and iOS
+on:
+  push:
+    branches: [fix/guide-navigation-theme-20261027]
+    paths-ignore: ['docs/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guide-menu-packages-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SWIFT_VERSION: '5.0'
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Preserve deployed backend, driver, native map, GPS and platform configuration
+        run: |
+          git diff --exit-code 28ff82ae8b922108f9208889b2f5bf3cdc215a6a HEAD -- backend apps/driver packages config apps/passenger/android apps/passenger/ios apps/passenger/lib/src/core apps/passenger/lib/src/features/home/presentation/widgets/ramo_live_map.dart
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Analyze and test all Passenger flows on the native host
+        working-directory: apps/passenger
+        run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+      - name: Verify the same managed catalog and HTTP contracts on Web
+        working-directory: apps/passenger
+        run: |
+          export CHROME_EXECUTABLE="$(command -v google-chrome)"
+          flutter test --platform chrome test/guide_navigation_appearance_test.dart test/local_guide_appearance_test.dart test/appearance_test.dart
+  android:
+    needs: review
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            label: Passageiro
+            upper: PASSENGER
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_ANDROID_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="${{ matrix.label }} Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="${{ matrix.label }} Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test Passenger
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.${{ matrix.app }}.preview'\"))throw Error('Unexpected APK application ID')"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-${{ matrix.label }}-Android-Guia-Menu-20261027.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          cd artifacts/android
+          sha256sum RamoNessa-${{ matrix.label }}-Android-Guia-Menu-20261027.apk > SHA256SUMS
+          printf '%s\n' '${{ matrix.label }} Android conectado a https://app.ramonessa.com.br. Fonte ${{ github.sha }} (base consolidada dos apps em 26/10/2026). RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.${{ matrix.app }}.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Corrige menu inferior e fundo do Guia Local para respeitarem Claro, Escuro e Seguir sistema. Preserva o restante do app. Compatível com Core 099 já instalado. Economia de rotas permanece desligada no ADM. Mapa, câmera e GPS nativos preservados. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-android-guia-menu-conectado-20261027
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    needs: review
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            label: Passageiro
+            upper: PASSENGER
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets[format('RAMO_GOOGLE_MAPS_IOS_{0}_API_KEY', matrix.upper)] }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_API_KEY', matrix.upper)] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[format('RAMO_FIREBASE_IOS_{0}_APP_ID', matrix.upper)] }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate iOS Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="${{ matrix.label }} iOS connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="${{ matrix.label }} iOS connected"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Analyze and test native application
+        working-directory: apps/${{ matrix.app }}
+        run: flutter analyze && flutter test
+      - name: Build iPhone device without Apple signing
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package unsigned iPhone app separately
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app
+          mkdir -p artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app artifacts/ios/RamoNessa-${{ matrix.label }}-iPhone-SEM-ASSINATURA-Guia-Menu-20261027.zip
+          printf '%s\n' 'Build para iPhone SEM ASSINATURA APPLE. Nao pode ser instalado diretamente por este ZIP. Exige assinatura e provisionamento Apple pelo Xcode ou processo de distribuicao autorizado. Fonte ${{ github.sha }}; Core https://app.ramonessa.com.br; RAMO_PREVIEW_MODE=false. GPS, login e push exigem aceite no aparelho; APNs exige provisionamento. Corrige menu inferior e fundo do Guia Local para respeitarem Claro, Escuro e Seguir sistema. Preserva o restante do app. Compatível com Core 099 já instalado. Economia de rotas permanece desligada no ADM. Mapa, câmera e GPS nativos preservados. Nenhuma configuração do servidor é alterada.' > artifacts/ios/LEIA-ME.txt
+          cd artifacts/ios
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-iphone-guia-menu-sem-assinatura-20261027
+          path: artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build simulator with the same application configuration
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter build ios --simulator --debug --no-codesign --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Package simulator app
+        run: |
+          test -d apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app
+          mkdir -p artifacts/simulator
+          ditto -c -k --sequesterRsrc --keepParent apps/${{ matrix.app }}/build/ios/iphonesimulator/Runner.app artifacts/simulator/RamoNessa-${{ matrix.label }}-SIMULADOR-Guia-Menu-20261027.zip
+          cd artifacts/simulator
+          shasum -a 256 *.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-${{ matrix.app }}-ios-guia-menu-simulador-20261027
+          path: artifacts/simulator/
+          if-no-files-found: error
+          retention-days: 14
+  web:
+    needs: review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require unchanged reviewed application source
+        run: git diff --exit-code 7984d449122e3402de2d09c80c463da6b98e3f20 HEAD -- apps backend packages config
+      - name: Installer and safe extraction contracts
+        run: |
+          node --check deploy/staging/guide-menu-web-update.mjs
+          node --test deploy/staging/asaas-driver-web-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Build configured Passenger Web only
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=passenger
+          (cd apps/passenger && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false)
+          node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - name: Browser dependencies
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Compiled Web login sessions in both browsers
+        run: |
+          for engine in chromium webkit; do
+            RAMO_WEB_TEST_ROLE=passenger RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+          done
+      - name: Package exact reviewed Web
+        run: |
+          python3 scripts/web/package_guide_menu_web.py
+          sha256sum RamoNessa-Guia-Menu-Web.zip > RamoNessa-Guia-Menu-Web.zip.sha256
+      - name: Real Caddy publication and rollback rehearsal
+        run: |
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-guide-menu-web-update.mjs "$PWD/RamoNessa-Guia-Menu-Web.zip"
+      - name: Package installer
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Guia-Menu-Web.tar.gz
+          sha256sum Instalador-Guia-Menu-Web.tar.gz > Instalador-Guia-Menu-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guide-menu-configured-web-tested
+          path: |
+            RamoNessa-Guia-Menu-Web.zip
+            RamoNessa-Guia-Menu-Web.zip.sha256
+            Instalador-Guia-Menu-Web.tar.gz
+            Instalador-Guia-Menu-Web.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: guide-menu-web-session-evidence, path: artifacts/web-csp/, if-no-files-found: ignore}
+  publish_web:
+    needs: web
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: guide-menu-configured-web-tested, path: release}
+      - name: Publish tested installation assets
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: gh release create guide-menu-web-20261027-r1 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Guia Local — menu acompanha aparência" --notes "Menu inferior e fundo seguem Claro, Escuro e Seguir sistema. Testes de aparência, sessão e instalação com recuperação aprovados. Preserva o Motorista Web ativo. Aplicação na VPS exige execução pelo operador." release/*
+
+  publish_native:
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: ramo-passenger-android-guia-menu-conectado-20261027, path: native/android}
+      - uses: actions/download-artifact@v4
+        with: {name: ramo-passenger-iphone-guia-menu-sem-assinatura-20261027, path: native/iphone}
+      - uses: actions/download-artifact@v4
+        with: {name: ramo-passenger-ios-guia-menu-simulador-20261027, path: native/simulator}
+      - name: Verify and publish native downloads
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          for folder in android iphone simulator; do (cd "native/$folder" && sha256sum -c SHA256SUMS); done
+          mkdir release
+          cp native/android/*.apk native/iphone/*.zip native/simulator/*.zip release/
+          printf '%s\n' 'Passageiro — menu e fundo do Guia Local acompanham a aparência. Android conectado ao servidor real, assinatura de homologacao e pacote br.com.ramonessa.passenger.preview. iPhone SEM ASSINATURA APPLE: exige assinatura e provisionamento para instalar. SIMULADOR somente para simulador. Aceite visual e no aparelho ainda pendente. Fonte ${{ github.sha }}.' > release/LEIA-ME.txt
+          (cd release && sha256sum *.apk *.zip > SHA256SUMS)
+          gh release create guide-menu-native-20261027-r1 release/* --repo "$GH_REPO" --target "$GITHUB_SHA" --prerelease --latest=false --title 'Passageiro — aparência do menu do Guia Local' --notes 'Android com assinatura de homologação e servidor real. iPhone sem assinatura Apple e simulador. Correção visual do menu inferior e do fundo no Guia Local; modos Claro, Escuro e Seguir sistema. Testes e builds verificados. Sem publicação nas lojas ou instalação automática na VPS.'

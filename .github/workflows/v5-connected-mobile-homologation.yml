@@ -1,0 +1,134 @@
+name: V5 connected mobile homologation - no deployment
+on:
+  push:
+    branches: [integration/pricing-v5-finance-safe-20261019]
+    paths: [.github/workflows/v5-connected-mobile-homologation.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v5-connected-mobile-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY) || (secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY) }}
+      RAMO_FIREBASE_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) || (secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) }}
+      RAMO_FIREBASE_APP_ID: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID) || (secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID) }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate configured services; refuse broken mobile package
+        run: |
+          set -euo pipefail
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="V5 ${{ matrix.app }} Android"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="V5 ${{ matrix.app }} Android"
+      - name: Test and build connected APK without store signing
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-fatal-infos
+          flutter test
+          flutter build apk --release --no-pub \
+            --build-number=$((100000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify APK and attach release identity
+        run: |
+          set -euo pipefail
+          apk="apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk"
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          "$signer" verify "$apk"
+          mkdir -p artifacts
+          cp "$apk" "artifacts/RamoNessa-V5-${{ matrix.app }}-Android.apk"
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS
+          printf 'source=%s\nrole=%s\ncore=%s\nmode=homologation-no-store\n' "${{ github.sha }}" "${{ matrix.app }}" "$RAMO_CORE_BASE_URL" > artifacts/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v5-${{ matrix.app }}-android-CONNECTED-HOMOLOGATION
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    env:
+      RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY) || secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) || (secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY) }}
+      RAMO_FIREBASE_APP_ID: ${{ matrix.app == 'passenger' && (secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID) || (secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID) }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Check configured services for iPhone build
+        run: |
+          set -euo pipefail
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_IOS_API_KEY --surface="V5 ${{ matrix.app }} iOS"
+          node tooling/validate-firebase-mobile-config.mjs --platform=ios --surface="V5 ${{ matrix.app }} iOS"
+          printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > "apps/${{ matrix.app }}/ios/Flutter/GoogleMaps.local.xcconfig"
+      - name: Build real iPhone target without Apple signature
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-fatal-infos
+          flutter test
+          flutter build ios --release --no-codesign --no-pub \
+            --build-number=$((100000 + ${{ github.run_number }})) \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Archive unsigned iOS build for separate signing
+        run: |
+          set -euo pipefail
+          test -s "apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app/Runner"
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "apps/${{ matrix.app }}/build/ios/iphoneos/Runner.app" "artifacts/RamoNessa-V5-${{ matrix.app }}-iOS-UNSIGNED.zip"
+          shasum -a 256 artifacts/*.zip > artifacts/SHA256SUMS
+          printf 'source=%s\nrole=%s\ncore=%s\nApple signature=ABSENT; NOT INSTALLABLE\n' "${{ github.sha }}" "${{ matrix.app }}" "$RAMO_CORE_BASE_URL" > artifacts/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v5-${{ matrix.app }}-iphone-UNSIGNED-HOMOLOGATION
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14

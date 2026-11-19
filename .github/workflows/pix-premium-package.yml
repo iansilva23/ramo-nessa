@@ -1,0 +1,174 @@
+name: Premium Pix notice verified packages
+on:
+  push:
+    branches: [style/pix-exit-premium-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pix-premium-packages-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  RAMO_PRODUCTION_SIGNING: 'false'
+  RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="Passageiro Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="Passageiro Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/passenger
+      - name: Analyze and test Android application
+        working-directory: apps/passenger
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/passenger
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.passenger.preview'\"))throw Error('Unexpected APK application ID')"
+          mkdir -p artifacts/android
+          cp "$apk" artifacts/android/RamoNessa-Passageiro-Pix-Premium-Android-20261119.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          cd artifacts/android
+          sha256sum RamoNessa-Passageiro-Pix-Premium-Android-20261119.apk > SHA256SUMS
+          printf '%s\n' 'Passageiro Android conectado a https://app.ramonessa.com.br. Fonte registrada no commit da release pix-premium-20261119. RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.passenger.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-passenger-pix-premium-android-20261119
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Prepare existing public web provider configuration
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=passenger
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/passenger
+      - name: Verify Pix behavior and responsive presentation
+        working-directory: apps/passenger
+        run: |
+          flutter analyze --no-fatal-infos lib/src/features/payments/presentation/pix_exit_dialog.dart lib/src/features/payments/presentation/ride_payment_screen.dart test/pix_exit_visual_test.dart
+          flutter test test/pix_back_reservation_test.dart test/cancelled_payment_recovery_test.dart test/coupon_flow_test.dart test/flow_safety_test.dart test/pix_exit_visual_test.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pix-premium-visual-review
+          path: release/pix-shots/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build configured Passenger Web
+        working-directory: apps/passenger
+        run: flutter build web --release --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - name: Package immutable Passenger bundle
+        run: |
+          mkdir -p artifacts/web
+          python3 - <<'PACKAGE'
+          import hashlib,json,pathlib,zipfile,os
+          root=pathlib.Path('apps/passenger/build/web')
+          out=pathlib.Path('artifacts/web')
+          info={'source':os.environ['GITHUB_SHA'],'testsRun':int(os.environ['GITHUB_RUN_ID']),'role':'passenger','api':'https://app.ramonessa.com.br','mainSha256':hashlib.sha256((root/'main.dart.js').read_bytes()).hexdigest()}
+          (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2)+'\n')
+          with zipfile.ZipFile(out/'RamoNessa-Passageiro-Pix-Premium-Web-20261119.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file():z.write(p,'passenger/'+p.relative_to(root).as_posix())
+              z.write(out/'BUILD-INFO.json','BUILD-INFO.json')
+          PACKAGE
+          (cd artifacts/web && sha256sum RamoNessa-Passageiro-Pix-Premium-Web-20261119.zip > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-passenger-pix-premium-web-20261119
+          path: artifacts/web/
+          retention-days: 14
+          if-no-files-found: error
+  release-web:
+    needs: web
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-passenger-pix-premium-web-20261119
+          path: package
+      - name: Publish verified candidate download without deploying
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "pix-premium-20261119-${GITHUB_SHA:0:12}" --target "$GITHUB_SHA" --prerelease --title 'Passageiro: aviso Pix premium' --notes 'Aviso Pix premium com a mesma logica de pagamento e reserva. Testes e capturas no workflow desta release. Pacote candidato do Passageiro; nao altera a VPS automaticamente. Android com assinatura de homologacao sera anexado ao terminar.' package/RamoNessa-Passageiro-Pix-Premium-Web-20261119.zip package/SHA256SUMS package/BUILD-INFO.json
+  release-android:
+    needs: [android, release-web]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-passenger-pix-premium-android-20261119
+          path: package
+      - name: Add connected APK to the verified candidate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp package/SHA256SUMS package/ANDROID-SHA256SUMS
+          gh release upload "pix-premium-20261119-${GITHUB_SHA:0:12}" package/RamoNessa-Passageiro-Pix-Premium-Android-20261119.apk package/ANDROID-SHA256SUMS

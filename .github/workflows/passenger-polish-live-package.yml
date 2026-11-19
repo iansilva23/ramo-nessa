@@ -1,0 +1,107 @@
+name: Passenger destination and push - verified live Web installer
+on:
+  push:
+    branches: [ops/passenger-polish-live-20261026]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ride-polish-live-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve the application revision with ten successful review jobs
+        run: git diff --exit-code 5f51e1f7b9fd714ded24801afb034de0c292f2fd HEAD -- backend apps packages config/web
+      - name: Validate installer and preserved runtime contracts
+        run: |
+          node --check deploy/staging/polish-web-update.mjs
+          node --check deploy/staging/polish-migrations.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_polish.py
+          node --test scripts/web/push_worker_test.mjs deploy/staging/polish-web.test.mjs deploy/staging/google-search-update.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+      - name: Compile the installed Core baseline and the exact reviewed update
+        run: |
+          mkdir baseline
+          git archive 2e0c61cc273ee276c03a4670bf2fa57573f900be backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run typecheck --prefix backend/core
+          npm run build --prefix backend/core
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Compile configured Passenger and Driver Web with preserved public provider settings
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          for role in passenger driver; do
+            if [ "$role" = passenger ]; then prefix=passageiro; else prefix=motorista; fi
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            (cd "apps/$role" && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href="/$prefix/" --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false)
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Assemble hash-pinned files and strict manifest
+        run: |
+          node scripts/web/package_polish_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib,zipfile
+          with zipfile.ZipFile('RamoNessa-Destino-Notificacoes-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum RamoNessa-Destino-Notificacoes-Web.zip > RamoNessa-Destino-Notificacoes-Web.zip.sha256
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Exercise both configured applications in both browser engines
+        run: |
+          for role in passenger driver; do
+            for engine in chromium webkit; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/activities_web_browser_test.mjs
+            done
+          done
+      - name: Rehearse real backup restore, additive migration, update failures and safe rollback
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-polish-web-update.mjs "$PWD/RamoNessa-Destino-Notificacoes-Web.zip" "$PWD/baseline"
+      - name: Package installer after successful rehearsal
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Destino-Notificacoes-Web.tar.gz
+          sha256sum Instalador-Destino-Notificacoes-Web.tar.gz > Instalador-Destino-Notificacoes-Web.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ride-polish-live-tested
+          path: |
+            RamoNessa-Destino-Notificacoes-Web.zip
+            RamoNessa-Destino-Notificacoes-Web.zip.sha256
+            Instalador-Destino-Notificacoes-Web.tar.gz
+            Instalador-Destino-Notificacoes-Web.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ride-polish-browser-evidence, path: artifacts/ride-activities/, if-no-files-found: ignore}
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: ride-polish-live-tested, path: package}
+      - name: Publish verified package without accessing the VPS
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          cd package
+          sha256sum -c RamoNessa-Destino-Notificacoes-Web.zip.sha256
+          sha256sum -c Instalador-Destino-Notificacoes-Web.tar.gz.sha256
+          gh release create passenger-polish-web-20261026-r1 RamoNessa-Destino-Notificacoes-Web.zip RamoNessa-Destino-Notificacoes-Web.zip.sha256 Instalador-Destino-Notificacoes-Web.tar.gz Instalador-Destino-Notificacoes-Web.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Destino e notificações — instalador Web' --notes 'Atualização coordenada Core/ADM/Passageiro/Motorista Web, migração aditiva 098, backup restaurado em isolamento e retorno sem restaurar pagamentos. GPS Cinema e configurações reais preservados. Embarque, novas ocorrências e bônus permanecem desligados. Não instala automaticamente na VPS e não publica Android/iOS.'

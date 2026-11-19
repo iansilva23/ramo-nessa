@@ -1,0 +1,32 @@
+import { spawnSync } from 'node:child_process';
+import { readFileSync,writeFileSync,mkdirSync,existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+const repo='/opt/ramo-nessa',revision=process.argv[2];
+if(process.getuid?.()!==0)throw new Error('Execute com sudo.');
+if(!/^[a-f0-9]{40}$/.test(revision??''))throw new Error('Informe a revisão exata.');
+const short=revision.slice(0,12),backup='/var/backups/ramo-nessa-site-admin/'+short,release='/opt/ramo-nessa-site/releases/'+short;
+function run(command,args,options={}){const r=spawnSync(command,args,{cwd:repo,encoding:'utf8',maxBuffer:32*1024*1024,stdio:['pipe','pipe','inherit'],...options});if(r.error||r.status!==0)throw new Error('Falha ao executar '+command);return r.stdout;}
+const inspect=name=>JSON.parse(run('docker',['inspect',name]))[0];
+const gateway=inspect('ramo-nessa-staging-gateway-1'),site=inspect('ramo-nessa-site-institutional-site-1');
+if(gateway.State.Health?.Status!=='healthy'||site.State.Health?.Status!=='healthy')throw new Error('Gateway e site precisam estar saudáveis.');
+if(gateway.Config.Image!=='ramo-nessa-admin-gateway:staging'||site.Config.Image!=='ramo-nessa-site:refinado')throw new Error('Imagens diferentes do esperado.');
+const activePath=repo+'/deploy/staging/Caddyfile',active=readFileSync(activePath,'utf8');
+if(active.split('handle_path /administrodo/* {').length!==2||!active.includes('app.ramonessa.com.br')||!active.includes('ramonessa.com.br {')||!active.includes('institutional-site:3000')||active.includes('/site-management/'))throw new Error('Configuração diferente da esperada. Envie o resultado.');
+const marker='  @api path /v1/* /health /ready';if(active.split(marker).length!==2)throw new Error('Rota da API diferente da esperada.');
+if(existsSync(backup)||existsSync(release))throw new Error('Esta preparação já existe. Envie o resultado.');
+const files=['apps/admin/index.html','apps/admin/styles.css','apps/admin/package.json','apps/admin/src/app.js','apps/admin/src/site-admin.js','apps/admin/pages/site.html'];
+for(const file of files){const path=join(repo,file);if(file.endsWith('/site-admin.js')||file.endsWith('/site.html')){if(existsSync(path))throw new Error('Módulo já existe.');}else{const expected=run('sudo',['-u','ubuntu','git','-C',repo,'show','984bacc05523da7fb76ce91d16aee2f8a26528dd:'+file]);if(readFileSync(path,'utf8')!==expected)throw new Error('Arquivo local mudou: '+file);}}
+mkdirSync(backup,{recursive:true,mode:0o700});mkdirSync(release,{recursive:true,mode:0o755});
+const archive=run('sudo',['-u','ubuntu','git','-C',repo,'archive',revision,'apps/admin','apps/institutional-site'],{encoding:null});run('tar',['-x','-C',release],{input:archive});
+const candidate=active.replace(marker,'  handle /site-management/* {\n    reverse_proxy institutional-site:3000\n  }\n  handle /media/* {\n    reverse_proxy institutional-site:3000\n  }\n\n'+marker);
+writeFileSync(backup+'/Caddyfile.before',active,{mode:0o600});writeFileSync(backup+'/Caddyfile.candidate',candidate,{mode:0o600});
+const siteImage='ramo-nessa-site:admin-'+short,gatewayImage='ramo-nessa-admin-gateway:site-admin-'+short;
+console.log('Preparando imagem do site...');run('docker',['build','-t',siteImage,release+'/apps/institutional-site'],{stdio:'inherit'});
+console.log('Preparando imagem do ADM...');run('docker',['build','-t',gatewayImage,release+'/apps/admin'],{stdio:'inherit'});
+const env=Object.fromEntries(gateway.Config.Env.map(item=>{const i=item.indexOf('=');return[item.slice(0,i),item.slice(i+1)];}));
+run('docker',['run','--rm','--network','none','--entrypoint','caddy','--env','APP_DOMAIN='+env.APP_DOMAIN,'--env','ACME_EMAIL='+env.ACME_EMAIL,'--mount','type=bind,src='+backup+'/Caddyfile.candidate,dst=/etc/caddy/Caddyfile,readonly',gatewayImage,'validate','--config','/etc/caddy/Caddyfile','--adapter','caddyfile'],{stdio:'inherit'});
+const checksum=value=>createHash('sha256').update(value).digest('hex');
+const report={revision,release,backup,siteImage,gatewayImage,siteBefore:site.Image,gatewayBefore:gateway.Image,activeSha:checksum(active),candidateSha:checksum(candidate),coreId:inspect('ramo-nessa-staging-core-1').Id,postgresId:inspect('ramo-nessa-staging-postgres-1').Id,files,sourceBefore:Object.fromEntries(files.map(f=>[f,existsSync(join(repo,f))?readFileSync(join(repo,f),'utf8'):null]))};
+writeFileSync(backup+'/prepared.json',JSON.stringify(report,null,2),{mode:0o600});
+console.log('PREPARAÇÃO CONCLUÍDA. Configuração validada. Site e ADM atuais continuam funcionando.');
