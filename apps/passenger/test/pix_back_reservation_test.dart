@@ -67,6 +67,7 @@ Future<void> confirmExit(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 350));
   expect(find.text('Deseja sair do pagamento?'), findsOneWidget);
+  await tester.ensureVisible(find.text('Não paguei · desistir'));
   await tester.tap(find.text('Não paguei · desistir'));
   await tester.pump();
 }
@@ -203,7 +204,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(reservation.releases, 0);
-    await tester.tap(find.text('Continuar no pagamento'));
+    await tester.ensureVisible(find.text('Continuar no pagamento'));
+  await tester.tap(find.text('Continuar no pagamento'));
     await finishBack(tester);
     expect(find.text('Deseja sair do pagamento?'), findsNothing);
     expect(find.text('Pagar com Pix'), findsOneWidget);
@@ -237,12 +239,14 @@ void main() {
     await tester.tap(find.byType(BackButton));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
-    await tester.tap(find.text('Já paguei · verificar'));
+    await tester.ensureVisible(find.text('Já paguei · verificar'));
+  await tester.tap(find.text('Já paguei · verificar'));
     await tester.pump();
     expect(find.text('Deseja sair do pagamento?'), findsOneWidget);
     expect(reservation.releases, 0);
     tracking.state = 'DRIVER_ASSIGNED';
-    await tester.tap(find.text('Já paguei · verificar'));
+    await tester.ensureVisible(find.text('Já paguei · verificar'));
+  await tester.tap(find.text('Já paguei · verificar'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));

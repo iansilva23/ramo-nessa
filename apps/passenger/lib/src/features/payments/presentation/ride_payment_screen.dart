@@ -3,6 +3,7 @@ import '../../home/presentation/widgets/shared_transfer_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'card_checkout_screen.dart';
+import 'pix_exit_dialog.dart';
 import '../data/saved_card_service.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -1464,14 +1465,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
         barrierDismissible: false,
         builder: (_) => const PopScope(
           canPop: false,
-          child: AlertDialog(
-            title: Text('Conferindo pagamento'),
-            content: Row(children: [
-              SizedBox.square(dimension: 22, child: CircularProgressIndicator()),
-              SizedBox(width: 16),
-              Expanded(child: Text('Aguarde um instante…')),
-            ]),
-          ),
+          child: PixExitDialog(checking: true),
         ),
       );
       _exitDialog = dialog;
@@ -1483,28 +1477,10 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     final dialog = DialogRoute<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Deseja sair do pagamento?'),
-        content: const Text(
-          'Se você ainda não pagou, pode desistir e liberar o motorista. '
-          'Se já fez o Pix, aguarde a confirmação. '
-          'A corrida será aberta automaticamente quando o pagamento for confirmado.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Continuar no pagamento'),
-          ),
-          if (widget.trackingService != null)
-            TextButton(
-              onPressed: _checkStatus,
-              child: const Text('Já paguei · verificar'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Não paguei · desistir'),
-          ),
-        ],
+      builder: (dialogContext) => PixExitDialog(
+        onContinue: () => Navigator.of(dialogContext).pop(false),
+        onVerify: widget.trackingService != null ? _checkStatus : null,
+        onLeave: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     _exitDialog = dialog;
