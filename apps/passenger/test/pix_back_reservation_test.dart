@@ -103,6 +103,11 @@ void main() {
       tester.element(find.byType(PixRidePaymentScreen)))!;
     await tester.binding.handlePopRoute();
     await finishBack(tester);
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 16),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     expect(reservation.releases, 1, reason: 'server checks: ${tracking.calls}');
     expect(find.text('Deseja sair do pagamento?'), findsNothing);
     expect(paymentRoute.isCurrent, false);
