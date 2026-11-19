@@ -1,0 +1,38 @@
+name: Pix abandonment Core rollout checks
+on:
+  push:
+    branches: [ops/pix-abandon-rollout-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PIX_GUARD_PATH: /tmp/pix-abandon-prepare-guard.py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test strict scope and automatic return on failure
+        run: |
+          curl -fLsS --retry 2 --max-time 45 https://raw.githubusercontent.com/iansilva23/ramo-nessa/437d951ff1327fbd45cf305f41e90c686846181c/deploy/second-update/prepare.py -o "$PIX_GUARD_PATH"
+          printf '%s  %s\n' aa586db1ce856ab7d86d6cefc4380847024a096750451dd281db9e651da65393 "$PIX_GUARD_PATH" | sha256sum -c -
+          python3 -m unittest discover -s deploy/pix-abandon -p test_rollout.py -v
+      - run: npm ci
+        working-directory: backend/core
+      - name: Verify published modules match the tested TypeScript source
+        working-directory: backend/core
+        run: |
+          npm run build
+          python3 - <<'VERIFY'
+          from pathlib import Path
+          import importlib.util
+          path=Path('../../deploy/pix-abandon/rollout.py')
+          spec=importlib.util.spec_from_file_location('rollout',path)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          for name,digest in m.AFTER.items():
+              assert m.sha((Path('dist/src')/name).read_bytes())==digest,name
+          VERIFY
