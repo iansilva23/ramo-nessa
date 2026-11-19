@@ -627,6 +627,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             holdExpiresAt: _ride.holdExpiresAt,
             amountLabel: PreparedRide.formatCents(_pixTotalAmountCents),
             driverReserved: _ride.driverConsentRequired,
+            confirmationService: _confirmationService,
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -1404,6 +1405,7 @@ class PixRidePaymentScreen extends StatefulWidget {
   const PixRidePaymentScreen({
     super.key,
     this.onRecoveryClose,
+    this.confirmationService,
     required this.rideId,
     required this.holdExpiresAt,
     required this.amountLabel,
@@ -1416,6 +1418,7 @@ class PixRidePaymentScreen extends StatefulWidget {
   });
 
   final String rideId;
+  final DriverConfirmationService? confirmationService;
   final VoidCallback? onRecoveryClose;
   final DateTime holdExpiresAt;
   final String amountLabel;
@@ -1439,7 +1442,127 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   Timer? _copyTimer;
   bool _checking = false;
   bool _navigating = false;
+  bool _releasing = false;
+  bool _leaving = false;
+  bool _expiredExitRequested = false;
+  DialogRoute<bool>? _exitDialog;
   String _statusMessage = 'Aguardando confirmação do Pix…';
+
+  Future<void> _leavePayment() async {
+    if (_exitDialog != null || _releasing || _navigating || _leaving ||
+        _expiredExitRequested) return;
+    if (_reservationExpired) {
+      if (widget.trackingService == null) {
+        setState(() => _statusMessage =
+            'Não foi possível conferir o pagamento. Tente voltar novamente.');
+        return;
+      }
+      // An in-flight poll consumes this request too, using its server response.
+      _expiredExitRequested = true;
+      final dialog = DialogRoute<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: Text('Conferindo pagamento'),
+            content: Row(children: [
+              SizedBox.square(dimension: 22, child: CircularProgressIndicator()),
+              SizedBox(width: 16),
+              Expanded(child: Text('Aguarde um instante…')),
+            ]),
+          ),
+        ),
+      );
+      _exitDialog = dialog;
+      unawaited(Navigator.of(context).push<bool>(dialog));
+      await _checkStatus();
+      return;
+    }
+    final navigator = Navigator.of(context);
+    final dialog = DialogRoute<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Deseja sair do pagamento?'),
+        content: const Text(
+          'Se você ainda não pagou, pode desistir e liberar o motorista. '
+          'Se já fez o Pix, aguarde a confirmação. '
+          'A corrida será aberta automaticamente quando o pagamento for confirmado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Continuar no pagamento'),
+          ),
+          if (widget.trackingService != null)
+            TextButton(
+              onPressed: _checkStatus,
+              child: const Text('Já paguei · verificar'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Não paguei · desistir'),
+          ),
+        ],
+      ),
+    );
+    _exitDialog = dialog;
+    final shouldLeave = await navigator.push<bool>(dialog);
+    if (_exitDialog == dialog) _exitDialog = null;
+    if (!mounted || shouldLeave != true || _navigating) return;
+    await _releaseAndLeave();
+  }
+
+  void _dismissExitDialog() {
+    final dialog = _exitDialog;
+    _exitDialog = null;
+    if (dialog != null && dialog.isActive) {
+      Navigator.of(context).removeRoute(dialog);
+    }
+  }
+
+  Future<void> _releaseAndLeave() async {
+    if (_releasing || _navigating || _leaving) return;
+    setState(() => _releasing = true);
+    try {
+      if (widget.driverReserved) {
+        final service = widget.confirmationService;
+        if (service == null) {
+          throw const PassengerPaymentException(
+            'Não foi possível liberar a reserva. Tente voltar novamente.',
+          );
+        }
+        await service.releaseDriverReservation(widget.rideId);
+      }
+      if (!mounted) return;
+      _pollTimer?.cancel();
+      _holdTimer?.cancel();
+      _dismissExitDialog();
+      setState(() => _leaving = true);
+      // PopScope must rebuild before a programmatic pop is allowed.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (widget.onRecoveryClose != null) {
+        widget.onRecoveryClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _dismissExitDialog();
+      setState(() => _releasing = false);
+      // A payment may have won the server-side lock while Back was pressed.
+      // In that case keep the paid ride and open its tracking screen.
+      await _checkStatus();
+      if (mounted && !_navigating && !_leaving) {
+        setState(() {
+          _statusMessage =
+              'Não foi possível liberar a reserva. Tente voltar novamente.';
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -1495,7 +1618,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   }
 
   Future<void> _copyPix() async {
-    if (_reservationExpired || _navigating) return;
+    if (_reservationExpired || _navigating || _releasing) return;
     final code = widget.result.qrCode.trim();
     if (code.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: code));
@@ -1512,18 +1635,29 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
 
   Future<void> _checkStatus() async {
     final tracking = widget.trackingService;
-    if (tracking == null || _checking || _navigating || !mounted) {
+    if (tracking == null || _checking || _navigating || _releasing || !mounted) {
       return;
     }
 
     _checking = true;
     try {
       final snapshot = await tracking.tracking(widget.rideId);
-      if (!mounted) return;
+      if (!mounted || _releasing || _leaving) return;
+
+      final exitAfterCheck = _expiredExitRequested;
+      _expiredExitRequested = false;
+      if (exitAfterCheck &&
+          (snapshot.state == 'AWAITING_PAYMENT' ||
+           snapshot.state == 'PAYMENT_FAILED')) {
+        // The release endpoint guards a payment confirmed after this read.
+        await _releaseAndLeave();
+        return;
+      }
 
       if (snapshot.state.startsWith('CANCELLED_')) {
         _pollTimer?.cancel();
         _navigating = true;
+        _dismissExitDialog();
         await Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
           builder: (_) => RideTrackingScreen(
             rideId: widget.rideId, remainingWalletCents: null,
@@ -1559,6 +1693,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       };
 
       if (!confirmedStates.contains(snapshot.state)) {
+        if (exitAfterCheck) _dismissExitDialog();
         if (mounted) {
           setState(() {
             _statusMessage = _reservationExpired
@@ -1573,6 +1708,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
 
       _pollTimer?.cancel();
       _navigating = true;
+      _dismissExitDialog();
 
       final dispatchStatus =
           const {
@@ -1611,6 +1747,13 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       );
     } on PassengerRideTrackingException {
       if (!mounted) return;
+      if (_expiredExitRequested) {
+        _expiredExitRequested = false;
+        _dismissExitDialog();
+        setState(() => _statusMessage =
+            'Não foi possível conferir o pagamento. Tente voltar novamente.');
+        return;
+      }
       setState(() {
         _statusMessage = _reservationExpired
             ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
@@ -1619,6 +1762,13 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
       });
     } catch (_) {
       if (!mounted) return;
+      if (_expiredExitRequested) {
+        _expiredExitRequested = false;
+        _dismissExitDialog();
+        setState(() => _statusMessage =
+            'Não foi possível conferir o pagamento. Tente voltar novamente.');
+        return;
+      }
       setState(() {
         _statusMessage = _reservationExpired
             ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
@@ -1636,12 +1786,20 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
     final hasCopyCode = widget.result.qrCode.trim().isNotEmpty;
     final reservationExpired = _reservationExpired;
 
-    return Scaffold(
+    return PopScope(
+      canPop: _leaving,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          // Finish the system Back dispatch before adding a new modal route.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_leavePayment());
+          });
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Pagar com Pix'),
-        leading: widget.onRecoveryClose == null
-            ? null
-            : BackButton(onPressed: widget.onRecoveryClose),
+        leading: BackButton(onPressed: _leavePayment),
       ),
       body: SafeArea(
         child: Center(child: ConstrainedBox(
@@ -1755,6 +1913,7 @@ class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
             ],
           ],
         )))),
+      ),
       ),
     );
   }
