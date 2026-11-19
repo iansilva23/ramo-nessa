@@ -10,6 +10,7 @@
         android:name="${applicationName}"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         tools:replace="android:allowBackup">
         <receiver android:name=".RideActivityPushReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND">
             <intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE" /></intent-filter>

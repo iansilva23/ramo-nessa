@@ -11,7 +11,8 @@
         android:label="Ramo Nessa Motorista"
         android:name="${applicationName}"
         android:allowBackup="false"
-        android:icon="@drawable/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".MainActivity"
             android:exported="true"

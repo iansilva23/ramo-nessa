@@ -1,0 +1,77 @@
+name: Ramo Nessa brand validation
+
+on:
+  push:
+    branches: [feat/ramo-logo-fotos-compressao]
+    paths:
+      - '.github/workflows/ramo-brand-validation.yml'
+      - 'apps/admin/**'
+      - 'apps/driver/**'
+      - 'apps/passenger/**'
+      - 'packages/design_system/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    name: ${{ matrix.app }} / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+        platform: [android-web, ios-simulator]
+    runs-on: ${{ matrix.platform == 'ios-simulator' && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 35
+    env:
+      RAMO_PREVIEW_SIGNING: 'false'
+      RAMO_PRODUCTION_SIGNING: 'false'
+      SWIFT_VERSION: '5.0'
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        if: matrix.platform == 'android-web'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+      - if: matrix.platform == 'android-web' && matrix.app == 'driver'
+        working-directory: packages/design_system
+        run: |
+          flutter pub get
+          flutter test test/ramo_brand_test.dart
+      - if: matrix.platform == 'android-web'
+        run: |
+          flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+      - if: matrix.platform == 'android-web'
+        run: |
+          flutter build web --release --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+          test -s build/web/main.dart.js
+          for icon in web/icons/*.png; do cmp "$icon" "build/$icon"; done
+          cmp web/manifest.json build/web/manifest.json
+      - if: matrix.platform == 'ios-simulator'
+        run: |
+          flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+          test -s build/ios/iphonesimulator/Runner.app/Runner
+
+  admin:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm run check && npm test
+        working-directory: apps/admin

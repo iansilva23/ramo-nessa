@@ -214,7 +214,7 @@ function start(args) {
         const data = payload.data ?? {};
         if (!data.title || !data.body) return;
         void registration.showNotification(String(data.title).slice(0, 120), {
-          body: String(data.body).slice(0, 500), icon: new URL('icons/Icon-192.png', base).href,
+          body: String(data.body).slice(0, 500), icon: new URL('icons/Icon-192.png?v=estrada-1', base).href,
           tag: 'ramo-' + String(data.type ?? 'notice').slice(0, 80),
           data: { ramo: true, type: data.type, rideId: data.rideId },
         }).catch(() => {});
