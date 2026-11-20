@@ -2283,7 +2283,6 @@ function renderDriverDocumentsUnavailable(
 
 async function loadDriverDocuments(driverId) {
   closeDriverDocumentInspection();
-  void discoverDriverPhotoReview();
   if (!state.token) return;
 
   if (!hasScope('drivers:documents:read')) {
@@ -10866,6 +10865,7 @@ function initializeRouteView(view) {
   }
 
   if (view === 'drivers') {
+    void discoverDriverPhotoReview();
     setDriverProvisionControlsVisible();
     renderDriverRegistryUnavailable();
     renderDriverDocumentsUnavailable();

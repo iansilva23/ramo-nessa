@@ -7001,7 +7001,7 @@ const server = createServer(async (request, response) => {
       const result = request.method === 'POST'
         ? await submitDriverRegistration({ ...dependencies, data: await readJson(request) })
         : await driverRegistrationStatus(dependencies);
-      json(response, request.method === 'POST' ? 201 : 200, { ...result, verificationPhotosAvailable: driverPhotoPreview != null });
+      json(response, request.method === 'POST' ? 201 : 200, driverPhotoPreview ? { ...result, verificationPhotosAvailable: true } : result);
       return;
     }
 

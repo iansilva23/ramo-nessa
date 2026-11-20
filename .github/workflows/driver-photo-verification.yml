@@ -21,6 +21,7 @@ jobs:
         with:
           flutter-version: '3.47.5'
           channel: stable
+          cache: true
       - run: flutter pub get --enforce-lockfile
       - run: >-
           flutter analyze lib/src/features/photo_verification test/driver_verification_photo_test.dart
@@ -58,7 +59,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run db:migrate
       - name: Verify photo submission and review
-        run: PHOTO_TEST_DATABASE_URL="$DATABASE_URL" npx --no-install tsx --test test/driver_verification_photos.test.ts
+        run: >-
+          PHOTO_TEST_DATABASE_URL="$DATABASE_URL" npx --no-install tsx --test --test-concurrency=1
+          test/driver_verification_photos.test.ts test/self_account_deletion.test.ts
       - name: Verify vehicle revisions
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -99,3 +102,23 @@ jobs:
       - run: node --check src/driver-photo-review.js
       - run: npm run check
       - run: node --test test/admin_driver_documents_web.test.js test/admin_driver_registry_web.test.js
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/driver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
