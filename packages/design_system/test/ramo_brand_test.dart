@@ -19,7 +19,7 @@ void main() {
       ),
     );
 
-    expect(find.text('RAMO NESSA'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.bySemanticsLabel('Ramo Nessa'), findsOneWidget);
   });
 

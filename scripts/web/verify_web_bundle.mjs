@@ -64,7 +64,9 @@ const expectedIcons = [
   { src: 'icons/Icon-512.png', size: 512 },
 ];
 for (const icon of expectedIcons) {
-  const declared = manifest.icons?.find((entry) => entry.src === icon.src);
+  const declared = manifest.icons?.find(
+    (entry) => typeof entry.src === 'string' && entry.src.split('?')[0] === icon.src,
+  );
   if (!declared || declared.sizes !== icon.size + 'x' + icon.size) {
     throw new Error('Manifesto com resolução incorreta: ' + icon.src);
   }
