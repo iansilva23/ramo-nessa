@@ -30,8 +30,8 @@ jobs:
           lib/src/features/profile/presentation/driver_documents_screen.dart
           lib/src/features/registration/driver_registration_gate.dart
       - run: flutter build web --no-pub
-      - run: flutter test --no-pub test/driver_verification_photo_test.dart
-      - run: flutter test --no-pub --platform chrome test/driver_photo_browser_test.dart
+      - run: flutter test --no-pub test/driver_verification_photo_test.dart test/driver_photo_screen_test.dart
+      - run: flutter test --no-pub --platform chrome browser_test/driver_photo_browser_test.dart
       - name: Build same-origin web preview for local homologation
         run: flutter build web --debug --no-pub --base-href=/motorista/ --dart-define=RAMO_PREVIEW_MODE=false
       - uses: actions/upload-artifact@v4

@@ -1,6 +1,3 @@
-@TestOn('browser')
-library;
-
 import 'dart:convert';
 import 'dart:js_interop';
 
