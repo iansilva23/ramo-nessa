@@ -49,12 +49,12 @@ export class SelfAccountDeletion {
     if(existing.rows[0]){await c.query('COMMIT');return {id:existing.rows[0].id,status:existing.rows[0].status,sessions:[] as string[]};}
    }
    // A short DB-only lock serializes financial initiation with the final check.
-   await c.query('LOCK TABLE rides,payments,ledger_entries,wallet_topups,driver_payouts,ride_manual_cancellations,ride_occurrences,driver_documents,passenger_saved_cards,passenger_payment_customers IN SHARE ROW EXCLUSIVE MODE');
+   await c.query('LOCK TABLE rides,payments,ledger_entries,wallet_topups,driver_payouts,ride_manual_cancellations,ride_occurrences,driver_documents,driver_verification_photos,passenger_saved_cards,passenger_payment_customers IN SHARE ROW EXCLUSIVE MODE');
    const identity=await c.query(`SELECT id FROM auth_identities WHERE subject_type=$1 AND subject_id=$2 AND status='active' FOR UPDATE`,[role,id]);
    if(!identity.rowCount) throw new AccountDeletionError(409,'ACCOUNT_UNAVAILABLE','Conta indisponível.');
    const state=await this.overview(role,id,c);
    if(!state.eligible) throw new AccountDeletionError(409,'ACCOUNT_HAS_PENDING_ITEMS',state.reason!);
-   const documents=role==='driver'?(await c.query<{storage_key:string}>('SELECT DISTINCT storage_key FROM driver_documents WHERE driver_id=$1',[id])).rows.map(r=>r.storage_key):[];
+   const documents=role==='driver'?(await c.query<{storage_key:string}>('SELECT storage_key FROM driver_documents WHERE driver_id=$1 UNION SELECT storage_key FROM driver_verification_photos WHERE driver_id=$1',[id])).rows.map(r=>r.storage_key):[];
    if(documents.length && !storageAvailable) throw new AccountDeletionError(503,'DELETE_STORAGE_UNAVAILABLE','A exclusão dos documentos está indisponível. Tente novamente mais tarde.');
    const cards=role==='passenger'?(await c.query<Card>('SELECT s.gateway_scope scope,c.customer_id customer,s.card_id card FROM passenger_saved_cards s JOIN passenger_payment_customers c USING(passenger_id,gateway_scope) WHERE s.passenger_id=$1',[id])).rows:[];
    if(cards.some(card=>card.scope!==cardScope)) throw new AccountDeletionError(503,'DELETE_CARD_CLEANUP_UNAVAILABLE','A remoção dos cartões salvos está indisponível. Tente novamente mais tarde.');
@@ -128,6 +128,7 @@ export class SelfAccountDeletion {
      await c.query('DELETE FROM passenger_payment_customers WHERE passenger_id=$1',[id]);
     }else{
      await c.query('DELETE FROM driver_documents WHERE driver_id=$1',[id]);
+     await c.query('DELETE FROM driver_verification_photos WHERE driver_id=$1',[id]);
      await c.query('DELETE FROM driver_cpf_bindings WHERE driver_id=$1',[id]);
      await c.query('DELETE FROM driver_payout_destinations WHERE driver_id=$1',[id]);
      await c.query('DELETE FROM driver_vehicles WHERE driver_id=$1',[id]);

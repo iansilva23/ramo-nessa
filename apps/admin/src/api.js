@@ -980,6 +980,18 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    driverVerificationPhotos(token, offset = 0, query = '') {
+      const params = new URLSearchParams({ offset: String(offset), q: query });
+      return request(`/v1/admin/driver-verification-photos?${params}`, { token });
+    },
+    driverVerificationImage(token, id, fullSize = false) {
+      return requestBinary(`/v1/admin/driver-verification-photos/${encodeURIComponent(id)}/${fullSize ? 'image' : 'thumbnail'}`, { token });
+    },
+    reviewDriverVerificationPhoto(token, id, body) {
+      return request(`/v1/admin/driver-verification-photos/${encodeURIComponent(id)}/review`,
+        { token, method: 'PATCH', body });
+    },
+
     getDriverDocuments(token, driverId) {
       return request(
         `/v1/admin/drivers/${driverId}/documents`,

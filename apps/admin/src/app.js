@@ -1,3 +1,4 @@
+import { createDriverPhotoReview } from './driver-photo-review.js';
 import {createNavigationAdmin} from './navigation-admin.js';
 import {createOccurrencesAdmin} from './ride-occurrences-admin.js';
 import {renderSupportRideContext} from './support-ride-context.js';
@@ -532,6 +533,40 @@ function destroyPricingGeofenceMap() {
   state.pricingGeofenceMap = null;
 }
 
+let driverPhotoReview = null;
+let driverPhotoAvailability = 0;
+
+async function discoverDriverPhotoReview() {
+  const card = byId('driver-photo-review-card');
+  const token = state.token;
+  const attempt = ++driverPhotoAvailability;
+  if (!card || !token || !hasScope('drivers:documents:read')) return;
+  try {
+    await api.driverVerificationPhotos(token);
+    if (attempt === driverPhotoAvailability && state.token === token && card.isConnected) card.hidden = false;
+  } catch {
+    // A disabled feature has no route and stays hidden.
+  }
+}
+
+function clearDriverPhotoReview() {
+  driverPhotoAvailability++;
+  driverPhotoReview?.destroy();
+  driverPhotoReview = null;
+  const card = byId('driver-photo-review-card');
+  if (card) card.hidden = true;
+}
+
+document.addEventListener('click', (event) => {
+  if (!(event.target instanceof Element) || !event.target.closest('[data-driver-photo-queue]')) return;
+  const target = byId('driver-photo-review-result');
+  if (!target || !state.token || !hasScope('drivers:documents:read')) return;
+  driverPhotoReview?.destroy();
+  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target,
+    canWrite: () => hasScope('drivers:documents:write') });
+  void driverPhotoReview.load();
+});
+
 function closeDriverDocumentInspection() {
   if (state.documentInspectionTimer != null) {
     clearTimeout(state.documentInspectionTimer);
@@ -585,6 +620,7 @@ function clearSession(message = '') {
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
   closeDriverDocumentInspection();
+  clearDriverPhotoReview();
   state.token = null;
   state.user = null;
   state.expiresAt = null;
@@ -946,6 +982,7 @@ async function activateView(
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
+  clearDriverPhotoReview();
   closeDriverDocumentInspection();
   if (currentView === 'staff' && view !== 'staff') {
     state.staff.onboarding = null;
@@ -2246,6 +2283,7 @@ function renderDriverDocumentsUnavailable(
 
 async function loadDriverDocuments(driverId) {
   closeDriverDocumentInspection();
+  void discoverDriverPhotoReview();
   if (!state.token) return;
 
   if (!hasScope('drivers:documents:read')) {
@@ -11068,6 +11106,7 @@ window.addEventListener('pagehide', () => {
   destroyLocalitiesAdmin();
   destroyPricingGeofenceMap();
   closeDriverDocumentInspection();
+  clearDriverPhotoReview();
   state.token = null;
 });
 

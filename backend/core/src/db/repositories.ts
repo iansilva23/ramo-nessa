@@ -1,3 +1,4 @@
+import { DriverVerificationPhotos } from '../drivers/driver-verification-photos.js';
 import { resolveDbPoolMax } from '../config/runtime-config.js';
 import { SelfAccountDeletion } from '../account-deletion/self-account-deletion.js';
 import { PostgresAdminAccountDeletion } from '../admin/admin-account-deletion.js';
@@ -87,6 +88,7 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  driverVerificationPhotos: DriverVerificationPhotos | null;
   adminAccountDeletion: PostgresAdminAccountDeletion | null;
   selfAccountDeletion: SelfAccountDeletion | null;
   passwordRecoveryStore: PostgresPasswordRecoveryStore | null;
@@ -143,6 +145,7 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      driverVerificationPhotos: new DriverVerificationPhotos(pool),
       driverPasswordAuthStore: new PostgresDriverPasswordAuthStore(pool),
       adminAccountDeletion: new PostgresAdminAccountDeletion(pool),
       // Coordinated external work needs one lease connection and room for DB writes.
@@ -221,6 +224,7 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
+    driverVerificationPhotos: null,
     driverPasswordAuthStore: driverPasswords,
     adminAccountDeletion: null,
     selfAccountDeletion: null,

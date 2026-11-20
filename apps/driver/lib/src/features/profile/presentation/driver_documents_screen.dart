@@ -4,6 +4,8 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../home/data/driver_api.dart';
 import '../../home/domain/driver_models.dart';
+import '../../photo_verification/driver_photo_api.dart';
+import '../../photo_verification/driver_photo_screen.dart';
 
 class DriverDocumentsScreen extends StatefulWidget {
   const DriverDocumentsScreen({
@@ -22,10 +24,25 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
   bool _loading = true;
   String? _error;
   String? _uploadingType;
+  Future<DriverPhotoSnapshot?>? _photoStatus;
+  DriverPhotoApi? get _photoApi {
+    final api = widget.api;
+    return api is DriverPhotoApiProvider ? (api as DriverPhotoApiProvider).verificationPhotos : null;
+  }
+
+  Future<void> _openPhotos(DriverPhotoSnapshot snapshot) async {
+    final api = _photoApi;
+    if (api == null) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => DriverPhotoScreen(api: api, initial: snapshot),
+    ));
+    if (mounted) setState(() => _photoStatus = api.status());
+  }
 
   @override
   void initState() {
     super.initState();
+    _photoStatus = _photoApi?.status();
     _load();
   }
 
@@ -212,6 +229,18 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
             Text('Envie seus documentos e acompanhe cada etapa da análise.',
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: RamoSpacing.lg),
+            FutureBuilder<DriverPhotoSnapshot?>(
+              future: _photoStatus,
+              builder: (context, state) {
+                final photos = state.data;
+                if (photos == null) return const SizedBox.shrink();
+                return OutlinedButton.icon(
+                  onPressed: () => _openPhotos(photos),
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  label: const Text('Fotos do cadastro'),
+                );
+              },
+            ),
             if (_loading && snapshot != null) const LinearProgressIndicator(),
             if (_error != null && snapshot != null) ...[
               Semantics(liveRegion: true, child: Text(_error!,

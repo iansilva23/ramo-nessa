@@ -8,6 +8,7 @@ import '../../../core/config/driver_core_config.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../benefits/data/driver_benefits_api.dart';
 import '../../benefits/domain/driver_benefits_models.dart';
+import '../../photo_verification/driver_photo_api.dart';
 import '../domain/driver_models.dart';
 import 'driver_api.dart';
 import 'passenger_rating_api.dart';
@@ -18,6 +19,7 @@ class HttpDriverApi
         RamoRideSupportApi,
         RamoRideChatApi,
         DriverApi,
+        DriverPhotoApiProvider,
         DriverScreenLockApi,
         DriverRideIdentityApi,
         DriverBoardingApi,
@@ -47,6 +49,9 @@ class HttpDriverApi
   final String _accessToken;
   final String _driverId;
   final http.Client _client;
+
+  @override
+  late final verificationPhotos = DriverPhotoApi(_baseUrl, _accessToken, _client);
 
   @override
   Future<Map<String, dynamic>> boardingStatus(String rideId) async {

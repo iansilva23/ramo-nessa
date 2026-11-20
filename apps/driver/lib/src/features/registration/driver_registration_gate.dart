@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import '../home/data/driver_api.dart';
 import '../profile/presentation/driver_documents_screen.dart';
+import '../photo_verification/driver_photo_api.dart';
+import '../photo_verification/driver_photo_screen.dart';
 import 'driver_registration_service.dart';
 
 class DriverRegistrationGate extends StatefulWidget {
@@ -76,6 +78,14 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
   }
   Future<void> _documents() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DriverDocumentsScreen(api: widget.api)));
+    if (mounted) await _load();
+  }
+  Future<void> _photos() async {
+    final api = widget.api;
+    if (api is! DriverPhotoApiProvider) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => DriverPhotoScreen(api: (api as DriverPhotoApiProvider).verificationPhotos),
+    ));
     if (mounted) await _load();
   }
   Future<void> _logout() async {
@@ -187,6 +197,8 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
         subtitle: Text(document['status'] == 'approved' ? 'Aprovado' : document['status'] == 'rejected'
           ? 'Correção necessária: ${document['reviewReason'] ?? 'envie novamente'}' : document['status'] == 'expired' ? 'Documento vencido' : 'Em análise'))),
       if (!suspended) FilledButton(onPressed: _loading ? null : _documents, child: const Text('Enviar / conferir documentos')),
+      if (!suspended && widget.api is DriverPhotoApiProvider && _status?['verificationPhotosAvailable'] == true)
+        OutlinedButton(onPressed: _loading ? null : _photos, child: const Text('Enviar / conferir fotos')),
       const SizedBox(height: 12),
       OutlinedButton(onPressed: _loading ? null : _load, child: const Text('Atualizar situação')),
     ];

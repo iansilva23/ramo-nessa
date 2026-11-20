@@ -1,5 +1,7 @@
 import {
   mkdir,
+  statfs,
+  rename,
   lstat,
   unlink,
   readFile,
@@ -348,6 +350,26 @@ export class LocalPrivateDocumentStorage
         'DOCUMENT_STORAGE_UNAVAILABLE',
         'Não foi possível ler o storage privado local.',
       );
+    }
+  }
+
+  async writeVerificationPhoto(storageKey: string, bytes: Buffer): Promise<void> {
+    // Keep headroom on the private volume for database/OS activity and retries.
+    const disk = await statfs(this.rootDirectory, { bigint: true });
+    if (disk.bavail * disk.bsize - BigInt(bytes.length) < 512n * 1024n * 1024n) {
+      throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
+        'Espaço insuficiente para fotos. Tente novamente mais tarde.');
+    }
+    const target = this.objectPath(storageKey);
+    const folder = dirname(target);
+    await mkdir(folder, { mode: 0o700, recursive: true });
+    const temporary = target + '.tmp';
+    try {
+      await writeFile(temporary, bytes, { flag: 'wx', mode: 0o600, flush: true });
+      await rename(temporary, target);
+    } catch (error) {
+      await unlink(temporary).catch(() => undefined);
+      throw error;
     }
   }
 

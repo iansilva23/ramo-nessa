@@ -1,3 +1,5 @@
+import { driverVerificationPhotoRoutes } from './drivers/driver-verification-photo-routes.js';
+import { LocalPrivateDocumentStorage } from './drivers/driver-document-private-storage.js';
 import { legalDocumentPage } from './privacy/legal-document-page.js';
 import { AccountDeletionError } from './account-deletion/self-account-deletion.js';
 import { accountDeletionRoutes } from './account-deletion/account-deletion-routes.js';
@@ -593,6 +595,7 @@ const {
   storageMode,
   readinessCheck,
   close: closeRepositories,
+  driverVerificationPhotos,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const routingRouteProvider = createRoutingRouteProviderFromEnv();
@@ -726,6 +729,11 @@ const recoveryDeliveries = passwordRecoverySecret.length >= 32 ? recoveryDeliver
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
 const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
+const driverPhotoPreview = process.env.DRIVER_PHOTO_VERIFICATION_PREVIEW === 'true' &&
+  driverVerificationPhotos != null && privateDocumentStorage instanceof LocalPrivateDocumentStorage &&
+  selfAccountDeletion != null
+  ? { photos: driverVerificationPhotos, storage: privateDocumentStorage, accounts: selfAccountDeletion }
+  : null;
 const selfDeletionEnabled = process.env.SELF_ACCOUNT_DELETION_ENABLED?.trim() === 'true';
 let selfDeletionTimer:ReturnType<typeof setInterval>|null=null;
 let selfDeletionRunning=false;
@@ -6974,6 +6982,17 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (driverPhotoPreview && await driverVerificationPhotoRoutes({
+      request, response, url: requestUrl, json,
+      photos: driverPhotoPreview.photos, storage: driverPhotoPreview.storage,
+      driver: async () => (await authenticateBearer({ repository: authSessionRepository,
+        headers: request.headers, requiredType: 'driver', allowDriverRegistration: true,
+        identities: authIdentityRepository })).subjectId,
+      admin: (write) => authenticateAdminPrincipal({ apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: write ? 'drivers:documents:write' : 'drivers:documents:read' }),
+      openAccount: (driverId, action) => driverPhotoPreview.accounts.withOpenAccount('driver', driverId, action),
+    })) return;
+
     if ((request.method === 'GET' || request.method === 'POST') && requestUrl.pathname === '/v1/driver/me/registration') {
       const driverId = await resolveDriverId({ request, sessions: authSessionRepository,
         identities: authIdentityRepository, allowRegistration: true });
@@ -6982,7 +7001,7 @@ const server = createServer(async (request, response) => {
       const result = request.method === 'POST'
         ? await submitDriverRegistration({ ...dependencies, data: await readJson(request) })
         : await driverRegistrationStatus(dependencies);
-      json(response, request.method === 'POST' ? 201 : 200, result);
+      json(response, request.method === 'POST' ? 201 : 200, { ...result, verificationPhotosAvailable: driverPhotoPreview != null });
       return;
     }
 

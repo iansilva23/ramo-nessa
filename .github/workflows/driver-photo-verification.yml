@@ -4,7 +4,8 @@ on:
     branches: [feat/driver-photo-verification]
     paths:
       - 'apps/driver/**'
-      - 'backend/core/migrations/**'
+      - 'backend/core/**'
+      - 'apps/admin/**'
       - '.github/workflows/driver-photo-verification.yml'
 permissions:
   contents: read
@@ -21,7 +22,12 @@ jobs:
           flutter-version: '3.47.5'
           channel: stable
       - run: flutter pub get --enforce-lockfile
-      - run: flutter analyze lib/src/features/photo_verification test/driver_verification_photo_test.dart
+      - run: >-
+          flutter analyze lib/src/features/photo_verification test/driver_verification_photo_test.dart
+          lib/src/features/home/data/http_driver_api.dart
+          lib/src/features/profile/presentation/driver_documents_screen.dart
+          lib/src/features/registration/driver_registration_gate.dart
+      - run: flutter build web --no-pub
       - run: flutter test --no-pub test/driver_verification_photo_test.dart
   database:
     runs-on: ubuntu-24.04
@@ -49,7 +55,10 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run db:migrate
+      - name: Verify photo submission and review
+        run: PHOTO_TEST_DATABASE_URL="$DATABASE_URL" npx --no-install tsx --test test/driver_verification_photos.test.ts
       - name: Verify vehicle revisions
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -77,3 +86,16 @@ jobs:
           END $$;
           ROLLBACK;
           SQL
+  admin:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check src/driver-photo-review.js
+      - run: npm run check
+      - run: node --test test/admin_driver_documents_web.test.js test/admin_driver_registry_web.test.js
