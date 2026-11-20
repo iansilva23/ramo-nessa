@@ -3,6 +3,7 @@ import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_resu
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_nessa_passenger/src/app.dart';
 import 'package:ramo_nessa_passenger/src/core/location/location_service.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/passenger_home_screen.dart';
@@ -61,7 +62,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('RAMO NESSA'), findsOneWidget);
+    expect(find.byType(RamoBrandLockup), findsOneWidget);
     expect(find.text('Pra onde vamos?'), findsOneWidget);
     expect(find.text('© OpenStreetMap contributors'), findsNothing);
 

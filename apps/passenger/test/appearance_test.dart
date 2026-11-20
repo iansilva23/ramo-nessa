@@ -21,8 +21,13 @@ void main() {
     await tester.pumpWidget(ValueListenableBuilder<ThemeMode>(valueListenable:RamoAppearance.instance,
       builder:(context,mode,_)=>MaterialApp(theme:RamoTheme.light,darkTheme:RamoTheme.dark,themeMode:mode,
         home:const Scaffold(body:Column(children:[RamoBrandLockup(),RamoAppearanceTile()])))));
-    final text=tester.widget<Text>(find.text('RAMO NESSA'));
-    expect(text.style!.color, RamoTheme.dark.colorScheme.onSurface);
+    final wordmark = find.descendant(
+      of: find.byType(RamoBrandLockup),
+      matching: find.byType(Image),
+    );
+    String brandAsset() => (tester.widget<Image>(wordmark).image as AssetImage)
+        .assetName;
+    expect(brandAsset(), 'assets/auth/ramo_mark_driver.png');
     await tester.tap(find.text('Aparência'));
     await tester.pumpAndSettle();
     expect(find.text('Seguir sistema'),findsOneWidget);
@@ -30,5 +35,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(RamoAppearance.instance.value,ThemeMode.light);
     expect(find.text('Claro'),findsOneWidget);
+    expect(brandAsset(), 'assets/auth/ramo_mark_passenger.png');
   });
 }

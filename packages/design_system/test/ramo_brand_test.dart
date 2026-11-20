@@ -19,7 +19,27 @@ void main() {
       ),
     );
 
-    expect(find.text('RAMO NESSA'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.bySemanticsLabel('Ramo Nessa'), findsOneWidget);
+  });
+
+  testWidgets('brand lockup uses the official mark for each contrast', (
+    tester,
+  ) async {
+    for (final theme in [ThemeData.light(), ThemeData.dark()]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: const Scaffold(body: RamoBrandLockup()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final mark = tester.widget<Image>(find.byType(Image)).image as AssetImage;
+      final variant = theme.brightness == Brightness.dark
+          ? 'driver'
+          : 'passenger';
+      expect(mark.assetName, 'assets/auth/ramo_mark_$variant.png');
+      expect(mark.package, 'ramo_design_system');
+    }
   });
 }

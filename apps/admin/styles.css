@@ -81,7 +81,7 @@ button:disabled {
 }
 
 .brand-mark {
-  width: 34px;
+  width: auto;
   height: 34px;
   flex: 0 0 auto;
 }
