@@ -1,0 +1,49 @@
+name: Distribute verified Ramo Nessa brand packages
+on:
+  push:
+    branches: [ops/marca-oficial-20261120]
+    paths: [.github/workflows/distribute-official-brand.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  distribute:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE: d47c6c91a3fc158c47ed21d881c2bec1ed401c25
+      RUN: '44666044761'
+      TAG: marca-oficial-d47c6c91a3fc
+    steps:
+      - name: Verify candidate run
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$RUN" |
+            jq -e --arg source "$SOURCE" '.head_sha == $source and .conclusion == "success"' >/dev/null
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ramo-*-marca-oficial-homologacao
+          path: candidates
+          github-token: ${{ github.token }}
+          run-id: 44666044761
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ramo-*-android-conectado-Marca-Oficial-Homologacao
+          path: candidates
+          github-token: ${{ github.token }}
+          run-id: 44666044761
+      - name: Verify and publish the four downloads
+        run: |
+          set -euo pipefail
+          mkdir release
+          find candidates -type f \( -name '*.apk' -o -name '*PWA*.zip' \) -exec cp -n {} release/ \;
+          cd release
+          sha256sum --check <<'SUMS'
+          9aea7019de851a681cc2d401ec458e79d2dbb5643e912218bcad18d333cd09f8  RamoNessa-Passageiro-Android-Marca-Oficial-Homologacao.apk
+          28f16cfe4042e2cfeac2156ec4a48f7f5f5bd2e53134d66fa206058e4c89c7a9  RamoNessa-Motorista-Android-Marca-Oficial-Homologacao.apk
+          fe3fde6f82dba20b5af4c8ddb572ba9bd4a255305f46fdc0944d1f57c6f4e6a1  RamoNessa-Passageiro-PWA-Marca-Oficial-Homologacao.zip
+          4577d5f984227d7c93df462e956f91c738b5c0e204b729fd670045e4204de71f  RamoNessa-Motorista-PWA-Marca-Oficial-Homologacao.zip
+          SUMS
+          sha256sum *.apk *.zip > SHA256SUMS
+          gh release create "$TAG" --target "$SOURCE" --prerelease --title 'Ramo Nessa — marca oficial' --notes 'Marca oficial aprovada. APKs para instalação direta com assinatura de homologação (.preview), separados dos pacotes das lojas. Bundles PWA vinculados ao run 44666044761. A publicação desta release não ativa os arquivos na VPS.' *.apk *.zip SHA256SUMS
