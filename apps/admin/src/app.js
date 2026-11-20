@@ -550,9 +550,13 @@ function loadDriverPhotoReview(driverId) {
   const target = byId('driver-photo-review-result');
   if (!card || !target || !state.token || !hasScope('drivers:documents:read')) return;
   card.hidden = false;
-  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
-    canWrite: () => hasScope('drivers:documents:write') });
-  void driverPhotoReview.load();
+  try {
+    driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
+      canWrite: () => hasScope('drivers:documents:write') });
+    void driverPhotoReview.load();
+  } catch {
+    target.textContent = 'Não foi possível abrir a revisão das fotos. Reabra a ficha para tentar novamente.';
+  }
 }
 
 function closeDriverDocumentInspection() {
@@ -2252,7 +2256,6 @@ function renderDriverDocumentsUnavailable(
 ) {
   closeDriverDocumentInspection();
   state.currentDriverDocuments = null;
-  clearDriverPhotoReview();
   renderDriverDocumentComplianceUnavailable();
   const target = byId('driver-documents-result');
   target.replaceChildren();
@@ -2285,7 +2288,6 @@ async function loadDriverDocuments(driverId) {
     return;
   }
 
-  loadDriverPhotoReview(driverId);
   try {
     const [payload, compliance] = await Promise.all([
       api.getDriverDocuments(token, driverId),
@@ -8056,6 +8058,7 @@ async function lookupDriver(driverId) {
   const version = ++driverLookupSequence;
   const current = () => driverLookupSequence === version && state.token === token
     && byId('driver-documents-result') != null;
+  clearDriverPhotoReview();
   state.currentDriver = null;
   state.currentDriverRegistry = null;
   state.currentDriverDocuments = null;
@@ -8075,6 +8078,7 @@ async function lookupDriver(driverId) {
     state.currentDriver = driver;
     state.currentDriverRegistry = null;
     renderDriver(driver);
+    loadDriverPhotoReview(driverId);
     await loadDriverRegistry(driverId);
     if (!current()) return;
     await loadDriverDocuments(driverId);

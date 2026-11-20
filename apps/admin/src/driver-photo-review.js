@@ -30,6 +30,27 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
   let objectUrl = null;
   let selected = null;
   let active = true;
+  const thumbnails = new Set();
+
+  function releaseThumbnails() {
+    for (const url of thumbnails) URL.revokeObjectURL(url);
+    thumbnails.clear();
+  }
+
+  async function showThumbnail(photo, tile, version) {
+    try {
+      const response = await api.driverVerificationImage(token, photo.id, false);
+      if (version !== queueVersion || !active || !target.isConnected) return;
+      const image = element('img');
+      image.alt = photoLabel(photo);
+      const url = URL.createObjectURL(new Blob([response.bytes], { type: 'image/jpeg' }));
+      thumbnails.add(url);
+      image.src = url;
+      tile.replaceChildren(image);
+    } catch (_) {
+      if (version === queueVersion && active) tile.textContent = 'Prévia indisponível';
+    }
+  }
 
   const root = element('div', '', 'driver-photo-workspace');
   const list = element('div', '', 'driver-photo-groups');
@@ -200,7 +221,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
     preview.append(form);
   }
 
-  function renderPhotos(photos) {
+  function renderPhotos(photos, version) {
     const byType = new Map(photos.map((photo) => [photo.type, photo]));
     const statuses = { pending: 'Aguardando análise', approved: 'Aprovada', rejected: 'Reenvio solicitado' };
     for (const [type, label] of Object.entries(labels)) {
@@ -212,26 +233,29 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
       if (photo?.status === 'rejected' && photo.reason) {
         identity.append(element('p', photo.reason, 'muted-copy'));
       }
-      row.append(identity);
+      const thumbnail = element('div', photo ? 'Carregando prévia…' : 'Sem foto', 'driver-photo-thumbnail');
+      row.append(thumbnail, identity);
       if (photo) {
         const control = button(photo.status === 'pending' ? 'Revisar foto' : 'Ver foto',
           () => open(photo, control), 'button button--ghost-dark');
         row.append(control);
       }
       list.append(row);
+      if (photo) void showThumbnail(photo, thumbnail, version);
     }
   }
 
   async function load(confirmation = '') {
     const version = ++queueVersion;
     resetPreview();
+    releaseThumbnails();
     list.replaceChildren();
     feedback('Carregando fotos…');
     try {
       const data = await api.driverVerificationPhotos(token, driverId);
       if (version !== queueVersion || !active || !target.isConnected) return;
       if (!data.photos.length) resetPreview('Nenhuma foto enviada por este motorista.');
-      renderPhotos(data.photos);
+      renderPhotos(data.photos, version);
       feedback(confirmation, confirmation ? 'success' : 'neutral');
     } catch (error) {
       if (version === queueVersion && active) feedback(queueError(error), 'danger');
@@ -248,5 +272,5 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
   target.replaceChildren(root);
   feedback();
   void loadPolicy();
-  return { load, destroy() { active = false; releaseImage(); target.replaceChildren(); } };
+  return { load, destroy() { active = false; releaseImage(); releaseThumbnails(); target.replaceChildren(); } };
 }

@@ -1886,6 +1886,32 @@ td strong {
   padding: 12px;
 }
 
+.driver-photo-thumbnail {
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 9px;
+  text-align: center;
+}
+
+.driver-photo-thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.driver-photo-group__identity {
+  flex: 1;
+  min-width: 0;
+}
+
 .driver-photo-group + .driver-photo-group {
   border-top: 1px solid var(--border);
 }
