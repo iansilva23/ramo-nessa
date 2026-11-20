@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -20,16 +21,20 @@ class DriverPhotoApi {
     return result == null ? null : DriverPhotoSnapshot.fromJson(result);
   }
 
-  Future<void> upload(
+  Future<DriverPhotoItem> upload(
     DriverPhotoSnapshot snapshot,
     DriverVerificationPhoto field,
     PreparedDriverPhoto image,
   ) async {
-    await _request(
+    final photo = await _request(
       'PUT',
       path: '/${field.field}',
       snapshot: snapshot,
       image: image,
+    );
+    return DriverPhotoItem(
+      status: photo?['status'] as String? ?? 'draft',
+      reason: photo?['reason'] as String?,
     );
   }
 
@@ -64,10 +69,21 @@ class DriverPhotoApi {
       request.headers['content-type'] = PreparedDriverPhoto.contentType;
       request.bodyBytes = image.bytes;
     }
-    final response = await _client
-        .send(request)
-        .then(http.Response.fromStream)
-        .timeout(const Duration(seconds: 30));
+    final http.Response response;
+    try {
+      response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      throw const DriverPhotoApiException(
+        'A resposta do servidor demorou. Tente novamente.',
+      );
+    } on http.ClientException {
+      throw const DriverPhotoApiException(
+        'Não conseguimos comunicar com o servidor. Tente novamente.',
+      );
+    }
     if (method == 'GET' && response.statusCode == 404) return null;
     final Object? body;
     try {
@@ -104,6 +120,13 @@ class DriverPhotoSnapshot {
 
   final String vehicle;
   final Map<String, DriverPhotoItem> photos;
+
+  DriverPhotoSnapshot._(this.vehicle, this.photos);
+
+  DriverPhotoSnapshot withPhoto(
+    DriverVerificationPhoto field,
+    DriverPhotoItem photo,
+  ) => DriverPhotoSnapshot._(vehicle, {...photos, field.field: photo});
 }
 
 class DriverPhotoItem {
