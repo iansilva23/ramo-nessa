@@ -57,7 +57,15 @@ def unpack(path, destination):
              'Pacote excede os limites de extração.')
         need(all((m.isdir() or m.isfile()) and not m.name.startswith('/') and '..' not in Path(m.name).parts
                  for m in members), 'Pacote contém entradas inválidas.')
-        archive.extractall(destination, filter='data')
+        for item in members:
+            target = destination / item.name
+            if item.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.extractfile(item) as source, target.open('xb') as output:
+                shutil.copyfileobj(source, output)
+            target.chmod(0o644)
 
 
 def compose(snapshot, path):
@@ -217,8 +225,11 @@ def main():
             need(archive.next() is not None, 'Backup do volume privado vazio.')
         for filename in ('database-before.dump','documents-before.tar.gz'):
             file = anchor/filename
+            checksum = hashlib.sha256()
             with file.open('rb') as stream:
-                checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
+                for chunk in iter(lambda: stream.read(1024**2), b''):
+                    checksum.update(chunk)
+            checksum = checksum.hexdigest()
             p.save(anchor/(filename+'.sha256'),(checksum+'\n').encode())
         changed = []
         try:
