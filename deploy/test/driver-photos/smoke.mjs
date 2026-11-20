@@ -90,15 +90,9 @@ const revised = (await request(photosPath, 200, { token })).payload.photos.find(
 await request(adminPath + '/' + revised.id + '/review', 200, { token: admin, method: 'PATCH', body: { decision: 'approved' } });
 console.log('Cadastro, cinco uploads, revisão, reenvio e aprovação passaram pelo gateway.');
 const policyPath = adminPath + '/policy';
-assert.equal((await request(policyPath, 200, { token: admin })).payload.startsAt, null);
-const now = Date.now();
-const start = new Date(now + 60_000).toISOString();
-const deadline = new Date(now + 3600_000).toISOString();
-await request(policyPath, 200, { token: admin, method: 'PUT',
-  body: { startsAt: start, deadlineAt: deadline, reviewGraceHours: 12 } });
-assert.equal((await request(policyPath, 200, { token: admin })).payload.deadlineAt, deadline);
-assert.equal((await request(photosPath, 200, { token })).payload.work.state, 'off');
-
+assert.equal((await request(policyPath, 200, { token: admin })).payload.required, false);
+await request(policyPath, 200, { token: admin, method: 'PUT', body: { required: true } });
+assert.equal((await request(policyPath, 200, { token: admin })).payload.required, true);
 
 const unit = await mkdtemp(join(tmpdir(), 'ramo-photo-restore-'));
 const database = 'ramo_photo_restore_' + sequence;

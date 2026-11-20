@@ -28,6 +28,9 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
       VALUES ($1,$2,'ABC1Y23','Marca','Modelo',2024,'Branco',ARRAY['car'],4,'pending',now(),now())`,
       [vehicle, driver]);
 
+    assert.equal(await photos.canReceiveNewWork(driver), true);
+    await photos.setPolicy(true, actor);
+    assert.equal(await photos.canReceiveNewWork(driver), false);
     const revision = vehicle + ':1';
     const image = await makeImage('#337766');
     await assert.rejects(photos.upload(driver, 'portrait', revision, Buffer.from([0xff, 0xd8]), storage), /validar a imagem/);
@@ -54,7 +57,12 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
     assert.notEqual(replacement.id, rear.id);
     assert.equal((await photos.submit(driver, revision)).photos.find((photo) => photo.id === portrait.id)?.status, 'approved');
 
+    for (const photo of (await photos.status(driver)).photos.filter((row) => row.status === 'pending')) {
+      await photos.review(photo.id, actor, true, null);
+    }
+    assert.equal(await photos.canReceiveNewWork(driver), true);
     await pool.query("UPDATE driver_vehicles SET plate_normalized='QRS4Z56' WHERE id=$1", [vehicle]);
+    assert.equal(await photos.canReceiveNewWork(driver), false);
     assert.deepEqual((await photos.status(driver)).photos.map((photo) => photo.type), ['portrait']);
     await assert.rejects(photos.upload(driver, 'vehicle_front', revision, image, storage), /mudaram/);
     await assert.rejects(photos.review(replacement.id, actor, true, null), /alterado/);

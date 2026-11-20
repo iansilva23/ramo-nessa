@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import type { Pool, PoolClient } from 'pg';
-import { driverPhotoWorkStatus, type DriverPhotoPolicy } from './driver-photo-policy.js';
 import type { AdminActor } from '../admin/admin-repository.js';
 import type { LocalPrivateDocumentStorage } from './driver-document-private-storage.js';
 
@@ -123,38 +122,27 @@ export class DriverVerificationPhotos {
     }
   }
 
-  async policy(): Promise<DriverPhotoPolicy> {
-    const row = (await this.pool.query<DriverPhotoPolicy>(`SELECT starts_at AS "startsAt",
-      deadline_at AS "deadlineAt",review_grace_hours AS "reviewGraceHours"
-      FROM driver_photo_policy ORDER BY revision DESC LIMIT 1`)).rows[0];
-    return row ?? { startsAt: null, deadlineAt: null, reviewGraceHours: 0 };
+  async policy() {
+    const { rows } = await this.pool.query<{ required: boolean }>(
+      'SELECT required FROM driver_photo_policy ORDER BY revision DESC LIMIT 1');
+    return { required: rows[0]?.required ?? false };
   }
 
-  async setPolicy(input: DriverPhotoPolicy, actor: AdminActor) {
-    await this.pool.query(`INSERT INTO driver_photo_policy
-      (starts_at,deadline_at,review_grace_hours,actor_kind,actor_id) VALUES ($1,$2,$3,$4,$5)`,
-    [input.startsAt,input.deadlineAt,input.reviewGraceHours,actor.kind,actor.id]);
-    return this.policy();
+  async setPolicy(required: boolean, actor: AdminActor) {
+    await this.pool.query(`INSERT INTO driver_photo_policy (required,actor_kind,actor_id)
+      VALUES ($1,$2,$3)`, [required,actor.kind,actor.id]);
+    return { required };
   }
 
-  async workStatus(driverId: string, now = new Date()) {
-    const policy = await this.policy();
-    const empty = { approved: 0, submittedOnTime: 0 };
-    if (!policy.startsAt || !policy.deadlineAt || now < policy.startsAt) {
-      return driverPhotoWorkStatus(policy, now, empty, now);
-    }
-    const row = (await this.pool.query<{ created_at: Date; approved: number; submitted: number }>(`
-      SELECT p.created_at,
-        count(DISTINCT f.photo_type) FILTER (WHERE f.status='approved')::int AS approved,
-        count(DISTINCT f.photo_type) FILTER (WHERE f.status='approved' OR
-          (f.is_current AND f.status='pending' AND f.submitted_at<=$2))::int AS submitted
-      FROM driver_profiles p
-      LEFT JOIN driver_vehicles v ON v.driver_id=p.driver_id
-      LEFT JOIN driver_verification_photos f ON f.driver_id=p.driver_id
-        AND (f.vehicle_id IS NULL OR (f.vehicle_id=v.id AND f.vehicle_revision=v.photo_verification_revision))
-      WHERE p.driver_id=$1 GROUP BY p.created_at`, [driverId, policy.deadlineAt])).rows[0];
-    return driverPhotoWorkStatus(policy, row?.created_at ?? now,
-      row ? { approved: row.approved, submittedOnTime: row.submitted } : empty, now);
+  async canReceiveNewWork(driverId: string) {
+    const { rows } = await this.pool.query<{ allowed: boolean }>(`
+      SELECT NOT COALESCE((SELECT required FROM driver_photo_policy ORDER BY revision DESC LIMIT 1), false)
+        OR 5 = (SELECT count(DISTINCT f.photo_type) FROM driver_verification_photos f
+          JOIN driver_vehicles v ON v.driver_id=f.driver_id
+          WHERE f.driver_id=$1 AND f.status='approved'
+            AND (f.vehicle_id IS NULL OR (f.vehicle_id=v.id AND f.vehicle_revision=v.photo_verification_revision))
+        ) AS allowed`, [driverId]);
+    return rows[0]?.allowed === true;
   }
 
   async status(driverId: string) {
@@ -162,7 +150,7 @@ export class DriverVerificationPhotos {
     const photos = await this.pool.query<Photo>(`SELECT * FROM driver_verification_photos
       WHERE ${currentPhotos}`, [driverId, vehicle.id, vehicle.photo_verification_revision]);
     return { vehicleId: vehicle.id, vehicleRevision: vehicle.photo_verification_revision,
-      photos: photos.rows.map(photoView), work: await this.workStatus(driverId) };
+      photos: photos.rows.map(photoView) };
   }
 
   private assertVehicle(vehicle: Vehicle, expected: string) {

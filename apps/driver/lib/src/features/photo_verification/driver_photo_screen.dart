@@ -150,18 +150,6 @@ class _DriverPhotoScreenState extends State<DriverPhotoScreen> {
                     '$count de 5 fotos',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  if (snapshot.work.message != null)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.info_outline),
-                      title: Text(snapshot.work.message!),
-                      subtitle: snapshot.work.deadline == null
-                          ? null
-                          : Text(
-                              MaterialLocalizations.of(context)
-                                  .formatMediumDate(snapshot.work.deadline!),
-                            ),
-                    ),
                   const SizedBox(height: 12),
                   for (final field in DriverVerificationPhoto.values)
                     _photoField(field, items[field.field], snapshot),

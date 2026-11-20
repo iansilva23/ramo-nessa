@@ -45,19 +45,11 @@ export async function driverVerificationPhotoRoutes(input: {
         json(response, 200, { ...await photos.policy(), disk: await storage.verificationCapacity().catch(() => null) });
         return true;
       }
-      const body = await readJsonBody(request, 4096) as
-        { startsAt?: unknown; deadlineAt?: unknown; reviewGraceHours?: unknown } | null;
-      const parse = (value: unknown) => typeof value === 'string' && value.endsWith('Z')
-        ? new Date(value) : null;
-      const startsAt = parse(body?.startsAt);
-      const deadlineAt = parse(body?.deadlineAt);
-      const hours = body?.reviewGraceHours;
-      const disabled = body?.startsAt === null && body.deadlineAt === null;
-      if (typeof hours !== 'number' || !Number.isInteger(hours) || hours < 0 || hours > 720 ||
-          (!disabled && !(startsAt && deadlineAt && startsAt < deadlineAt))) {
-        throw new VerificationPhotoError(400, 'PHOTO_POLICY', 'Confira as datas e a tolerância de revisão.');
+      const body = await readJsonBody(request, 4096) as { required?: unknown } | null;
+      if (typeof body?.required !== 'boolean') {
+        throw new VerificationPhotoError(400, 'PHOTO_POLICY', 'Informe se a verificação é obrigatória.');
       }
-      json(response, 200, await photos.setPolicy({ startsAt, deadlineAt, reviewGraceHours: hours }, actor));
+      json(response, 200, await photos.setPolicy(body.required, actor));
       return true;
     }
     if (path.startsWith(adminPath + '/')) {

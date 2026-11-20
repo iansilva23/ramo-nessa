@@ -69,7 +69,7 @@ jobs:
       - name: Verify photo submission and review
         run: >-
           PHOTO_TEST_DATABASE_URL="$DATABASE_URL" npx --no-install tsx --test --test-concurrency=1
-          test/driver_verification_photos.test.ts test/driver_photo_policy.test.ts test/self_account_deletion.test.ts
+          test/driver_verification_photos.test.ts test/self_account_deletion.test.ts
       - name: Verify vehicle revisions
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
