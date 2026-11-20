@@ -157,3 +157,41 @@ jobs:
       - run: node deploy/test/driver-photos/smoke.mjs
       - if: always()
         run: node deploy/test/driver-photos/stack.mjs down
+  vps-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=driver
+      - working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b \
+            --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+      - run: node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+      - name: Package Core source and the Motorista and ADM changes
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/photo-vps
+          git rev-parse HEAD > artifacts/photo-vps/SOURCE_COMMIT.txt
+          git archive HEAD backend/core | gzip -n > artifacts/photo-vps/core-source.tar.gz
+          git archive HEAD apps/admin/pages/drivers.html apps/admin/src/api.js apps/admin/src/app.js \
+            apps/admin/src/driver-photo-review.js | gzip -n > artifacts/photo-vps/adm-overlay.tar.gz
+          tar -C apps/driver/build/web -czf artifacts/photo-vps/motorista-web.tar.gz .
+          cd artifacts/photo-vps
+          sha256sum SOURCE_COMMIT.txt ./*.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-vps-candidate
+          path: artifacts/photo-vps
+          if-no-files-found: error
