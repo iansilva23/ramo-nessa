@@ -196,3 +196,28 @@ jobs:
           name: ramo-photo-vps-candidate
           path: artifacts/photo-vps
           if-no-files-found: error
+  adm-photo-dossier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix backend/core
+      - run: npm run build --prefix backend/core
+      - run: npm test --prefix apps/admin
+      - name: Package the dossier routes for the active Core
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/photo-dossier
+          cp backend/core/dist/src/drivers/driver-verification-photo-routes.js backend/core/dist/src/drivers/driver-verification-photos.js artifacts/photo-dossier/
+          cp deploy/driver-photos/adm-fotos.patch artifacts/photo-dossier/
+          cd artifacts/photo-dossier
+          printf '%s\n' "$GITHUB_SHA" > SOURCE_COMMIT.txt
+          sha256sum ./* > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-driver-dossier
+          path: artifacts/photo-dossier
+          if-no-files-found: error

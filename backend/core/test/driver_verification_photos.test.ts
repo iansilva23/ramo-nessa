@@ -45,6 +45,9 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
     assert.equal((await photos.submit(driver, revision)).photos.length, 5);
     const queue = await photos.queue(0, 'ABC1Y23');
     assert.equal(queue.photos.length, 5);
+    assert.equal((await photos.adminDriverPhotos(driver)).photos.length, 5);
+    assert.deepEqual((await photos.adminDriverPhotos('another-driver')).photos, []);
+
     assert.equal((await sharp(await photos.adminImage(portrait.id, storage, true)).metadata()).width, 256);
     assert.equal((await sharp(await photos.adminImage(portrait.id, storage, false)).metadata()).exif, undefined);
 
@@ -64,6 +67,8 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
     await pool.query("UPDATE driver_vehicles SET plate_normalized='QRS4Z56' WHERE id=$1", [vehicle]);
     assert.equal(await photos.canReceiveNewWork(driver), false);
     assert.deepEqual((await photos.status(driver)).photos.map((photo) => photo.type), ['portrait']);
+    assert.deepEqual((await photos.adminDriverPhotos(driver)).photos.map((photo) => photo.type), ['portrait']);
+
     await assert.rejects(photos.upload(driver, 'vehicle_front', revision, image, storage), /mudaram/);
     await assert.rejects(photos.review(replacement.id, actor, true, null), /alterado/);
   } finally {

@@ -247,6 +247,16 @@ export class DriverVerificationPhotos {
       driverId: row.driver_id, driverName: row.full_name, plate: row.plate_normalized })) };
   }
 
+  async adminDriverPhotos(driverId: string) {
+    const result = await this.pool.query<Photo>(`
+      SELECT DISTINCT ON (f.photo_type) f.* FROM driver_verification_photos f
+      LEFT JOIN driver_vehicles v ON v.driver_id=f.driver_id
+      WHERE f.driver_id=$1 AND f.status <> 'draft' AND (f.is_current OR f.status='approved')
+        AND (f.vehicle_id IS NULL OR (f.vehicle_id=v.id AND f.vehicle_revision=v.photo_verification_revision))
+      ORDER BY f.photo_type, f.is_current DESC, f.submitted_at DESC, f.id DESC`, [driverId]);
+    return { photos: result.rows.map(photoView) };
+  }
+
   async adminImage(id: string, storage: LocalPrivateDocumentStorage, thumbnail: boolean) {
     const row = (await this.pool.query<Photo>(`SELECT * FROM driver_verification_photos
       WHERE id=$1 AND status <> 'draft'`, [id])).rows[0];

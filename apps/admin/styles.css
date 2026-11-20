@@ -1819,22 +1819,29 @@ td strong {
   min-width: 0;
 }
 
-.driver-photo-search,
-.driver-photo-actions,
-.driver-photo-pager {
+.driver-photo-dossier {
+  margin: 20px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.driver-photo-dossier[hidden] {
+  display: none;
+}
+
+.driver-photo-dossier > h3 {
+  margin: 0;
+}
+
+.driver-photo-dossier > p {
+  margin: 6px 0 14px;
+}
+
+.driver-photo-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-
-.driver-photo-search {
-  align-items: end;
-}
-
-.driver-photo-search .field {
-  flex: 1 1 220px;
-  margin: 0;
 }
 
 .driver-photo-workspace [hidden] {
@@ -1857,7 +1864,7 @@ td strong {
   background: var(--raised);
 }
 
-.driver-photo-queue:has(.driver-photo-groups:empty):has(.driver-photo-pager:empty) {
+.driver-photo-queue:has(.driver-photo-groups:empty) {
   display: none;
 }
 
@@ -1872,6 +1879,10 @@ td strong {
 }
 
 .driver-photo-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 12px;
 }
 
@@ -1894,41 +1905,6 @@ td strong {
 .driver-photo-preview__header p,
 .driver-photo-settings__body p {
   margin: 4px 0 0;
-}
-
-.driver-photo-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 42px;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.driver-photo-option span {
-  flex: none;
-  color: var(--ink-soft);
-  font-size: 11px;
-}
-
-.driver-photo-option:hover,
-.driver-photo-option[aria-current="true"] {
-  border-color: var(--border);
-  background: var(--surface);
-}
-
-.driver-photo-option[aria-current="true"] {
-  border-color: var(--gold);
-  background: #fff9d9;
 }
 
 .driver-photo-preview {
@@ -1969,14 +1945,8 @@ td strong {
   max-height: none;
 }
 
-.driver-photo-preview__tools,
-.driver-photo-pager {
+.driver-photo-preview__tools {
   padding-top: 10px;
-}
-
-.driver-photo-pager:not(:empty) {
-  padding: 10px;
-  border-top: 1px solid var(--border);
 }
 
 .driver-photo-decision {

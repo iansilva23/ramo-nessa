@@ -7,17 +7,6 @@
               </div>
             </div>
 
-            <article class="panel-card" id="driver-photo-review-card" hidden>
-              <div class="panel-card__header">
-                <div>
-                  <h2>Fotos dos motoristas</h2>
-                  <p class="muted-copy">Revise as fotos do rosto e do veículo por motorista.</p>
-                </div>
-                <button type="button" class="button button--ghost-dark" id="driver-photo-queue-button">Abrir fila de análise</button>
-              </div>
-              <div id="driver-photo-review-result" aria-live="polite"></div>
-            </article>
-
             <article class="panel-card operational-settings-card">
               <div class="panel-card__header">
                 <div>
@@ -551,6 +540,12 @@
               <div id="driver-documents-result" class="driver-documents-result empty-state">
                 Abra um motorista para consultar o status documental.
               </div>
+
+              <section id="driver-photo-review-card" class="driver-photo-dossier" hidden>
+                <h3>Fotos do cadastro</h3>
+                <p class="muted-copy">Confira o rosto e o veículo deste motorista.</p>
+                <div id="driver-photo-review-result" aria-live="polite"></div>
+              </section>
 
               <div
                 id="driver-document-compliance-panel"

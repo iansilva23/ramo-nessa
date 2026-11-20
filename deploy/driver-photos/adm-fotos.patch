@@ -1,34 +1,63 @@
 diff --git a/pages/drivers.html b/pages/drivers.html
-index e767eb3..acadf7d 100644
+index e767eb3..555e9f3 100644
 --- a/pages/drivers.html
 +++ b/pages/drivers.html
-@@ -9,8 +9,11 @@
+@@ -7,14 +7,6 @@
+               </div>
+             </div>
  
-             <article class="panel-card" id="driver-photo-review-card" hidden>
-               <div class="panel-card__header">
+-            <article class="panel-card" id="driver-photo-review-card" hidden>
+-              <div class="panel-card__header">
 -                <h2>Fotos dos motoristas</h2>
 -                <button type="button" class="secondary-button" id="driver-photo-queue-button">Fila de análise</button>
-+                <div>
-+                  <h2>Fotos dos motoristas</h2>
-+                  <p class="muted-copy">Revise as fotos do rosto e do veículo por motorista.</p>
-+                </div>
-+                <button type="button" class="button button--ghost-dark" id="driver-photo-queue-button">Abrir fila de análise</button>
+-              </div>
+-              <div id="driver-photo-review-result" aria-live="polite"></div>
+-            </article>
+-
+             <article class="panel-card operational-settings-card">
+               <div class="panel-card__header">
+                 <div>
+@@ -549,6 +541,12 @@
+                 Abra um motorista para consultar o status documental.
                </div>
-               <div id="driver-photo-review-result" aria-live="polite"></div>
-             </article>
+ 
++              <section id="driver-photo-review-card" class="driver-photo-dossier" hidden>
++                <h3>Fotos do cadastro</h3>
++                <p class="muted-copy">Confira o rosto e o veículo deste motorista.</p>
++                <div id="driver-photo-review-result" aria-live="polite"></div>
++              </section>
++
+               <div
+                 id="driver-document-compliance-panel"
+                 class="document-compliance-panel"
+diff --git a/src/api.js b/src/api.js
+index fc04bd4..dae8d9f 100644
+--- a/src/api.js
++++ b/src/api.js
+@@ -984,9 +984,8 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
+       return request('/v1/admin/driver-verification-photos/policy',
+         body === undefined ? { token } : { token, method: 'PUT', body });
+     },
+-    driverVerificationPhotos(token, offset = 0, query = '') {
+-      const params = new URLSearchParams({ offset: String(offset), q: query });
+-      return request(`/v1/admin/driver-verification-photos?${params}`, { token });
++    driverVerificationPhotos(token, driverId) {
++      return request(`/v1/admin/driver-verification-photos/driver/${encodeURIComponent(driverId)}`, { token });
+     },
+     driverVerificationImage(token, id, fullSize = false) {
+       return requestBinary(`/v1/admin/driver-verification-photos/${encodeURIComponent(id)}/${fullSize ? 'image' : 'thumbnail'}`, { token });
 diff --git a/src/app.js b/src/app.js
-index 3e7883d..c6e00e1 100644
+index 3e7883d..8dc24c5 100644
 --- a/src/app.js
 +++ b/src/app.js
-@@ -534,23 +534,21 @@ function destroyPricingGeofenceMap() {
+@@ -534,34 +534,22 @@ function destroyPricingGeofenceMap() {
  }
  
  let driverPhotoReview = null;
 -let driverPhotoAvailability = 0;
- 
+-
 -async function discoverDriverPhotoReview() {
-+function discoverDriverPhotoReview() {
-   const card = byId('driver-photo-review-card');
+-  const card = byId('driver-photo-review-card');
 -  const token = state.token;
 -  const attempt = ++driverPhotoAvailability;
 -  if (!card || !token || !hasScope('drivers:documents:read')) return;
@@ -38,36 +67,68 @@ index 3e7883d..c6e00e1 100644
 -  } catch {
 -    // A disabled feature has no route and stays hidden.
 -  }
-+  const button = byId('driver-photo-queue-button');
-+  const target = byId('driver-photo-review-result');
-+  if (!card || !button || !target || !state.token) return;
-+  card.hidden = false;
-+  const allowed = hasScope('drivers:documents:read');
-+  button.disabled = !allowed;
-+  target.textContent = allowed
-+    ? 'Consulte as fotos enviadas pelos motoristas para análise.'
-+    : 'Sua conta precisa da permissão Consultar documentos de motoristas para abrir a fila.';
- }
+-}
  
  function clearDriverPhotoReview() {
 -  driverPhotoAvailability++;
    driverPhotoReview?.destroy();
    driverPhotoReview = null;
    const card = byId('driver-photo-review-card');
-@@ -10865,7 +10863,7 @@ function initializeRouteView(view) {
+   if (card) card.hidden = true;
+ }
+ 
+-function openDriverPhotoQueue() {
++function loadDriverPhotoReview(driverId) {
++  clearDriverPhotoReview();
++  const card = byId('driver-photo-review-card');
+   const target = byId('driver-photo-review-result');
+-  if (!target || !state.token || !hasScope('drivers:documents:read')) return;
+-  driverPhotoReview?.destroy();
+-  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target,
++  if (!card || !target || !state.token || state.currentDriver?.driverId !== driverId
++      || !hasScope('drivers:documents:read')) return;
++  card.hidden = false;
++  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
+     canWrite: () => hasScope('drivers:documents:write') });
+   void driverPhotoReview.load();
+ }
+@@ -2262,6 +2250,7 @@ function renderDriverDocumentsUnavailable(
+ ) {
+   closeDriverDocumentInspection();
+   state.currentDriverDocuments = null;
++  clearDriverPhotoReview();
+   renderDriverDocumentComplianceUnavailable();
+   const target = byId('driver-documents-result');
+   target.replaceChildren();
+@@ -2291,6 +2280,7 @@ async function loadDriverDocuments(driverId) {
+     return;
+   }
+ 
++  loadDriverPhotoReview(driverId);
+   try {
+     const [payload, compliance] = await Promise.all([
+       api.getDriverDocuments(state.token, driverId),
+@@ -10497,7 +10487,6 @@ function bindRouteEvents(view) {
+   }
+ 
+   if (view === 'drivers') {
+-    byId('driver-photo-queue-button')?.addEventListener('click', openDriverPhotoQueue);
+     bindRouteEvent(
+       'operational-settings-form',
+       'submit',
+@@ -10865,7 +10854,6 @@ function initializeRouteView(view) {
    }
  
    if (view === 'drivers') {
 -    void discoverDriverPhotoReview();
-+    discoverDriverPhotoReview();
      setDriverProvisionControlsVisible();
      renderDriverRegistryUnavailable();
      renderDriverDocumentsUnavailable();
 diff --git a/src/driver-photo-review.js b/src/driver-photo-review.js
-index 43bc717..c2084bc 100644
+index 43bc717..df494d3 100644
 --- a/src/driver-photo-review.js
 +++ b/src/driver-photo-review.js
-@@ -1,37 +1,63 @@
+@@ -1,37 +1,59 @@
  const labels = {
 -  portrait: 'Rosto',
 +  portrait: 'Foto do rosto',
@@ -96,23 +157,24 @@ index 43bc717..c2084bc 100644
    return node;
  }
  
+-export function createDriverPhotoReview({ api, token, canWrite, target }) {
+-  let currentRequest = 0;
 +function photoLabel(photo) {
 +  return labels[photo.type] ?? 'Foto do cadastro';
 +}
 +
- export function createDriverPhotoReview({ api, token, canWrite, target }) {
--  let currentRequest = 0;
++export function createDriverPhotoReview({ api, token, canWrite, target, driverId }) {
 +  let queueVersion = 0;
 +  let imageVersion = 0;
    let objectUrl = null;
-+  let selected = null;
-   let offset = 0;
-   let query = '';
+-  let offset = 0;
+-  let query = '';
 -  const message = element('p');
 -  message.setAttribute('role', 'status');
 -  const list = element('div');
 -  const preview = element('div');
 -  const policy = element('div');
++  let selected = null;
    let active = true;
  
 +  const root = element('div', '', 'driver-photo-workspace');
@@ -121,17 +183,15 @@ index 43bc717..c2084bc 100644
 +  preview.setAttribute('aria-label', 'Conferência da foto');
 +  const message = element('p', '', 'driver-photo-feedback');
 +  message.setAttribute('role', 'status');
-+  const pager = element('nav', '', 'driver-photo-pager');
-+  pager.setAttribute('aria-label', 'Páginas da fila de fotos');
 +  const policy = element('details', '', 'driver-photo-settings');
 +  const settings = element('div', '', 'driver-photo-settings__body');
-+  policy.append(element('summary', 'Configurações da exigência'), settings);
++  policy.append(element('summary', 'Configuração geral das fotos'), settings);
 +
 +  function queueError(error) {
 +    if (error.status === 401) return 'Sua sessão expirou. Entre no ADM para consultar as fotos.';
 +    if (error.status === 403) return 'Sua conta precisa de permissão para consultar documentos de motoristas.';
 +    if (error.status === 404) return 'A análise de fotos está indisponível.';
-+    return 'Não foi possível carregar as fotos. Use Atualizar fila para tentar novamente.';
++    return 'Não foi possível carregar as fotos. Use Atualizar fotos para tentar novamente.';
 +  }
 +
 +  function feedback(text = '', tone = 'neutral') {
@@ -143,7 +203,7 @@ index 43bc717..c2084bc 100644
    async function loadPolicy() {
      try {
        const result = await api.driverVerificationPolicy(token);
-@@ -42,125 +68,213 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
+@@ -42,125 +64,189 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
        toggle.disabled = !canWrite();
        const label = element('label', 'Exigir cinco fotos aprovadas para novas corridas');
        label.prepend(toggle);
@@ -203,7 +263,7 @@ index 43bc717..c2084bc 100644
 -  async function open(photo, fullSize) {
 -    clearPreview();
 -    const request = currentRequest;
-+  function resetPreview(text = 'Selecione uma foto na fila para conferir.') {
++  function resetPreview(text = 'Selecione uma foto deste motorista para conferir.') {
 +    releaseImage();
 +    selected = null;
 +    preview.replaceChildren(element('p', text, 'driver-photo-placeholder'));
@@ -217,8 +277,7 @@ index 43bc717..c2084bc 100644
 +    const version = imageVersion;
 +    feedback();
 +    const heading = element('div', '', 'driver-photo-preview__header');
-+    heading.append(element('h3', photoLabel(photo)),
-+      element('p', [photo.driverName, photo.plate].filter(Boolean).join(' · '), 'muted-copy'));
++    heading.append(element('h3', photoLabel(photo)));
 +    const stage = element('div', '', 'driver-photo-stage');
 +    stage.append(element('p', 'Carregando foto…'));
 +    preview.replaceChildren(heading, stage);
@@ -256,6 +315,15 @@ index 43bc717..c2084bc 100644
 -            message.textContent = error.message;
 -            for (const control of form.elements) control.disabled = false;
 -          }
+-        }
+-      };
+-      if (fullSize && canWrite()) {
+-        const approve = button('Aprovar foto', save('approved'));
+-        const reject = button('Reprovar foto', save('rejected'));
+-        form.append(label, approve, reject);
+-      }
+-      preview.replaceChildren(img, button(fullSize ? 'Fechar foto' : 'Abrir foto em tamanho maior',
+-        () => fullSize ? clearPreview() : open(photo, true)), form);
 +      img.alt = photoLabel(photo);
 +      const enlarge = button('Ampliar imagem', () => {
 +        const zoomed = stage.classList.toggle('driver-photo-stage--zoomed');
@@ -267,14 +335,25 @@ index 43bc717..c2084bc 100644
 +      const toolbar = element('div', '', 'driver-photo-actions driver-photo-preview__tools');
 +      toolbar.append(enlarge);
 +      preview.append(toolbar);
-+      if (canWrite()) renderDecision(photo, version);
-+    } catch (error) {
++      if (canWrite() && photo.status === 'pending') renderDecision(photo, version);
+     } catch (error) {
+-      if (request === currentRequest) message.textContent = error.message;
 +      if (version === imageVersion && active) {
 +        stage.replaceChildren(element('p', error.message), button('Tentar novamente', () => open(photo, control)));
 +      }
-+    }
-+  }
-+
+     }
+   }
+ 
+-  async function load(next = 0) {
+-    clearPreview();
+-    const request = currentRequest;
+-    message.textContent = 'Carregando fotos…';
+-    try {
+-      const page = await api.driverVerificationPhotos(token, next, query);
+-      if (request !== currentRequest || !target.isConnected) return;
+-      offset = next;
+-      if (!page.photos.length && next > 0) {
+-        await load(Math.max(0, next - 20));
 +  function renderDecision(photo, version) {
 +    const form = element('form', '', 'driver-photo-decision');
 +    const actions = element('div', '', 'driver-photo-actions');
@@ -290,31 +369,31 @@ index 43bc717..c2084bc 100644
 +      if (decision === 'rejected' && !reason.value.trim()) {
 +        feedback('Informe o motivo para solicitar uma nova foto.', 'danger');
 +        reason.focus();
-+        return;
-+      }
+         return;
+       }
+-      list.replaceChildren();
+-      message.textContent = page.photos.length ? '' : 'Nenhuma foto aguardando análise.';
+-      for (const photo of page.photos) {
+-        const row = element('p');
+-        row.append(element('span', [photo.driverName, photo.plate, labels[photo.type]].filter(Boolean).join(' · ')),
+-          button('Ver foto', () => open(photo, false)));
+-        list.append(row);
 +      for (const control of form.elements) control.disabled = true;
 +      try {
 +        await api.reviewDriverVerificationPhoto(token, photo.id, {
 +          decision, reason: decision === 'rejected' ? reason.value.trim() : '',
 +        });
 +        if (version !== imageVersion || !active) return;
-+        await load(offset, decision === 'approved' ? 'Foto aprovada.' : 'Reenvio solicitado.');
++        await load(decision === 'approved' ? 'Foto aprovada.' : 'Reenvio solicitado.');
 +      } catch (error) {
 +        if (version === imageVersion && active) {
 +          feedback(error.message, 'danger');
 +          for (const control of form.elements) control.disabled = false;
-         }
--      };
--      if (fullSize && canWrite()) {
--        const approve = button('Aprovar foto', save('approved'));
--        const reject = button('Reprovar foto', save('rejected'));
--        form.append(label, approve, reject);
++        }
        }
--      preview.replaceChildren(img, button(fullSize ? 'Fechar foto' : 'Abrir foto em tamanho maior',
--        () => fullSize ? clearPreview() : open(photo, true)), form);
--    } catch (error) {
--      if (request === currentRequest) message.textContent = error.message;
-     }
+-      if (offset > 0) list.append(button('Anterior', () => load(Math.max(0, offset - 20))));
+-      if (page.hasMore) list.append(button('Próxima', () => load(offset + 20)));
++    }
 +
 +    const confirm = element('button', 'Confirmar reenvio', 'button button--primary');
 +    confirm.type = 'submit';
@@ -336,68 +415,41 @@ index 43bc717..c2084bc 100644
 +    actions.append(reject, approve);
 +    form.append(actions, correction);
 +    preview.append(form);
-   }
- 
--  async function load(next = 0) {
--    clearPreview();
--    const request = currentRequest;
--    message.textContent = 'Carregando fotos…';
-+  function renderQueue(photos) {
-+    const groups = new Map();
-+    for (const photo of photos) {
-+      const key = photo.driverId;
-+      if (!groups.has(key)) groups.set(key, []);
-+      groups.get(key).push(photo);
-+    }
-+    for (const photosForDriver of groups.values()) {
-+      const [first] = photosForDriver;
-+      const group = element('section', '', 'driver-photo-group');
++  }
++
++  function renderPhotos(photos) {
++    const byType = new Map(photos.map((photo) => [photo.type, photo]));
++    const statuses = { pending: 'Aguardando análise', approved: 'Aprovada', rejected: 'Reenvio solicitado' };
++    for (const [type, label] of Object.entries(labels)) {
++      const photo = byType.get(type);
++      const row = element('div', '', 'driver-photo-group');
 +      const identity = element('div', '', 'driver-photo-group__identity');
-+      identity.append(element('h3', first.driverName || 'Motorista'),
-+        element('p', first.plate, 'muted-copy'));
-+      group.append(identity);
-+      for (const photo of photosForDriver) {
-+        const control = button(photoLabel(photo), () => open(photo, control), 'driver-photo-option');
-+        control.append(element('span', 'Ver foto'));
-+        group.append(control);
++      identity.append(element('h3', label),
++        element('p', statuses[photo?.status] ?? 'Aguardando envio', 'muted-copy'));
++      if (photo?.status === 'rejected' && photo.reason) {
++        identity.append(element('p', photo.reason, 'muted-copy'));
 +      }
-+      list.append(group);
++      row.append(identity);
++      if (photo) {
++        const control = button(photo.status === 'pending' ? 'Revisar foto' : 'Ver foto',
++          () => open(photo, control), 'button button--ghost-dark');
++        row.append(control);
++      }
++      list.append(row);
 +    }
 +  }
 +
-+  async function load(next = 0, confirmation = '') {
++  async function load(confirmation = '') {
 +    const version = ++queueVersion;
 +    resetPreview();
 +    list.replaceChildren();
-+    pager.replaceChildren();
-+    feedback('Carregando fila…');
-     try {
-       const page = await api.driverVerificationPhotos(token, next, query);
--      if (request !== currentRequest || !target.isConnected) return;
--      offset = next;
++    feedback('Carregando fotos…');
++    try {
++      const data = await api.driverVerificationPhotos(token, driverId);
 +      if (version !== queueVersion || !active || !target.isConnected) return;
-       if (!page.photos.length && next > 0) {
--        await load(Math.max(0, next - 20));
-+        await load(Math.max(0, next - 20), confirmation);
-         return;
-       }
--      list.replaceChildren();
--      message.textContent = page.photos.length ? '' : 'Nenhuma foto aguardando análise.';
--      for (const photo of page.photos) {
--        const row = element('p');
--        row.append(element('span', [photo.driverName, photo.plate, labels[photo.type]].filter(Boolean).join(' · ')),
--          button('Ver foto', () => open(photo, false)));
--        list.append(row);
-+      offset = next;
-+      if (!page.photos.length) {
-+        resetPreview(query ? 'Nenhuma foto encontrada para esta busca.' : 'Nenhuma foto aguardando análise.');
-       }
--      if (offset > 0) list.append(button('Anterior', () => load(Math.max(0, offset - 20))));
--      if (page.hasMore) list.append(button('Próxima', () => load(offset + 20)));
-+      renderQueue(page.photos);
++      if (!data.photos.length) resetPreview('Nenhuma foto enviada por este motorista.');
++      renderPhotos(data.photos);
 +      feedback(confirmation, confirmation ? 'success' : 'neutral');
-+      if (offset > 0) pager.append(button('Anterior', () => load(offset - 20)));
-+      if (page.hasMore) pager.append(button('Próxima', () => load(offset + 20)));
      } catch (error) {
 -      if (request === currentRequest) message.textContent = error.message;
 +      if (version === queueVersion && active) feedback(queueError(error), 'danger');
@@ -405,29 +457,26 @@ index 43bc717..c2084bc 100644
    }
  
 -  const search = element('form');
-+  const search = element('form', '', 'driver-photo-search');
-   const field = element('input');
-   field.type = 'search';
-   field.maxLength = 80;
+-  const field = element('input');
+-  field.type = 'search';
+-  field.maxLength = 80;
 -  const label = element('label', 'Buscar por motorista ou placa');
-+  field.placeholder = 'Nome ou placa';
-+  const label = element('label', 'Buscar por motorista ou placa', 'field');
-   label.append(field);
+-  label.append(field);
 -  const submit = element('button', 'Buscar');
 -  search.append(label, submit);
-+  const submit = element('button', 'Buscar', 'button button--ghost-dark');
-+  search.append(label, submit, button('Atualizar fila', () => load(offset)));
-   search.addEventListener('submit', (event) => {
-     event.preventDefault();
-     query = field.value.trim();
-     void load();
-   });
+-  search.addEventListener('submit', (event) => {
+-    event.preventDefault();
+-    query = field.value.trim();
+-    void load();
+-  });
 -  target.replaceChildren(policy, search, message, preview, list);
++  const tools = element('div', '', 'driver-photo-actions');
++  tools.append(button('Atualizar fotos', () => load()));
 +  const layout = element('div', '', 'driver-photo-layout');
 +  const queue = element('div', '', 'driver-photo-queue');
-+  queue.append(list, pager);
++  queue.append(list);
 +  layout.append(queue, preview);
-+  root.append(search, message, layout, policy);
++  root.append(tools, message, layout, policy);
 +  target.replaceChildren(root);
 +  feedback();
    void loadPolicy();
@@ -435,10 +484,10 @@ index 43bc717..c2084bc 100644
 +  return { load, destroy() { active = false; releaseImage(); target.replaceChildren(); } };
  }
 diff --git a/styles.css b/styles.css
-index 5ad55e9..3c4ebfa 100644
+index 5ad55e9..fbfbe59 100644
 --- a/styles.css
 +++ b/styles.css
-@@ -1813,6 +1813,240 @@ td strong {
+@@ -1813,6 +1813,210 @@ td strong {
    gap: 12px;
  }
  
@@ -448,22 +497,29 @@ index 5ad55e9..3c4ebfa 100644
 +  min-width: 0;
 +}
 +
-+.driver-photo-search,
-+.driver-photo-actions,
-+.driver-photo-pager {
++.driver-photo-dossier {
++  margin: 20px 0;
++  padding-top: 16px;
++  border-top: 1px solid var(--border);
++}
++
++.driver-photo-dossier[hidden] {
++  display: none;
++}
++
++.driver-photo-dossier > h3 {
++  margin: 0;
++}
++
++.driver-photo-dossier > p {
++  margin: 6px 0 14px;
++}
++
++.driver-photo-actions {
 +  display: flex;
 +  flex-wrap: wrap;
 +  align-items: center;
 +  gap: 8px;
-+}
-+
-+.driver-photo-search {
-+  align-items: end;
-+}
-+
-+.driver-photo-search .field {
-+  flex: 1 1 220px;
-+  margin: 0;
 +}
 +
 +.driver-photo-workspace [hidden] {
@@ -486,7 +542,7 @@ index 5ad55e9..3c4ebfa 100644
 +  background: var(--raised);
 +}
 +
-+.driver-photo-queue:has(.driver-photo-groups:empty):has(.driver-photo-pager:empty) {
++.driver-photo-queue:has(.driver-photo-groups:empty) {
 +  display: none;
 +}
 +
@@ -501,6 +557,10 @@ index 5ad55e9..3c4ebfa 100644
 +}
 +
 +.driver-photo-group {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 8px;
 +  padding: 12px;
 +}
 +
@@ -523,41 +583,6 @@ index 5ad55e9..3c4ebfa 100644
 +.driver-photo-preview__header p,
 +.driver-photo-settings__body p {
 +  margin: 4px 0 0;
-+}
-+
-+.driver-photo-option {
-+  display: flex;
-+  align-items: center;
-+  justify-content: space-between;
-+  width: 100%;
-+  min-height: 42px;
-+  gap: 8px;
-+  padding: 8px;
-+  border: 1px solid transparent;
-+  border-radius: 8px;
-+  background: transparent;
-+  color: var(--ink);
-+  font: inherit;
-+  font-size: 12px;
-+  text-align: left;
-+  cursor: pointer;
-+}
-+
-+.driver-photo-option span {
-+  flex: none;
-+  color: var(--ink-soft);
-+  font-size: 11px;
-+}
-+
-+.driver-photo-option:hover,
-+.driver-photo-option[aria-current="true"] {
-+  border-color: var(--border);
-+  background: var(--surface);
-+}
-+
-+.driver-photo-option[aria-current="true"] {
-+  border-color: var(--gold);
-+  background: #fff9d9;
 +}
 +
 +.driver-photo-preview {
@@ -598,14 +623,8 @@ index 5ad55e9..3c4ebfa 100644
 +  max-height: none;
 +}
 +
-+.driver-photo-preview__tools,
-+.driver-photo-pager {
++.driver-photo-preview__tools {
 +  padding-top: 10px;
-+}
-+
-+.driver-photo-pager:not(:empty) {
-+  padding: 10px;
-+  border-top: 1px solid var(--border);
 +}
 +
 +.driver-photo-decision {

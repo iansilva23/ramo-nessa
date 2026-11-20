@@ -39,6 +39,12 @@ export async function driverVerificationPhotoRoutes(input: {
       json(response, 200, await photos.queue(offset, query));
       return true;
     }
+    const driverDetails = path.match(/^\/v1\/admin\/driver-verification-photos\/driver\/([a-zA-Z0-9._:-]{1,120})$/);
+    if (driverDetails && method === 'GET') {
+      await input.admin(false);
+      json(response, 200, await photos.adminDriverPhotos(driverDetails[1]!));
+      return true;
+    }
     if (path === adminPath + '/policy' && (method === 'GET' || method === 'PUT')) {
       const actor = await input.admin(method === 'PUT');
       if (method === 'GET') {

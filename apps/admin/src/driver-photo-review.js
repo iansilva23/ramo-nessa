@@ -24,13 +24,11 @@ function photoLabel(photo) {
   return labels[photo.type] ?? 'Foto do cadastro';
 }
 
-export function createDriverPhotoReview({ api, token, canWrite, target }) {
+export function createDriverPhotoReview({ api, token, canWrite, target, driverId }) {
   let queueVersion = 0;
   let imageVersion = 0;
   let objectUrl = null;
   let selected = null;
-  let offset = 0;
-  let query = '';
   let active = true;
 
   const root = element('div', '', 'driver-photo-workspace');
@@ -39,17 +37,15 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
   preview.setAttribute('aria-label', 'Conferência da foto');
   const message = element('p', '', 'driver-photo-feedback');
   message.setAttribute('role', 'status');
-  const pager = element('nav', '', 'driver-photo-pager');
-  pager.setAttribute('aria-label', 'Páginas da fila de fotos');
   const policy = element('details', '', 'driver-photo-settings');
   const settings = element('div', '', 'driver-photo-settings__body');
-  policy.append(element('summary', 'Configurações da exigência'), settings);
+  policy.append(element('summary', 'Configuração geral das fotos'), settings);
 
   function queueError(error) {
     if (error.status === 401) return 'Sua sessão expirou. Entre no ADM para consultar as fotos.';
     if (error.status === 403) return 'Sua conta precisa de permissão para consultar documentos de motoristas.';
     if (error.status === 404) return 'A análise de fotos está indisponível.';
-    return 'Não foi possível carregar as fotos. Use Atualizar fila para tentar novamente.';
+    return 'Não foi possível carregar as fotos. Use Atualizar fotos para tentar novamente.';
   }
 
   function feedback(text = '', tone = 'neutral') {
@@ -104,7 +100,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
     objectUrl = null;
   }
 
-  function resetPreview(text = 'Selecione uma foto na fila para conferir.') {
+  function resetPreview(text = 'Selecione uma foto deste motorista para conferir.') {
     releaseImage();
     selected = null;
     preview.replaceChildren(element('p', text, 'driver-photo-placeholder'));
@@ -118,8 +114,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
     const version = imageVersion;
     feedback();
     const heading = element('div', '', 'driver-photo-preview__header');
-    heading.append(element('h3', photoLabel(photo)),
-      element('p', [photo.driverName, photo.plate].filter(Boolean).join(' · '), 'muted-copy'));
+    heading.append(element('h3', photoLabel(photo)));
     const stage = element('div', '', 'driver-photo-stage');
     stage.append(element('p', 'Carregando foto…'));
     preview.replaceChildren(heading, stage);
@@ -143,7 +138,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
       const toolbar = element('div', '', 'driver-photo-actions driver-photo-preview__tools');
       toolbar.append(enlarge);
       preview.append(toolbar);
-      if (canWrite()) renderDecision(photo, version);
+      if (canWrite() && photo.status === 'pending') renderDecision(photo, version);
     } catch (error) {
       if (version === imageVersion && active) {
         stage.replaceChildren(element('p', error.message), button('Tentar novamente', () => open(photo, control)));
@@ -174,7 +169,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
           decision, reason: decision === 'rejected' ? reason.value.trim() : '',
         });
         if (version !== imageVersion || !active) return;
-        await load(offset, decision === 'approved' ? 'Foto aprovada.' : 'Reenvio solicitado.');
+        await load(decision === 'approved' ? 'Foto aprovada.' : 'Reenvio solicitado.');
       } catch (error) {
         if (version === imageVersion && active) {
           feedback(error.message, 'danger');
@@ -205,74 +200,51 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
     preview.append(form);
   }
 
-  function renderQueue(photos) {
-    const groups = new Map();
-    for (const photo of photos) {
-      const key = photo.driverId;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(photo);
-    }
-    for (const photosForDriver of groups.values()) {
-      const [first] = photosForDriver;
-      const group = element('section', '', 'driver-photo-group');
+  function renderPhotos(photos) {
+    const byType = new Map(photos.map((photo) => [photo.type, photo]));
+    const statuses = { pending: 'Aguardando análise', approved: 'Aprovada', rejected: 'Reenvio solicitado' };
+    for (const [type, label] of Object.entries(labels)) {
+      const photo = byType.get(type);
+      const row = element('div', '', 'driver-photo-group');
       const identity = element('div', '', 'driver-photo-group__identity');
-      identity.append(element('h3', first.driverName || 'Motorista'),
-        element('p', first.plate, 'muted-copy'));
-      group.append(identity);
-      for (const photo of photosForDriver) {
-        const control = button(photoLabel(photo), () => open(photo, control), 'driver-photo-option');
-        control.append(element('span', 'Ver foto'));
-        group.append(control);
+      identity.append(element('h3', label),
+        element('p', statuses[photo?.status] ?? 'Aguardando envio', 'muted-copy'));
+      if (photo?.status === 'rejected' && photo.reason) {
+        identity.append(element('p', photo.reason, 'muted-copy'));
       }
-      list.append(group);
+      row.append(identity);
+      if (photo) {
+        const control = button(photo.status === 'pending' ? 'Revisar foto' : 'Ver foto',
+          () => open(photo, control), 'button button--ghost-dark');
+        row.append(control);
+      }
+      list.append(row);
     }
   }
 
-  async function load(next = 0, confirmation = '') {
+  async function load(confirmation = '') {
     const version = ++queueVersion;
     resetPreview();
     list.replaceChildren();
-    pager.replaceChildren();
-    feedback('Carregando fila…');
+    feedback('Carregando fotos…');
     try {
-      const page = await api.driverVerificationPhotos(token, next, query);
+      const data = await api.driverVerificationPhotos(token, driverId);
       if (version !== queueVersion || !active || !target.isConnected) return;
-      if (!page.photos.length && next > 0) {
-        await load(Math.max(0, next - 20), confirmation);
-        return;
-      }
-      offset = next;
-      if (!page.photos.length) {
-        resetPreview(query ? 'Nenhuma foto encontrada para esta busca.' : 'Nenhuma foto aguardando análise.');
-      }
-      renderQueue(page.photos);
+      if (!data.photos.length) resetPreview('Nenhuma foto enviada por este motorista.');
+      renderPhotos(data.photos);
       feedback(confirmation, confirmation ? 'success' : 'neutral');
-      if (offset > 0) pager.append(button('Anterior', () => load(offset - 20)));
-      if (page.hasMore) pager.append(button('Próxima', () => load(offset + 20)));
     } catch (error) {
       if (version === queueVersion && active) feedback(queueError(error), 'danger');
     }
   }
 
-  const search = element('form', '', 'driver-photo-search');
-  const field = element('input');
-  field.type = 'search';
-  field.maxLength = 80;
-  field.placeholder = 'Nome ou placa';
-  const label = element('label', 'Buscar por motorista ou placa', 'field');
-  label.append(field);
-  const submit = element('button', 'Buscar', 'button button--ghost-dark');
-  search.append(label, submit, button('Atualizar fila', () => load(offset)));
-  search.addEventListener('submit', (event) => {
-    event.preventDefault();
-    query = field.value.trim();
-    void load();
-  });
+  const tools = element('div', '', 'driver-photo-actions');
+  tools.append(button('Atualizar fotos', () => load()));
   const layout = element('div', '', 'driver-photo-layout');
   const queue = element('div', '', 'driver-photo-queue');
-  queue.append(list, pager);
+  queue.append(list);
   layout.append(queue, preview);
-  root.append(search, message, layout, policy);
+  root.append(tools, message, layout, policy);
   target.replaceChildren(root);
   feedback();
   void loadPolicy();

@@ -535,19 +535,6 @@ function destroyPricingGeofenceMap() {
 
 let driverPhotoReview = null;
 
-function discoverDriverPhotoReview() {
-  const card = byId('driver-photo-review-card');
-  const button = byId('driver-photo-queue-button');
-  const target = byId('driver-photo-review-result');
-  if (!card || !button || !target || !state.token) return;
-  card.hidden = false;
-  const allowed = hasScope('drivers:documents:read');
-  button.disabled = !allowed;
-  target.textContent = allowed
-    ? 'Consulte as fotos enviadas pelos motoristas para análise.'
-    : 'Sua conta precisa da permissão Consultar documentos de motoristas para abrir a fila.';
-}
-
 function clearDriverPhotoReview() {
   driverPhotoReview?.destroy();
   driverPhotoReview = null;
@@ -555,11 +542,14 @@ function clearDriverPhotoReview() {
   if (card) card.hidden = true;
 }
 
-function openDriverPhotoQueue() {
+function loadDriverPhotoReview(driverId) {
+  clearDriverPhotoReview();
+  const card = byId('driver-photo-review-card');
   const target = byId('driver-photo-review-result');
-  if (!target || !state.token || !hasScope('drivers:documents:read')) return;
-  driverPhotoReview?.destroy();
-  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target,
+  if (!card || !target || !state.token || state.currentDriver?.driverId !== driverId
+      || !hasScope('drivers:documents:read')) return;
+  card.hidden = false;
+  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
     canWrite: () => hasScope('drivers:documents:write') });
   void driverPhotoReview.load();
 }
@@ -2260,6 +2250,7 @@ function renderDriverDocumentsUnavailable(
 ) {
   closeDriverDocumentInspection();
   state.currentDriverDocuments = null;
+  clearDriverPhotoReview();
   renderDriverDocumentComplianceUnavailable();
   const target = byId('driver-documents-result');
   target.replaceChildren();
@@ -2289,6 +2280,7 @@ async function loadDriverDocuments(driverId) {
     return;
   }
 
+  loadDriverPhotoReview(driverId);
   try {
     const [payload, compliance] = await Promise.all([
       api.getDriverDocuments(state.token, driverId),
@@ -10495,7 +10487,6 @@ function bindRouteEvents(view) {
   }
 
   if (view === 'drivers') {
-    byId('driver-photo-queue-button')?.addEventListener('click', openDriverPhotoQueue);
     bindRouteEvent(
       'operational-settings-form',
       'submit',
@@ -10863,7 +10854,6 @@ function initializeRouteView(view) {
   }
 
   if (view === 'drivers') {
-    discoverDriverPhotoReview();
     setDriverProvisionControlsVisible();
     renderDriverRegistryUnavailable();
     renderDriverDocumentsUnavailable();
