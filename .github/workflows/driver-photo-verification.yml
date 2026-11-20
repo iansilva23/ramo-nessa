@@ -101,7 +101,7 @@ jobs:
           node-version: '22'
       - run: node --check src/driver-photo-review.js
       - run: npm run check
-      - run: node --test test/admin_driver_documents_web.test.js test/admin_driver_registry_web.test.js
+      - run: npm test
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

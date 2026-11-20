@@ -32,7 +32,7 @@ function harness() {
     routeLoading: { hidden: true },
     routeOutlet: { setAttribute() {}, removeAttribute() {}, replaceChildren() {} },
     canAccessView: () => true,
-    stopFleetPolling() {}, closeDriverDocumentInspection() {}, destroyFleetMap() {},
+    stopFleetPolling() {}, clearDriverPhotoReview() {}, closeDriverDocumentInspection() {}, destroyFleetMap() {},
     destroyLocalitiesAdmin() {}, destroyPricingGeofenceMap() {}, setMessage() {},
     syncRouteNavigation() {}, bindRouteEvents() {}, renderIdentity() {},
     updateSessionClock() {}, initializeRouteView() {}, errorMessage: String,

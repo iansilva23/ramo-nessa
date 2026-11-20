@@ -111,8 +111,9 @@ class _DriverPhotoScreenState extends State<DriverPhotoScreen> {
         ],
       ),
     );
-    if (confirmed == true && mounted)
+    if (confirmed == true && mounted) {
       await widget.api.upload(snapshot, field, photo);
+    }
   });
 
   @override

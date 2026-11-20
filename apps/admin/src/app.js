@@ -557,15 +557,14 @@ function clearDriverPhotoReview() {
   if (card) card.hidden = true;
 }
 
-document.addEventListener('click', (event) => {
-  if (!(event.target instanceof Element) || !event.target.closest('[data-driver-photo-queue]')) return;
+function openDriverPhotoQueue() {
   const target = byId('driver-photo-review-result');
   if (!target || !state.token || !hasScope('drivers:documents:read')) return;
   driverPhotoReview?.destroy();
   driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target,
     canWrite: () => hasScope('drivers:documents:write') });
   void driverPhotoReview.load();
-});
+}
 
 function closeDriverDocumentInspection() {
   if (state.documentInspectionTimer != null) {
@@ -10498,6 +10497,7 @@ function bindRouteEvents(view) {
   }
 
   if (view === 'drivers') {
+    byId('driver-photo-queue-button')?.addEventListener('click', openDriverPhotoQueue);
     bindRouteEvent(
       'operational-settings-form',
       'submit',
