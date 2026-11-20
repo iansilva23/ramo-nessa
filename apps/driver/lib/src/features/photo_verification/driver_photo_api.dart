@@ -93,6 +93,8 @@ class DriverPhotoApi {
 class DriverPhotoSnapshot {
   DriverPhotoSnapshot.fromJson(Map<String, dynamic> data)
     : vehicle = '${data['vehicleId']}:${data['vehicleRevision']}',
+      work = DriverPhotoWork.fromJson(data['work'] as Map<String, dynamic>?),
+
       photos = {
         for (final photo
             in (data['photos'] as List).cast<Map<String, dynamic>>())
@@ -103,7 +105,26 @@ class DriverPhotoSnapshot {
       };
 
   final String vehicle;
+  final DriverPhotoWork work;
   final Map<String, DriverPhotoItem> photos;
+}
+
+class DriverPhotoWork {
+  DriverPhotoWork.fromJson(Map<String, dynamic>? data)
+    : state = data?['state'] as String? ?? 'off',
+      deadline = DateTime.tryParse(data?['deadline'] as String? ?? '')
+          ?.toLocal();
+
+  final String state;
+  final DateTime? deadline;
+
+  String? get message => switch (state) {
+    'notice' => 'Envie as fotos do cadastro até a data indicada.',
+    'review_grace' => 'Fotos em análise. Você pode receber novas corridas durante a tolerância.',
+    'required' =>
+      'Regularize as fotos do cadastro para receber novas corridas.',
+    _ => null,
+  };
 }
 
 class DriverPhotoItem {

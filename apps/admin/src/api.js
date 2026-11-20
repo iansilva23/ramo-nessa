@@ -980,6 +980,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    driverVerificationPolicy(token, body) {
+      return request('/v1/admin/driver-verification-photos/policy',
+        body === undefined ? { token } : { token, method: 'PUT', body });
+    },
     driverVerificationPhotos(token, offset = 0, query = '') {
       const params = new URLSearchParams({ offset: String(offset), q: query });
       return request(`/v1/admin/driver-verification-photos?${params}`, { token });

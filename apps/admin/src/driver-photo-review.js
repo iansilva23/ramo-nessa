@@ -29,6 +29,63 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
   message.setAttribute('role', 'status');
   const list = element('div');
   const preview = element('div');
+  const policy = element('div');
+  let active = true;
+
+  async function loadPolicy() {
+    try {
+      const result = await api.driverVerificationPolicy(token);
+      if (!active || !target.isConnected) return;
+      const form = element('form');
+      const starts = element('input');
+      const deadline = element('input');
+      const grace = element('input');
+      function dateValue(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+      }
+      const writable = canWrite();
+      for (const field of [starts, deadline]) { field.type = 'datetime-local'; field.disabled = !writable; }
+      starts.value = dateValue(result.startsAt);
+      deadline.value = dateValue(result.deadlineAt);
+      grace.type = 'number'; grace.min = 0; grace.max = 720; grace.value = result.reviewGraceHours; grace.disabled = !writable;
+      for (const [text, field] of [['Início da exigência',starts], ['Prazo dos motoristas atuais',deadline],
+        ['Horas de tolerância para revisão',grace]]) {
+        const label = element('label', text);
+        label.append(field);
+        form.append(label);
+      }
+      form.addEventListener('submit', (event) => event.preventDefault());
+      async function save(disabled) {
+        try {
+          if (!disabled && (!starts.value || !deadline.value || !grace.checkValidity())) {
+            message.textContent = 'Preencha as datas e a tolerância da revisão.';
+            return;
+          }
+          for (const control of form.elements) control.disabled = true;
+          await api.driverVerificationPolicy(token, {
+            startsAt: disabled ? null : new Date(starts.value).toISOString(),
+            deadlineAt: disabled ? null : new Date(deadline.value).toISOString(),
+            reviewGraceHours: disabled ? 0 : Number(grace.value),
+          });
+          message.textContent = 'Configuração das fotos salva.';
+          await loadPolicy();
+        } catch (error) {
+          message.textContent = error.message;
+          if (active) for (const control of form.elements) control.disabled = !writable;
+        }
+      }
+      if (writable) form.append(button('Salvar prazos', () => save(false)), button('Desativar exigência', () => save(true)));
+      const disk = result.disk;
+      const capacity = disk ? `Espaço livre no volume das fotos: ${disk.freeMiB} MiB.` : 'Espaço no volume indisponível.';
+      const warning = disk?.level === 'critical' ? ' Espaço crítico. Novos envios estão suspensos.'
+        : disk?.level === 'low' ? ' Espaço livre baixo.' : '';
+      policy.replaceChildren(element('h3', 'Prazos das fotos'), element('p', capacity + warning), form);
+    } catch (error) {
+      if (active) policy.textContent = error.message;
+    }
+  }
 
   function clearPreview() {
     currentRequest++;
@@ -122,6 +179,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target }) {
     query = field.value.trim();
     void load();
   });
-  target.replaceChildren(search, message, preview, list);
-  return { load, destroy() { clearPreview(); target.replaceChildren(); } };
+  target.replaceChildren(policy, search, message, preview, list);
+  void loadPolicy();
+  return { load, destroy() { active = false; clearPreview(); target.replaceChildren(); } };
 }

@@ -45,7 +45,12 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
     setState(() { _loading = true; _error = null; });
     try {
       final status = await widget.service.status();
-      if (mounted) setState(() { _status = status; _loading = false; });
+      if (mounted) {
+        setState(() { _status = status; _loading = false; });
+        if (status['status'] == 'approved' && status['verificationPhotosAvailable'] == true) {
+          await _showPhotoNotice();
+        }
+      }
     } catch (error) {
       if (mounted) setState(() { _loading = false; _error = error.toString(); });
     }
@@ -64,6 +69,22 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
       if (mounted) setState(() { _status = status; _loading = false; });
     } catch (error) { if (mounted) setState(() { _loading = false; _error = error.toString(); }); }
   }
+  Future<void> _showPhotoNotice() async {
+    final api = widget.api;
+    if (api is! DriverPhotoApiProvider) return;
+    try {
+      final photos = await (api as DriverPhotoApiProvider).verificationPhotos.status();
+      final message = photos?.work.message;
+      if (!mounted || message == null) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(message),
+        action: SnackBarAction(label: 'Fotos', onPressed: _photos),
+      ));
+    } catch (_) {
+      // The notice must never interrupt login or the existing registration flow.
+    }
+  }
+
   Widget _field(String label, TextEditingController controller, {bool number = false, int min = 1, int max = 120, String? Function(String)? check}) {
     return Padding(padding: const EdgeInsets.only(bottom: 16), child: TextFormField(
       controller: controller, enabled: !_loading, maxLength: max,

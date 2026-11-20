@@ -27,6 +27,7 @@ function run(command, args, options = {}) {
     stdio: options.stdio ?? 'inherit',
     encoding: options.encoding,
     maxBuffer: options.maxBuffer ?? 16 * 1024 * 1024,
+    input: options.input,
   });
 
   if (result.error) throw result.error;
@@ -232,6 +233,27 @@ try {
     '-C',
     '/restore',
   ]);
+
+  const restoredQuery = (sql) => String(run('docker', [
+    'exec', dbContainer, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-At',
+    '-U', postgresUser, '-d', postgresDb, '-c', sql,
+  ], { stdio: 'pipe', encoding: 'utf8' }).stdout).trim();
+  if (restoredQuery("SELECT to_regclass('public.driver_verification_photos') IS NOT NULL") === 't') {
+    const records = restoredQuery(`SELECT content_sha256 || '  ' || storage_key
+      FROM driver_verification_photos ORDER BY id`);
+    if (records) {
+      const entries = records.split('\n');
+      if (entries.some((entry) => !/^[a-f0-9]{64}  driver-verification\/[a-f0-9-]{36}\/photo[.](jpg|webp)$/.test(entry))) {
+        throw new Error('O banco restaurado contém uma referência de foto inválida.');
+      }
+      run('docker', [
+        'run', '--rm', '-i', '--network', 'none', '--read-only', '--security-opt', 'no-new-privileges',
+        '--cap-drop', 'ALL', '-v', documentsVolume + ':/restore:ro', '-w', '/restore',
+        'postgres:16', 'sha256sum', '--check', '--strict', '--status', '-',
+      ], { input: records + '\n', stdio: ['pipe', 'ignore', 'ignore'] });
+      console.log(`Fotos verificadas por SHA-256 no volume restaurado: ${entries.length}.`);
+    }
+  }
 
   // A segunda leitura prova que o conteúdo extraído no volume efêmero
   // continua navegável, sem imprimir nomes de documentos nos logs.

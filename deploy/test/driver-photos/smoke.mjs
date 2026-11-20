@@ -89,6 +89,16 @@ await request(photosPath + '/submit' + vehicle, 200, { method: 'POST', token });
 const revised = (await request(photosPath, 200, { token })).payload.photos.find((photo) => photo.type === 'vehicle_rear');
 await request(adminPath + '/' + revised.id + '/review', 200, { token: admin, method: 'PATCH', body: { decision: 'approved' } });
 console.log('Cadastro, cinco uploads, revisão, reenvio e aprovação passaram pelo gateway.');
+const policyPath = adminPath + '/policy';
+assert.equal((await request(policyPath, 200, { token: admin })).payload.startsAt, null);
+const now = Date.now();
+const start = new Date(now + 60_000).toISOString();
+const deadline = new Date(now + 3600_000).toISOString();
+await request(policyPath, 200, { token: admin, method: 'PUT',
+  body: { startsAt: start, deadlineAt: deadline, reviewGraceHours: 12 } });
+assert.equal((await request(policyPath, 200, { token: admin })).payload.deadlineAt, deadline);
+assert.equal((await request(photosPath, 200, { token })).payload.work.state, 'off');
+
 
 const unit = await mkdtemp(join(tmpdir(), 'ramo-photo-restore-'));
 const database = 'ramo_photo_restore_' + sequence;
@@ -99,7 +109,10 @@ try {
   await writeFile(join(unit, 'database.dump'), dump, { mode: 0o600 });
   const restored = join(unit, 'documents');
   await mkdir(restored, { mode: 0o700 });
-  compose(['cp', 'core:/private-documents/.', restored]);
+  const archive = compose(['run', '-T', '--rm', '--no-deps', '--entrypoint', 'tar',
+    'core', '-C', '/private-documents', '-cf', '-', '.']);
+  const extraction = spawnSync('tar', ['-xf', '-', '-C', restored], { input: archive, stdio: ['pipe','ignore','inherit'] });
+  assert.equal(extraction.status, 0, 'Falha ao restaurar o volume isolado.');
   await chmod(restored, 0o700);
   compose(postgres('createdb', '-U', 'ramonessa', database));
   compose(postgres('pg_restore', '-U', 'ramonessa', '-d', database, '--exit-on-error', '--no-owner'),

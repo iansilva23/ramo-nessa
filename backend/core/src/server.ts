@@ -778,6 +778,7 @@ async function canDriverReceiveNewWorkUnderPolicy(
   driverId: string,
   now?: Date,
 ): Promise<boolean> {
+  if (driverPhotoPreview && !(await driverPhotoPreview.photos.workStatus(driverId, now)).allowed) return false;
   const policy = await driverDocumentPolicy(driverId);
   return canDriverReceiveNewWork({
     registry: driverRegistryRepository,
@@ -7856,6 +7857,10 @@ const server = createServer(async (request, response) => {
       }
 
       if (action === 'accept') {
+        if (driverPhotoPreview && !(await driverPhotoPreview.photos.workStatus(driverId)).allowed) {
+          json(response, 409, { error: 'DRIVER_PHOTOS_REQUIRED', message: 'Regularize as fotos do cadastro para aceitar novas corridas.' });
+          return;
+        }
         const documentPolicy = await driverDocumentPolicy(driverId);
         const result = await acceptOfferFromDriverApp({
           paymentHoldSeconds: (await operationalSettingsRepository.get()).driverPaymentHoldSeconds,

@@ -39,6 +39,27 @@ export async function driverVerificationPhotoRoutes(input: {
       json(response, 200, await photos.queue(offset, query));
       return true;
     }
+    if (path === adminPath + '/policy' && (method === 'GET' || method === 'PUT')) {
+      const actor = await input.admin(method === 'PUT');
+      if (method === 'GET') {
+        json(response, 200, { ...await photos.policy(), disk: await storage.verificationCapacity().catch(() => null) });
+        return true;
+      }
+      const body = await readJsonBody(request, 4096) as
+        { startsAt?: unknown; deadlineAt?: unknown; reviewGraceHours?: unknown } | null;
+      const parse = (value: unknown) => typeof value === 'string' && value.endsWith('Z')
+        ? new Date(value) : null;
+      const startsAt = parse(body?.startsAt);
+      const deadlineAt = parse(body?.deadlineAt);
+      const hours = body?.reviewGraceHours;
+      const disabled = body?.startsAt === null && body.deadlineAt === null;
+      if (typeof hours !== 'number' || !Number.isInteger(hours) || hours < 0 || hours > 720 ||
+          (!disabled && !(startsAt && deadlineAt && startsAt < deadlineAt))) {
+        throw new VerificationPhotoError(400, 'PHOTO_POLICY', 'Confira as datas e a tolerância de revisão.');
+      }
+      json(response, 200, await photos.setPolicy({ startsAt, deadlineAt, reviewGraceHours: hours }, actor));
+      return true;
+    }
     if (path.startsWith(adminPath + '/')) {
       const [id, action, extra] = path.slice(adminPath.length + 1).split('/');
       if (!id || !uuid.test(id) || extra !== undefined) return false;

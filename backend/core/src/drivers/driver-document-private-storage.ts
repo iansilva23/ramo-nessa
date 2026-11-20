@@ -353,10 +353,19 @@ export class LocalPrivateDocumentStorage
     }
   }
 
-  async writeVerificationPhoto(storageKey: string, bytes: Buffer): Promise<void> {
-    // Keep headroom on the private volume for database/OS activity and retries.
+  private static readonly photoReserve = 512n * 1024n * 1024n;
+
+  async verificationCapacity() {
     const disk = await statfs(this.rootDirectory, { bigint: true });
-    if (disk.bavail * disk.bsize - BigInt(bytes.length) < 512n * 1024n * 1024n) {
+    const free = disk.bavail * disk.bsize;
+    const reserve = LocalPrivateDocumentStorage.photoReserve;
+    return { freeMiB: Number(free / 1048576n),
+      level: free <= reserve ? 'critical' : free < reserve * 2n ? 'low' : 'normal' };
+  }
+
+  async writeVerificationPhoto(storageKey: string, bytes: Buffer): Promise<void> {
+    const disk = await statfs(this.rootDirectory, { bigint: true });
+    if (disk.bavail * disk.bsize - BigInt(bytes.length) < LocalPrivateDocumentStorage.photoReserve) {
       throw new PrivateDocumentStorageError('DOCUMENT_STORAGE_UNAVAILABLE',
         'Espaço insuficiente para fotos. Tente novamente mais tarde.');
     }
