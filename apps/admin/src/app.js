@@ -534,6 +534,7 @@ function destroyPricingGeofenceMap() {
 }
 
 let driverPhotoReview = null;
+let driverLookupSequence = 0;
 
 function clearDriverPhotoReview() {
   driverPhotoReview?.destroy();
@@ -543,11 +544,11 @@ function clearDriverPhotoReview() {
 }
 
 function loadDriverPhotoReview(driverId) {
+  if (state.currentDriver?.driverId !== driverId) return;
   clearDriverPhotoReview();
   const card = byId('driver-photo-review-card');
   const target = byId('driver-photo-review-result');
-  if (!card || !target || !state.token || state.currentDriver?.driverId !== driverId
-      || !hasScope('drivers:documents:read')) return;
+  if (!card || !target || !state.token || !hasScope('drivers:documents:read')) return;
   card.hidden = false;
   driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
     canWrite: () => hasScope('drivers:documents:write') });
@@ -969,6 +970,7 @@ async function activateView(
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
+  driverLookupSequence++;
   clearDriverPhotoReview();
   closeDriverDocumentInspection();
   if (currentView === 'staff' && view !== 'staff') {
@@ -2270,8 +2272,11 @@ function renderDriverDocumentsUnavailable(
 }
 
 async function loadDriverDocuments(driverId) {
+  const token = state.token;
+  const current = () => state.token === token && state.currentDriver?.driverId === driverId
+    && byId('driver-documents-result') != null;
+  if (!token || !current()) return;
   closeDriverDocumentInspection();
-  if (!state.token) return;
 
   if (!hasScope('drivers:documents:read')) {
     renderDriverDocumentsUnavailable(
@@ -2283,12 +2288,14 @@ async function loadDriverDocuments(driverId) {
   loadDriverPhotoReview(driverId);
   try {
     const [payload, compliance] = await Promise.all([
-      api.getDriverDocuments(state.token, driverId),
-      api.getDriverDocumentCompliance(state.token, driverId),
+      api.getDriverDocuments(token, driverId),
+      api.getDriverDocumentCompliance(token, driverId),
     ]);
+    if (!current()) return;
     renderDriverDocuments(payload);
     renderDriverDocumentCompliance(compliance);
   } catch (error) {
+    if (!current()) return;
     if (
       error instanceof AdminApiError &&
       error.status === 404
@@ -8044,7 +8051,11 @@ async function loadDriverDocumentAlerts({ announce = false } = {}) {
 }
 
 async function lookupDriver(driverId) {
-  if (!state.token) return;
+  const token = state.token;
+  if (!token) return;
+  const version = ++driverLookupSequence;
+  const current = () => driverLookupSequence === version && state.token === token
+    && byId('driver-documents-result') != null;
   state.currentDriver = null;
   state.currentDriverRegistry = null;
   state.currentDriverDocuments = null;
@@ -8059,15 +8070,20 @@ async function lookupDriver(driverId) {
   renderDriverCashPolicyUnavailable('Carregando política cash…');
   renderDriverFinanceUnavailable('Carregando financeiro…');
   try {
-    const driver = await api.getDriver(state.token, driverId);
+    const driver = await api.getDriver(token, driverId);
+    if (!current()) return;
     state.currentDriver = driver;
     state.currentDriverRegistry = null;
     renderDriver(driver);
     await loadDriverRegistry(driverId);
+    if (!current()) return;
     await loadDriverDocuments(driverId);
+    if (!current()) return;
     await loadDriverCashPolicy(driverId);
+    if (!current()) return;
     await loadDriverFinance(driverId);
   } catch (error) {
+    if (!current()) return;
     if (
       error instanceof AdminApiError &&
       error.status === 404

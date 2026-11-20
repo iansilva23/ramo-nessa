@@ -47,10 +47,10 @@ index fc04bd4..dae8d9f 100644
      driverVerificationImage(token, id, fullSize = false) {
        return requestBinary(`/v1/admin/driver-verification-photos/${encodeURIComponent(id)}/${fullSize ? 'image' : 'thumbnail'}`, { token });
 diff --git a/src/app.js b/src/app.js
-index 3e7883d..8dc24c5 100644
+index 3e7883d..5a9987a 100644
 --- a/src/app.js
 +++ b/src/app.js
-@@ -534,34 +534,22 @@ function destroyPricingGeofenceMap() {
+@@ -534,34 +534,23 @@ function destroyPricingGeofenceMap() {
  }
  
  let driverPhotoReview = null;
@@ -68,6 +68,7 @@ index 3e7883d..8dc24c5 100644
 -    // A disabled feature has no route and stays hidden.
 -  }
 -}
++let driverLookupSequence = 0;
  
  function clearDriverPhotoReview() {
 -  driverPhotoAvailability++;
@@ -79,20 +80,28 @@ index 3e7883d..8dc24c5 100644
  
 -function openDriverPhotoQueue() {
 +function loadDriverPhotoReview(driverId) {
++  if (state.currentDriver?.driverId !== driverId) return;
 +  clearDriverPhotoReview();
 +  const card = byId('driver-photo-review-card');
    const target = byId('driver-photo-review-result');
 -  if (!target || !state.token || !hasScope('drivers:documents:read')) return;
 -  driverPhotoReview?.destroy();
 -  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target,
-+  if (!card || !target || !state.token || state.currentDriver?.driverId !== driverId
-+      || !hasScope('drivers:documents:read')) return;
++  if (!card || !target || !state.token || !hasScope('drivers:documents:read')) return;
 +  card.hidden = false;
 +  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
      canWrite: () => hasScope('drivers:documents:write') });
    void driverPhotoReview.load();
  }
-@@ -2262,6 +2250,7 @@ function renderDriverDocumentsUnavailable(
+@@ -981,6 +970,7 @@ async function activateView(
+   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
+   stopFleetPolling();
++  driverLookupSequence++;
+   clearDriverPhotoReview();
+   closeDriverDocumentInspection();
+   if (currentView === 'staff' && view !== 'staff') {
+@@ -2262,6 +2252,7 @@ function renderDriverDocumentsUnavailable(
  ) {
    closeDriverDocumentInspection();
    state.currentDriverDocuments = null;
@@ -100,15 +109,75 @@ index 3e7883d..8dc24c5 100644
    renderDriverDocumentComplianceUnavailable();
    const target = byId('driver-documents-result');
    target.replaceChildren();
-@@ -2291,6 +2280,7 @@ async function loadDriverDocuments(driverId) {
+@@ -2281,8 +2272,11 @@ function renderDriverDocumentsUnavailable(
+ }
+ 
+ async function loadDriverDocuments(driverId) {
++  const token = state.token;
++  const current = () => state.token === token && state.currentDriver?.driverId === driverId
++    && byId('driver-documents-result') != null;
++  if (!token || !current()) return;
+   closeDriverDocumentInspection();
+-  if (!state.token) return;
+ 
+   if (!hasScope('drivers:documents:read')) {
+     renderDriverDocumentsUnavailable(
+@@ -2291,14 +2285,17 @@ async function loadDriverDocuments(driverId) {
      return;
    }
  
 +  loadDriverPhotoReview(driverId);
    try {
      const [payload, compliance] = await Promise.all([
-       api.getDriverDocuments(state.token, driverId),
-@@ -10497,7 +10487,6 @@ function bindRouteEvents(view) {
+-      api.getDriverDocuments(state.token, driverId),
+-      api.getDriverDocumentCompliance(state.token, driverId),
++      api.getDriverDocuments(token, driverId),
++      api.getDriverDocumentCompliance(token, driverId),
+     ]);
++    if (!current()) return;
+     renderDriverDocuments(payload);
+     renderDriverDocumentCompliance(compliance);
+   } catch (error) {
++    if (!current()) return;
+     if (
+       error instanceof AdminApiError &&
+       error.status === 404
+@@ -8054,7 +8051,11 @@ async function loadDriverDocumentAlerts({ announce = false } = {}) {
+ }
+ 
+ async function lookupDriver(driverId) {
+-  if (!state.token) return;
++  const token = state.token;
++  if (!token) return;
++  const version = ++driverLookupSequence;
++  const current = () => driverLookupSequence === version && state.token === token
++    && byId('driver-documents-result') != null;
+   state.currentDriver = null;
+   state.currentDriverRegistry = null;
+   state.currentDriverDocuments = null;
+@@ -8069,15 +8070,20 @@ async function lookupDriver(driverId) {
+   renderDriverCashPolicyUnavailable('Carregando política cash…');
+   renderDriverFinanceUnavailable('Carregando financeiro…');
+   try {
+-    const driver = await api.getDriver(state.token, driverId);
++    const driver = await api.getDriver(token, driverId);
++    if (!current()) return;
+     state.currentDriver = driver;
+     state.currentDriverRegistry = null;
+     renderDriver(driver);
+     await loadDriverRegistry(driverId);
++    if (!current()) return;
+     await loadDriverDocuments(driverId);
++    if (!current()) return;
+     await loadDriverCashPolicy(driverId);
++    if (!current()) return;
+     await loadDriverFinance(driverId);
+   } catch (error) {
++    if (!current()) return;
+     if (
+       error instanceof AdminApiError &&
+       error.status === 404
+@@ -10497,7 +10503,6 @@ function bindRouteEvents(view) {
    }
  
    if (view === 'drivers') {
@@ -116,7 +185,7 @@ index 3e7883d..8dc24c5 100644
      bindRouteEvent(
        'operational-settings-form',
        'submit',
-@@ -10865,7 +10854,6 @@ function initializeRouteView(view) {
+@@ -10865,7 +10870,6 @@ function initializeRouteView(view) {
    }
  
    if (view === 'drivers') {
