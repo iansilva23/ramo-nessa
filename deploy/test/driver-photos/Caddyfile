@@ -1,0 +1,37 @@
+{
+  admin off
+  auto_https off
+}
+
+:8080 {
+  encode gzip
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+    Cache-Control "no-store"
+  }
+  @api path /v1/* /health /ready
+  handle @api {
+    reverse_proxy core:8080
+  }
+  redir /motorista /motorista/ 308
+  handle_path /motorista/* {
+    root * /srv/driver
+    header Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+    try_files {path} /index.html
+    file_server
+  }
+  redir /administrodo /administrodo/ 308
+  handle_path /administrodo/* {
+    root * /srv/admin
+    header Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    try_files {path} /index.html
+    file_server
+  }
+  handle {
+    respond 404
+  }
+}

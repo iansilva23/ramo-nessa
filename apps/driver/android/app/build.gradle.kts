@@ -106,6 +106,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (providers.environmentVariable("RAMO_PHOTO_HOMOLOGATION").orNull == "true") {
+                applicationIdSuffix = ".phototest"
+                versionNameSuffix = "-photo-test"
+            }
+        }
         release {
             // Produção continua sem assinatura improvisada. A configuração
             // abaixo só é ativada pelo workflow exclusivo de Preview.

@@ -6,6 +6,7 @@ on:
       - 'apps/driver/**'
       - 'backend/core/**'
       - 'apps/admin/**'
+      - 'deploy/test/driver-photos/**'
       - '.github/workflows/driver-photo-verification.yml'
 permissions:
   contents: read
@@ -30,6 +31,13 @@ jobs:
           lib/src/features/registration/driver_registration_gate.dart
       - run: flutter build web --no-pub
       - run: flutter test --no-pub test/driver_verification_photo_test.dart
+      - name: Build same-origin web preview for local homologation
+        run: flutter build web --debug --no-pub --base-href=/motorista/ --dart-define=RAMO_PREVIEW_MODE=false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-web-preview
+          path: apps/driver/build/web
+          if-no-files-found: error
   database:
     runs-on: ubuntu-24.04
     defaults:
@@ -121,4 +129,31 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get --enforce-lockfile
-      - run: flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Build Android preview connected to the isolated gateway
+        env:
+          RAMO_PHOTO_HOMOLOGATION: 'true'
+        run: >-
+          flutter build apk --debug --no-pub --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=http://127.0.0.1:18765
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-android-preview
+          path: apps/driver/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+  homologation:
+    runs-on: ubuntu-24.04
+    needs: [compression]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-photo-web-preview
+          path: apps/driver/build/web
+      - run: node deploy/test/driver-photos/stack.mjs up
+      - run: node deploy/test/driver-photos/smoke.mjs
+      - if: always()
+        run: node deploy/test/driver-photos/stack.mjs down
