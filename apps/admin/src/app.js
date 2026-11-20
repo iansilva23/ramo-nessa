@@ -534,23 +534,21 @@ function destroyPricingGeofenceMap() {
 }
 
 let driverPhotoReview = null;
-let driverPhotoAvailability = 0;
 
-async function discoverDriverPhotoReview() {
+function discoverDriverPhotoReview() {
   const card = byId('driver-photo-review-card');
-  const token = state.token;
-  const attempt = ++driverPhotoAvailability;
-  if (!card || !token || !hasScope('drivers:documents:read')) return;
-  try {
-    await api.driverVerificationPhotos(token);
-    if (attempt === driverPhotoAvailability && state.token === token && card.isConnected) card.hidden = false;
-  } catch {
-    // A disabled feature has no route and stays hidden.
-  }
+  const button = byId('driver-photo-queue-button');
+  const target = byId('driver-photo-review-result');
+  if (!card || !button || !target || !state.token) return;
+  card.hidden = false;
+  const allowed = hasScope('drivers:documents:read');
+  button.disabled = !allowed;
+  target.textContent = allowed
+    ? 'Consulte as fotos enviadas pelos motoristas para análise.'
+    : 'Sua conta precisa da permissão Consultar documentos de motoristas para abrir a fila.';
 }
 
 function clearDriverPhotoReview() {
-  driverPhotoAvailability++;
   driverPhotoReview?.destroy();
   driverPhotoReview = null;
   const card = byId('driver-photo-review-card');
@@ -10865,7 +10863,7 @@ function initializeRouteView(view) {
   }
 
   if (view === 'drivers') {
-    void discoverDriverPhotoReview();
+    discoverDriverPhotoReview();
     setDriverProvisionControlsVisible();
     renderDriverRegistryUnavailable();
     renderDriverDocumentsUnavailable();
