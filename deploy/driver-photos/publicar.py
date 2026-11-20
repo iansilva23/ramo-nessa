@@ -21,11 +21,6 @@ GUARD = ROOT / 'active-screen-lock-e2dfhu83/activate-lock-candidate.py'
 GUARD_HASH = '71268d209c4483b13c23ad3117e74196a65245e118f1bc9317f4bde3ee8b762f'
 PREP_HASH = 'aa586db1ce856ab7d86d6cefc4380847024a096750451dd281db9e651da65393'
 BASE_ADMIN = ('src/app.js', 'src/api.js', 'pages/drivers.html', 'src/driver-photo-review.js')
-ADM_BASE_HASHES = {
-    'src/app.js': 'e2fe436915444e45b729dfda6cadae1695587a9db01394c0f98a7b94e6e378fc',
-    'src/api.js': '21e45e8fb952e6b7ca722b77a7da286846a2e14b2d4c1064bf0387c6a7a6a761',
-    'pages/drivers.html': 'dfa4bb793013b41f07047d965b7714f7523a590b531f1ad874f475cf6e091ce1',
-}
 CORE = PROJECT + '-core-1'
 GATEWAY = PROJECT + '-gateway-1'
 DB = PROJECT + '-postgres-1'
@@ -66,6 +61,54 @@ def unpack(path, destination):
             with archive.extractfile(item) as source, target.open('xb') as output:
                 shutil.copyfileobj(source, output)
             target.chmod(0o644)
+
+
+def add_before(source, marker, addition):
+    need(source.count(marker) == 1, 'Ponto de integração ADM ausente ou duplicado: ' + marker.strip())
+    return source.replace(marker, addition + marker, 1)
+
+
+def within(source, start, end, operation):
+    need(source.count(start) == 1, 'Seção do ADM não identificada: ' + start)
+    head, part = source.split(start, 1)
+    body, tail = part.split(end, 1)
+    return head + start + operation(body) + end + tail
+
+
+def merge_admin(active, candidate):
+    def fragment(name, start, end):
+        source = candidate[name]
+        need(source.count(start) == 1, 'Pacote ADM incompleto: ' + name)
+        return start + source.split(start, 1)[1].split(end, 1)[0]
+
+    app = active['src/app.js']
+    need('driver-photo-review' not in app, 'O ADM já contém a integração de fotos.')
+    view = "  if (view === 'drivers') {\n"
+    app = fragment('src/app.js', 'import { createDriverPhotoReview }', '\n') + '\n' + app
+    app = add_before(app, 'function closeDriverDocumentInspection() {',
+                     fragment('src/app.js','let driverPhotoReview = null;', 'function closeDriverDocumentInspection() {'))
+    for start, end in [('function clearSession(', '\nfunction '),
+                       ('async function activateView(', '\nasync function openSession('),
+                       ("window.addEventListener('pagehide'", '\nauthView.hidden')]:
+        app = within(app, start, end, lambda body: add_before(
+            body, '  closeDriverDocumentInspection();\n', '  clearDriverPhotoReview();\n'))
+    hooks = [('function bindRouteEvents(view) {', '\nfunction initializeRouteView(',
+              "    byId('driver-photo-queue-button')?.addEventListener('click', openDriverPhotoQueue);\n"),
+             ('function initializeRouteView(view) {', '\ndocument.addEventListener(',
+              '    void discoverDriverPhotoReview();\n')]
+    for start, end, hook in hooks:
+        def insert(body):
+            need(body.count(view) == 1, 'Seção Motoristas mudou no ADM.')
+            return body.replace(view, view + hook, 1)
+        app = within(app, start, end, insert)
+    api = add_before(active['src/api.js'], '    getDriverDocuments(token, driverId) {',
+                     fragment('src/api.js','    driverVerificationPolicy(token, body) {',
+                              '    getDriverDocuments(token, driverId) {'))
+    section = '            <article class="panel-card operational-settings-card">'
+    page = add_before(active['pages/drivers.html'], section,
+                      fragment('pages/drivers.html','            <article class="panel-card" id="driver-photo-review-card" hidden>',section))
+    return {'src/app.js': app, 'src/api.js': api, 'pages/drivers.html': page,
+            'src/driver-photo-review.js': candidate['src/driver-photo-review.js']}
 
 
 def compose(snapshot, path):
@@ -145,9 +188,8 @@ def main():
         need(digest(h.run(['docker','exec',GATEWAY,'cat','/etc/caddy/Caddyfile'])) ==
              'df3f304e8ae067e85d9ca66cc96b7941a72dc52119df72424f1426cb0cc37d73',
              'O Caddyfile ativo diverge da versão publicada.')
-        for name, checksum in ADM_BASE_HASHES.items():
-            need(digest(h.run(['docker','exec',GATEWAY,'cat','/srv/admin/'+name])) == checksum,
-                 'O ADM ativo diverge do código-base: ' + name)
+        admin_before = {name: h.run(['docker','exec',GATEWAY,'cat','/srv/admin/'+name]).decode('utf-8')
+                        for name in BASE_ADMIN if name != 'src/driver-photo-review.js'}
         h.run(['docker','exec',CORE,'node','-e',
                'const fs=require("node:fs");const p=process.argv[1];fs.accessSync(p,fs.constants.R_OK|fs.constants.W_OK);'
                'const d=fs.statfsSync(p,{bigint:true});if (d.bavail*d.bsize<1073741824n)process.exit(1);',private_dir])
@@ -183,7 +225,15 @@ def main():
         h.run(['docker','build','--label','org.opencontainers.image.revision='+revision,'-t',core_tag,
                str(anchor/'core/backend/core')],timeout=900)
         core_image = h.inspect(core_tag, True)['Id']
-        adm_path = anchor/'adm/apps/admin'
+        candidate_adm = anchor/'adm/apps/admin'
+        adm_path = anchor/'adm-merged'
+        adm_path.mkdir(mode=0o700)
+        merged = merge_admin(admin_before, {name: (candidate_adm/name).read_text() for name in BASE_ADMIN})
+        p.extract({name: content.encode() for name,content in merged.items()}, adm_path)
+        for name in BASE_ADMIN:
+            if name.endswith('.js'):
+                h.run(['docker','exec','-i',CORE,'node','--input-type=module','--check'],
+                      input=(adm_path/name).read_bytes())
         gateway_image = p.derive_image(h, original['gateway']['Image'], anchor.name+'-gateway', adm_path,
                                        [(n,'/srv/admin/'+n) for n in BASE_ADMIN])
         plan['rollbackHashes'] = {}
