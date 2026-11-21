@@ -47,6 +47,31 @@ void main() {
   });
 
 
+  testWidgets('Voltar depois do aceite não cancela corrida em dinheiro', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final service = _CashCancellationTrackingService(accepted: true);
+    var closes = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: RideTrackingScreen(
+        rideId: 'ride-1',
+        remainingWalletCents: null,
+        trackingService: service,
+        paymentMethod: 'cash',
+        onRecoveryClose: () { closes++; },
+        networkTilesEnabled: false,
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Deseja cancelar a corrida?'), findsNothing);
+    expect(service.cancellations, 0);
+    expect(closes, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets('tracking aplica atualização realtime sem esperar polling',
       (tester) async {
     final realtime = _FakeRealtimeService();
@@ -510,13 +535,16 @@ class _FakeRealtimeService implements PassengerRideRealtimeService {
 
 class _CashCancellationTrackingService extends _FakeTrackingService
     implements PassengerManualCancellationApi {
+  _CashCancellationTrackingService({this.accepted = false});
+
+  final bool accepted;
   int cancellations = 0;
 
   @override
   Future<PassengerRideTrackingSnapshot> tracking(String rideId) async =>
       PassengerRideTrackingSnapshot(
         rideId: rideId,
-        state: 'DRIVER_ASSIGNED',
+        state: accepted ? 'DRIVER_ASSIGNED' : 'SEARCHING_DRIVER',
         category: 'car',
       );
 
@@ -529,11 +557,11 @@ class _CashCancellationTrackingService extends _FakeTrackingService
   }) async {
     if (method == 'POST') cancellations++;
     return {
-      'canCancel': true,
+      'canCancel': !accepted,
       'terms': {
         'systemEnabled': true,
         'serverTime': '2026-11-20T14:00:00.000Z',
-        'cancelUntil': '2026-11-20T14:00:40.000Z',
+        'cancelUntil': accepted ? null : '2026-11-20T14:00:20.000Z',
       },
     };
   }
