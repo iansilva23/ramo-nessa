@@ -15,7 +15,7 @@ ROOT, RELEASES, PROJECT = (base[k] for k in ('ROOT', 'RELEASES', 'PROJECT'))
 need, digest, launch, verify_live = (
     base[k] for k in ('need', 'digest', 'launch', 'verify_live')
 )
-ACTIVE_PORTRAIT = 'passenger-driver-portrait-4ee0c0e45641-'
+ACTIVE_GESTURE = 'driver-web-gesture-d4c92d9e20aa-'
 
 
 def main():
@@ -45,8 +45,8 @@ def main():
              'Gateway indisponível.')
         config = Path(gateway['Config']['Labels']['com.docker.compose.project.config_files'])
         current = config.parent
-        need(current.parent == ROOT and current.name.startswith(ACTIVE_PORTRAIT) and
-             config.name == 'gateway-after.json', 'A revisão ativa mudou.')
+        need(current.parent == ROOT and current.name.startswith(ACTIVE_GESTURE) and
+             config.name == 'after.json', 'A revisão ativa mudou.')
         web_before = RELEASES/current.name/'bundles'
         need(any(m['Destination'] == '/srv/web' and m['Source'] == str(web_before)
                  for m in gateway['Mounts']), 'Bundle ativo divergente.')

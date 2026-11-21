@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Verify the scope of the update
         run: |
           git diff --exit-code 4ee0c0e456414f9a0ef6e92e7daa15fe30394300 HEAD -- backend apps/passenger apps/admin apps/driver/android apps/driver/ios apps/driver/web apps/driver/lib/src/core/location config packages

@@ -3,6 +3,10 @@ import 'dart:math' as math;
 
 import 'package:web/web.dart' as web;
 
+import 'driver_web_map_camera.dart';
+
+enum _TwoFingerMode { waiting, native, combined }
+
 /// Platform views can consume events before Flutter's Listener. Capture only
 /// Google Map descendants, never the app's cards, buttons or other screens.
 void Function() subscribeDriverMapGestures({
@@ -21,8 +25,14 @@ void Function() subscribeDriverMapGestures({
   final document = web.document;
   web.Element? touchMap;
   (int, int)? pair;
-  math.Point<double>? start;
+  math.Point<double>? start, startMidpoint;
+  var mode = _TwoFingerMode.waiting;
   int? frame;
+  DriverWebMapCamera? nativeCamera;
+  (double, double)? nativeStart;
+  final releaseCameraCapture = pinch == null
+      ? null
+      : captureDriverWebMapCamera();
 
   // Keep browser page gestures from taking ownership of an in-map pinch.
   final style = pinch == null
@@ -47,12 +57,43 @@ void Function() subscribeDriverMapGestures({
     if (a == null || b == null) return;
     final vector = b - a;
     if (vector.magnitude < 8) return;
-    pinch?.call(
-      math.log(vector.magnitude / baseline.magnitude) / math.ln2,
-      (math.atan2(baseline.y, baseline.x) - math.atan2(vector.y, vector.x)) *
-          180 /
-          math.pi,
-    );
+    final zoomDelta =
+        math.log(vector.magnitude / baseline.magnitude) / math.ln2;
+    final bearingDelta =
+        (math.atan2(baseline.y, baseline.x) - math.atan2(vector.y, vector.x)) *
+        180 /
+        math.pi;
+    final camera = nativeCamera;
+    final initial = nativeStart;
+    if (camera != null && initial != null) {
+      camera.apply(
+        (initial.$1 + zoomDelta).clamp(4.0, 19.0).toDouble(),
+        (initial.$2 + bearingDelta) % 360,
+      );
+    } else {
+      pinch?.call(zoomDelta, bearingDelta);
+    }
+  }
+
+  void selectMode() {
+    final ids = pair;
+    final baseline = start;
+    final midpoint = startMidpoint;
+    if (ids == null || baseline == null || midpoint == null) return;
+    final a = touches[ids.$1], b = touches[ids.$2];
+    if (a == null || b == null) return;
+    final translation = (a + b) * 0.5 - midpoint;
+    final shapeChange = ((b - a) - baseline).magnitude;
+    final vertical = translation.y.abs();
+
+    // Two fingers travelling up or down together retain the SDK's tilt.
+    if (vertical >= 8 &&
+        translation.x.abs() <= vertical * .65 &&
+        shapeChange <= vertical * .75) {
+      mode = _TwoFingerMode.native;
+    } else if (shapeChange >= 8) {
+      mode = _TwoFingerMode.combined;
+    }
   }
 
   void finishPinch() {
@@ -61,6 +102,10 @@ void Function() subscribeDriverMapGestures({
     frame = null;
     pair = null;
     start = null;
+    startMidpoint = null;
+    mode = _TwoFingerMode.waiting;
+    nativeCamera = null;
+    nativeStart = null;
     if (active) endPinch?.call();
   }
 
@@ -82,9 +127,19 @@ void Function() subscribeDriverMapGestures({
       if (baseline.magnitude >= 8 && beginPinch?.call() == true) {
         pair = (ids[0], ids[1]);
         start = baseline;
+        startMidpoint = (touches[ids[0]]! + touches[ids[1]]!) * 0.5;
+        final camera = driverWebMapCameraFor(map);
+        final zoom = camera?.getZoom(), heading = camera?.getHeading() ?? 0.0;
+        if (camera != null &&
+            zoom != null &&
+            zoom.isFinite &&
+            heading.isFinite) {
+          nativeCamera = camera;
+          nativeStart = (zoom, heading);
+        }
       }
     }
-    if (pair != null) consume(event);
+    if (mode == _TwoFingerMode.combined) consume(event);
   }).toJS;
 
   handlers['pointermove'] = ((web.PointerEvent event) {
@@ -95,12 +150,21 @@ void Function() subscribeDriverMapGestures({
       event.clientX.toDouble(),
       event.clientY.toDouble(),
     );
-    if (pair == null) return;
-    consume(event);
+    if (pair == null || mode == _TwoFingerMode.native) return;
+    if (mode == _TwoFingerMode.combined) {
+      consume(event);
+      if (nativeCamera != null) {
+        writeCamera();
+        return;
+      }
+    }
+    // Classify once both contacts have reported their positions in this frame.
+    // After classification, the vector map updates on every pointer movement.
     frame ??= web.window.requestAnimationFrame(
       ((double _) {
         frame = null;
-        writeCamera();
+        if (mode == _TwoFingerMode.waiting) selectMode();
+        if (mode == _TwoFingerMode.combined) writeCamera();
       }).toJS,
     );
   }).toJS;
@@ -109,7 +173,10 @@ void Function() subscribeDriverMapGestures({
     final ids = pair;
     if (ids != null &&
         (event.pointerId == ids.$1 || event.pointerId == ids.$2)) {
-      if (frame != null && event.type == 'pointerup') writeCamera();
+      if (frame != null && event.type == 'pointerup') {
+        if (mode == _TwoFingerMode.waiting) selectMode();
+        if (mode == _TwoFingerMode.combined) writeCamera();
+      }
       if (frame case final scheduled?)
         web.window.cancelAnimationFrame(scheduled);
       frame = null;
@@ -131,7 +198,9 @@ void Function() subscribeDriverMapGestures({
   // Maps may use Touch Events too. Only suppress them during our two-finger
   // gesture. Leave end/cancel events available to release the SDK's first touch.
   final interceptTouch = ((web.Event event) {
-    if (pair != null && mapOf(event) == touchMap) consume(event);
+    if (mode == _TwoFingerMode.combined && mapOf(event) == touchMap) {
+      consume(event);
+    }
   }).toJS;
   handlers['touchstart'] = interceptTouch;
   handlers['touchmove'] = interceptTouch;
@@ -156,5 +225,6 @@ void Function() subscribeDriverMapGestures({
     }
     reset();
     style?.remove();
+    releaseCameraCapture?.call();
   };
 }
