@@ -32,8 +32,8 @@ jobs:
           """.replace('__viewport__', chr(36)+'{viewport.width.toInt()}')
           stages = [
               ('01-nova-corrida', "      await tester.ensureVisible(find.text('Aceitar corrida'));"),
-              ('02-indo-buscar', "      await tester.ensureVisible(find.text('Cheguei no embarque'));"),
-              ('03-no-embarque', "      await tester.ensureVisible(find.text('Iniciar corrida'));"),
+              ('02-indo-buscar', "      await tester.tap(find.text('Cheguei'));"),
+              ('03-no-embarque', "      expect(find.text('Iniciar corrida').hitTestable(), findsOneWidget);"),
               ('04-em-andamento', "      expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);"),
               ('05-finalizada', "      expect(tester.takeException(), isNull, reason: 'resumo final $viewport');"),
           ]
@@ -86,6 +86,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ramo-nessa-motorista-capturas-reais
+          name: ramo-nessa-motorista-painel-fixo-previa
           path: artifacts/driver-flow/
           if-no-files-found: error

@@ -90,7 +90,7 @@ void main() {
     expect(find.byTooltip('Expandir corrida'), findsNothing);
     realtime.add(DriverRealtimeUpdate(ride: ride('DRIVER_ARRIVING', id: 'ride-next'), rideUpdated: true));
     await tester.pumpAndSettle();
-    expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.text('Indo buscar'), findsOneWidget);
     expect(find.byTooltip('Expandir corrida'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

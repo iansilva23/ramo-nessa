@@ -2710,6 +2710,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     void minimize() => setState(() => _collapsedRidePanel = panelIdentity);
     void restore() => setState(() => _collapsedRidePanel = null);
 
+    final docked = !collapsed &&
+        const {'DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED',
+          'IN_PROGRESS', 'COMPLETED'}.contains(presentedRide?.state);
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -2833,10 +2837,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             child: SafeArea(child: _CompactMapMessage(message: _message!)),
           ),
         Positioned(
-          left: 14,
-          right: 14,
+          left: docked ? 0 : 14,
+          right: docked ? 0 : 14,
           top: _navigationMode && _activeRide != null ? 224 : 82,
-          bottom: 14,
+          bottom: docked ? 0 : 14,
           child: SafeArea(
             top: false,
             child: Align(
@@ -2845,23 +2849,26 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _MapCircleButton(
-                          tooltip: 'Diminuir zoom',
-                          icon: Icons.remove,
-                          onPressed: () => unawaited(_mapController.zoomBy(-1)),
-                        ),
-                        const SizedBox(width: 8),
-                        _MapCircleButton(
-                          tooltip: 'Aumentar zoom',
-                          icon: Icons.add,
-                          onPressed: () => unawaited(_mapController.zoomBy(1)),
-                        ),
-                      ],
+                  Padding(
+                    padding: EdgeInsets.only(right: docked ? 14 : 0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _MapCircleButton(
+                            tooltip: 'Diminuir zoom',
+                            icon: Icons.remove,
+                            onPressed: () => unawaited(_mapController.zoomBy(-1)),
+                          ),
+                          const SizedBox(width: 8),
+                          _MapCircleButton(
+                            tooltip: 'Aumentar zoom',
+                            icon: Icons.add,
+                            onPressed: () => unawaited(_mapController.zoomBy(1)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2934,10 +2941,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                         ? DriverPassengerIdentity(
                                             api: _api as DriverRideIdentityApi,
                                             rideId: presentedRide.id,
-                                            showDeadline: [
-                                              'DRIVER_ASSIGNED',
-                                              'DRIVER_ARRIVING',
-                                            ].contains(presentedRide.state),
+                                            inline: docked,
+                                            showDeadline: !docked &&
+                                                const {'DRIVER_ASSIGNED', 'DRIVER_ARRIVING'}
+                                                    .contains(presentedRide.state),
                                           )
                                         : null,
                                     ride: presentedRide,
@@ -4906,43 +4913,6 @@ class _DriverRouteStop extends StatelessWidget {
   }
 }
 
-class _DriverTripMetrics extends StatelessWidget {
-  const _DriverTripMetrics({
-    required this.pickupDuration,
-    required this.pickupDistance,
-    required this.tripDuration,
-    required this.tripDistance,
-    required this.passengers,
-  });
-
-  final String? pickupDuration;
-  final String pickupDistance;
-  final String? tripDuration;
-  final String? tripDistance;
-  final int passengers;
-
-  @override
-  Widget build(BuildContext context) {
-    final pickupText = pickupDuration == null
-        ? pickupDistance
-        : '$pickupDuration · $pickupDistance';
-    final tripText = switch ((tripDuration, tripDistance)) {
-      (final String duration, final String distance) => '$duration · $distance',
-      (final String duration, null) => duration,
-      (null, final String distance) => distance,
-      _ => 'Calculando',
-    };
-
-    return _rideMetrics(
-      'Até buscar',
-      pickupText,
-      'Viagem',
-      tripText,
-      passengers,
-    );
-  }
-}
-
 class _DriverMetric extends StatelessWidget {
   const _DriverMetric({
     required this.icon,
@@ -5450,6 +5420,7 @@ class _ActiveRideCard extends StatelessWidget {
         [
           'DRIVER_ASSIGNED',
           'DRIVER_ARRIVING',
+          'DRIVER_ARRIVED',
           'IN_PROGRESS',
           'COMPLETED',
         ].contains(ride.state)) {
@@ -5462,6 +5433,8 @@ class _ActiveRideCard extends StatelessWidget {
         route: route,
         onMinimize: onMinimize!,
         onArrived: onArrived,
+        onStart: onStart,
+        celebrateUntil: celebrateUntil,
         onRatePassenger: onRatePassenger,
         onComplete: onComplete,
         onCancel: onCancel,

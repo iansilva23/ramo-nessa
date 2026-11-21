@@ -2,7 +2,6 @@ part of '../driver_home_screen.dart';
 
 const _rideInk = Color(0xFF080A0B);
 const _rideMuted = Color(0xFF70747D);
-const _rideGrey = Color(0xFFF4F4F6);
 const _rideYellow = Color(0xFFFFD600);
 
 // Bounds come from the map's usable overlay area, above the existing tab bar.
@@ -255,180 +254,6 @@ Widget _rideCategory(String label) => Container(
   ),
 );
 
-Widget _rideHeading(
-  String title,
-  String subtitle,
-  String category, {
-  bool done = false,
-}) => Row(
-  children: [
-    Container(
-      width: 40,
-      height: 40,
-      decoration: const BoxDecoration(
-        color: _rideYellow,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        done ? Icons.check_rounded : Icons.near_me_rounded,
-        color: _rideInk,
-        size: 26,
-      ),
-    ),
-    const SizedBox(width: 10),
-    Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            style: const TextStyle(color: _rideMuted, fontSize: 13),
-          ),
-        ],
-      ),
-    ),
-    if (!done) ...[
-      const SizedBox(width: 6),
-      Flexible(child: _rideCategory(category)),
-    ],
-  ],
-);
-
-class _RideRouteBlock extends StatelessWidget {
-  const _RideRouteBlock({
-    required this.origin,
-    required this.destination,
-    this.originLabel = 'EMBARQUE',
-    this.pickupDistance,
-    this.tripDistance,
-  });
-  final String origin, destination, originLabel;
-  final String? pickupDistance, tripDistance;
-  Widget _stop(
-    String label,
-    String value,
-    String? distance,
-    bool pickup,
-  ) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: pickup ? _rideYellow : _rideInk,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          Icons.location_on_rounded,
-          size: 20,
-          color: pickup ? _rideInk : Colors.white,
-        ),
-      ),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: _rideMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-            ),
-          ],
-        ),
-      ),
-      if (distance != null) ...[
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE9EAED),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Text(
-            distance,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
-    ],
-  );
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: _rideGrey,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      children: [
-        _stop(originLabel, origin, pickupDistance, true),
-        const SizedBox(height: 12),
-        _stop('DESTINO', destination, tripDistance, false),
-      ],
-    ),
-  );
-}
-
-Widget _rideMetrics(
-  String timeLabel,
-  String time,
-  String distanceLabel,
-  String distance,
-  int passengers,
-) => Row(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Expanded(child: _rideMetric(Icons.schedule_rounded, timeLabel, time)),
-    const SizedBox(width: 6),
-    Expanded(child: _rideMetric(Icons.route_rounded, distanceLabel, distance)),
-    const SizedBox(width: 6),
-    Expanded(
-      child: _rideMetric(Icons.group_rounded, 'Passageiros', '$passengers'),
-    ),
-  ],
-);
-Widget _rideMetric(IconData icon, String label, String value) => Container(
-  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-  decoration: BoxDecoration(
-    color: _rideGrey,
-    borderRadius: BorderRadius.circular(16),
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(icon, color: _rideInk, size: 20),
-      const SizedBox(height: 6),
-      Text(label, style: const TextStyle(color: _rideMuted, fontSize: 11)),
-      const SizedBox(height: 4),
-      Text(
-        value,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-      ),
-    ],
-  ),
-);
-
-String _ridePayment(String? method) => switch (method) {
-  'cash' => 'Dinheiro',
-  'pix' => 'Pix',
-  'card' || 'credit_card' || 'debit_card' => 'Cartão',
-  _ => method ?? 'Não informado',
-};
 String _rideDistance(double? distance) => distance == null
     ? '—'
     : distance < 1
@@ -458,8 +283,14 @@ class _DriverOfferDesign extends StatelessWidget {
     final pickup =
         pickupRoute?.distanceLabel ??
         _rideDistance(offer.approximatePickupDistanceKm);
-    final trip =
-        tripRoute?.distanceLabel ?? _rideDistance(offer.tripDistanceKm);
+    final trip = tripRoute?.distanceLabel ??
+        (offer.tripDistanceKm == null ? null : _rideDistance(offer.tripDistanceKm));
+    final pickupInfo = [pickupRoute?.durationLabel, pickup].whereType<String>().join(' · ');
+    final tripInfo = [tripRoute?.durationLabel, trip].whereType<String>().join(' · ');
+    final fare = offer.cashCollectionAmountCents;
+    final tendered = offer.cashTenderedCents;
+    final change = offer.isCash && fare != null && tendered != null && tendered > fare
+        ? tendered - fare : null;
     return _DriverDesignFrame(
       darkHeader: false,
       onMinimize: onMinimize,
@@ -511,50 +342,17 @@ class _DriverOfferDesign extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (offer.campaignPresentation != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: DriverCampaignNotice(presentation: offer.campaignPresentation!, compact: true)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'VOCÊ RECEBE',
-                      style: TextStyle(
-                        color: _rideMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      formatCents(offer.driverEarningsCents),
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(child: _rideCategory(offer.categoryLabel)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _RideRouteBlock(
-            origin: offer.originDisplayName,
-            destination:
-                offer.destinationDisplayName,
-            pickupDistance: pickup,
-            tripDistance: trip,
-          ),
-          const SizedBox(height: 8),
-          _DriverTripMetrics(
-            pickupDuration: pickupRoute?.durationLabel,
-            pickupDistance: pickup,
-            tripDuration: tripRoute?.durationLabel,
-            tripDistance: trip,
-            passengers: offer.passengers,
-          ),
+          Text('Seu ganho', style: const TextStyle(color: _rideMuted, fontSize: 12)),
+          Row(children: [
+            Expanded(child: Text(
+              formatCents(offer.driverEarningsCents),
+              style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            )),
+            Flexible(child: _rideCategory(offer.categoryLabel)),
+          ]),
+          const SizedBox(height: 7),
+          _OfferStop(Icons.radio_button_checked_rounded, offer.originDisplayName, pickupInfo),
+          _OfferStop(Icons.place_outlined, offer.destinationDisplayName, tripInfo),
           if(offer.occurrenceBonusCents>0)_DriverNoticeStrip(icon:Icons.add_rounded,text:'Bônus de ocorrência + ${formatCents(offer.occurrenceBonusCents)}'),
           if (offer.pickupCompensationCents > 0) ...[
             const SizedBox(height: 10),
@@ -564,13 +362,14 @@ class _DriverOfferDesign extends StatelessWidget {
                   '+ ${formatCents(offer.pickupCompensationCents)} de coleta distante, integral para você',
             ),
           ],
-          const SizedBox(height: 12),
-          _DriverNoticeStrip(
-            icon: Icons.payments_outlined,
-            text: offer.isCash && offer.cashCollectionAmountCents != null
-                ? 'Pagamento em dinheiro · cobrar ${formatCents(offer.cashCollectionAmountCents!)}${cashChangeNotice(offer.cashTenderedCents, offer.cashCollectionAmountCents)}'
-                : 'Pagamento: ${_ridePayment(offer.paymentMethod)}',
-          ),
+          if (change != null || offer.paymentMethod != null) ...[
+            const SizedBox(height: 6),
+            _DriverNoticeStrip(
+              icon: Icons.payments_outlined,
+              text: change != null ? 'Levar ${formatCents(change)} de troco' :
+                _ridePayment(offer.paymentMethod),
+            ),
+          ],
         ],
       ),
       actions: _ridePair(
@@ -585,13 +384,40 @@ class _DriverOfferDesign extends StatelessWidget {
   }
 }
 
-class _DriverActiveDesign extends StatelessWidget {
+class _OfferStop extends StatelessWidget {
+  const _OfferStop(this.icon, this.place, this.metrics);
+
+  final IconData icon;
+  final String place, metrics;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Icon(icon, size: 16, color: _rideInk),
+      const SizedBox(width: 8),
+      Expanded(child: Text(place, maxLines: 2, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
+      if (metrics.isNotEmpty) ...[
+        const SizedBox(width: 8),
+        Text(metrics, style: const TextStyle(fontSize: 11, color: _rideMuted)),
+      ],
+    ]),
+  );
+}
+
+class _DriverActiveDesign extends StatefulWidget {
   const _DriverActiveDesign({
     this.identity,
+    this.route,
+    this.chatIcon,
+    this.onRatePassenger,
+    this.celebrateUntil,
     required this.ride,
     required this.busy,
     required this.onMinimize,
     required this.onArrived,
+    required this.onStart,
     required this.onComplete,
     required this.onCancel,
     required this.onChat,
@@ -600,236 +426,215 @@ class _DriverActiveDesign extends StatelessWidget {
     required this.onNavigate,
     required this.onStopNavigation,
     required this.onExternalNavigation,
-    this.route,
-    this.chatIcon,
-    this.onRatePassenger,
   });
+
   final AcceptedDriverRide ride;
-  final Widget? identity;
-  final Widget? chatIcon;
-  final VoidCallback? onRatePassenger;
-  final bool busy, canNavigate, navigationActive;
+  final Widget? identity, chatIcon;
   final DriverRouteInfo? route;
-  final VoidCallback onMinimize,
-      onArrived,
-      onComplete,
-      onCancel,
-      onChat,
-      onNavigate,
-      onStopNavigation,
-      onExternalNavigation;
+  final DateTime? celebrateUntil;
+  final bool busy, canNavigate, navigationActive;
+  final VoidCallback onMinimize, onArrived, onStart, onComplete, onCancel, onChat,
+      onNavigate, onStopNavigation, onExternalNavigation;
+  final VoidCallback? onRatePassenger;
+
+  @override
+  State<_DriverActiveDesign> createState() => _DriverActiveDesignState();
+}
+
+class _DriverActiveDesignState extends State<_DriverActiveDesign> {
+  bool _expanded = false;
+  double _drag = 0;
+
+  void _expand(bool expanded) => setState(() => _expanded = expanded);
+
   @override
   Widget build(BuildContext context) {
-    final done = ride.state == 'COMPLETED';
+    final ride = widget.ride;
+    final arrived = ride.state == 'DRIVER_ARRIVED';
     final underway = ride.state == 'IN_PROGRESS';
-    final category = switch (ride.category) {
-      'moto' => 'Moto',
-      'car' => 'Carro',
-      'buggy' => 'Buggy',
-      'comfort_black' => 'Comfort / Black',
-      'delivery' => 'Entrega',
-      _ => ride.category,
-    };
-    return _DriverDesignFrame(
-      onMinimize: onMinimize,
-      header: _rideHeading(
-        done
-            ? 'Corrida finalizada'
-            : underway
-            ? 'Corrida em andamento'
-            : 'Indo buscar passageiro',
-        done
-            ? 'Viagem concluída com sucesso'
-            : underway
-            ? 'Passageiro a bordo'
-            : 'Chegue no embarque',
-        category,
-        done: done,
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if(identity!=null)identity!,
-          if (done) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _rideGrey,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Valor da corrida',
-                          style: TextStyle(color: _rideMuted),
-                        ),
-                        // The existing completion contract does not expose the total fare.
-                        Text(
-                          '—',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w700,
+    final done = ride.state == 'COMPLETED';
+    final heading = done ? 'Corrida finalizada' : underway ? 'Em andamento' :
+        arrived ? 'Você chegou' : 'Indo buscar';
+    final action = done ? 'Voltar ao mapa' : underway ? 'Finalizar corrida' :
+        arrived ? 'Iniciar corrida' : 'Cheguei';
+    final onAction = done || underway ? widget.onComplete :
+        arrived ? widget.onStart : widget.onArrived;
+    final address = underway ? ride.destinationDisplayName : ride.originDisplayName;
+    final route = widget.route;
+    final metrics = [route?.durationLabel, route?.distanceLabel].whereType<String>().join(' · ');
+    final cashAmount = ride.cashCollectionAmountCents;
+    final cashTendered = ride.cashTenderedCents;
+    final change = cashAmount != null && cashTendered != null && cashTendered > cashAmount
+        ? cashTendered - cashAmount : null;
+
+    const headingStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w800);
+    const addressStyle = TextStyle(fontSize: 17, fontWeight: FontWeight.w900, height: 1.15);
+    const metaStyle = TextStyle(color: _rideMuted, fontSize: 12, height: 1.16);
+
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 18),
+        if (arrived || underway || done)
+          _DockedDetail('Embarque', ride.originDisplayName),
+        if (!underway)
+          _DockedDetail('Destino', ride.destinationDisplayName),
+        _DockedDetail('Passageiros', '${ride.passengers}'),
+        if (!done && !arrived)
+          _DockedDetail('Pagamento', _ridePayment(ride.paymentMethod)),
+        if (!done)
+          _DockedDetail('Seu ganho', formatCents(ride.driverEarningsCents)),
+        if (ride.campaignPresentation != null)
+          DriverCampaignNotice(presentation: ride.campaignPresentation!,
+            celebrateUntil: widget.celebrateUntil),
+        if (ride.occurrenceBonusCents > 0)
+          _DockedDetail('Bônus de ocorrência', formatCents(ride.occurrenceBonusCents)),
+        if (widget.canNavigate)
+          TextButton.icon(
+            onPressed: widget.onExternalNavigation,
+            icon: const Icon(Icons.open_in_new_rounded, size: 17),
+            label: const Text('Abrir no Google Maps'),
+          ),
+        if (!done && !underway)
+          TextButton(onPressed: widget.busy ? null : widget.onCancel,
+            child: const Text('Cancelar corrida')),
+      ],
+    );
+
+    return RamoWebMapOverlay(
+      child: LayoutBuilder(builder: (context, constraints) {
+        final short = constraints.maxHeight < 220;
+        return Material(
+          key: const ValueKey('ride-docked-panel'),
+          color: Colors.white,
+          elevation: 8,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          clipBehavior: Clip.antiAlias,
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, short ? 6 : 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      button: true,
+                      label: _expanded ? 'Recolher detalhes' : 'Expandir detalhes',
+                      child: GestureDetector(
+                        key: const ValueKey('ride-drag-handle'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _expand(!_expanded),
+                        onVerticalDragStart: (_) => _drag = 0,
+                        onVerticalDragUpdate: (details) => _drag += details.delta.dy,
+                        onVerticalDragEnd: (_) {
+                          if (_drag.abs() > 15) _expand(_drag < 0);
+                        },
+                        child: SizedBox(
+                          height: short ? 16 : 20,
+                          child: Center(
+                            child: Container(width: 34, height: 4,
+                              decoration: BoxDecoration(color: const Color(0xFFB9BBC1),
+                                borderRadius: BorderRadius.circular(4))),
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  Flexible(child: _rideCategory(category)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          _RideRouteBlock(
-            origin: ride.originDisplayName,
-            destination:
-                ride.destinationDisplayName,
-            originLabel: done
-                ? 'Origem'
-                : underway
-                ? 'ORIGEM'
-                : 'EMBARQUE',
-            pickupDistance: !done && !underway ? route?.distanceLabel : null,
-            tripDistance: underway ? route?.distanceLabel : null,
-          ),
-          const SizedBox(height: 8),
-          _rideMetrics(
-            done || underway ? 'Tempo de viagem' : 'Tempo até chegar',
-            // Remaining route duration is an ETA, never elapsed trip time.
-            done || underway ? '—' : route?.durationLabel ?? '—',
-            underway ? 'Distância restante' : 'Distância',
-            done ? '—' : route?.distanceLabel ?? '—',
-            ride.passengers,
-          ),
-          if (done) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _rideGrey,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.payments_outlined, color: _rideInk),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        const Text(
-                          'Pagamento',
-                          style: TextStyle(color: _rideMuted),
-                        ),
-                        Text(
-                          _ridePayment(ride.paymentMethod),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        if (done) ...[
+                          const Icon(Icons.check_circle_rounded, color: RamoColors.success, size: 18),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(child: Text(heading, style: headingStyle)),
+                        if (!done)
+                          IconButton(
+                            tooltip: 'Mensagem com passageiro',
+                            icon: widget.chatIcon ?? const Icon(Icons.chat_bubble_outline_rounded, size: 19),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: widget.onChat,
+                          ),
+                        if (widget.canNavigate)
+                          IconButton(
+                            tooltip: widget.navigationActive ? 'Parar navegação' : 'Navegar',
+                            icon: Icon(widget.navigationActive ? Icons.navigation_rounded :
+                                Icons.navigation_outlined, size: 19),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: widget.navigationActive ? widget.onStopNavigation : widget.onNavigate,
+                          ),
+                        IconButton(
+                          tooltip: 'Minimizar informações',
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: widget.onMinimize,
                         ),
                       ],
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text(
-                        'Valor recebido',
-                        style: TextStyle(color: _rideMuted, fontSize: 12),
-                      ),
-                      Text(
-                        formatCents(ride.driverEarningsCents),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 17,
+                    Flexible(
+                      child: SingleChildScrollView(
+                        key: const ValueKey('ride-secondary-scroll'),
+                        physics: _expanded ? null : const NeverScrollableScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (done) ...[
+                              Text('Seu ganho', style: metaStyle),
+                              Text(formatCents(ride.driverEarningsCents), style: addressStyle),
+                              if (ride.paymentMethod != null)
+                                Text(_ridePayment(ride.paymentMethod), style: metaStyle),
+                              if (widget.onRatePassenger != null)
+                                Align(alignment: Alignment.centerLeft, child: TextButton(
+                                  onPressed: widget.busy ? null : widget.onRatePassenger,
+                                  child: const Text('Avaliar passageiro'))),
+                            ] else if (arrived) ...[
+                              if (widget.identity != null) widget.identity!,
+                              if (ride.isCash && cashAmount != null) ...[
+                                _DockedDetail('Receber', formatCents(cashAmount)),
+                                if (change != null) _DockedDetail('Troco', formatCents(change)),
+                              ] else if (ride.paymentMethod == 'pix' && ride.paymentStatus == 'paid')
+                                const Text('Pix confirmado', style: metaStyle),
+                            ] else ...[
+                              Text(address, maxLines: _expanded ? null : 1,
+                                overflow: _expanded ? null : TextOverflow.ellipsis,
+                                style: addressStyle),
+                              if (metrics.isNotEmpty)
+                                Text(metrics, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: metaStyle),
+                              if (!underway && !short && widget.identity != null)
+                                widget.identity!,
+                            ],
+                            if (_expanded) details,
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 7),
+                    _RideButton(action, widget.busy ? null : onAction, primary: true),
+                  ],
+                ),
               ),
             ),
-          ] else ...[
-            if(ride.occurrenceBonusCents>0)_DriverNoticeStrip(icon:Icons.add_rounded,text:'Bônus de ocorrência + ${formatCents(ride.occurrenceBonusCents)}'),
-            // Preserve financial information and existing navigation controls.
-            const SizedBox(height: 8),
-            _DriverNoticeStrip(
-              icon: Icons.payments_outlined,
-              text: ride.isCash && ride.cashCollectionAmountCents != null
-                  ? 'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}${cashChangeNotice(ride.cashTenderedCents, ride.cashCollectionAmountCents)}'
-                  : 'SEU GANHO · ${formatCents(ride.driverEarningsCents)}',
-            ),
-            if (canNavigate)
-              TextButton.icon(
-                onPressed: navigationActive ? onStopNavigation : onNavigate,
-                icon: Icon(
-                  navigationActive
-                      ? Icons.close_rounded
-                      : Icons.navigation_rounded,
-                ),
-                label: Text(
-                  navigationActive
-                      ? 'Parar navegação'
-                      : underway
-                      ? 'Navegar até o destino'
-                      : 'Navegar até o embarque',
-                ),
-              ),
-          ],
-        ],
-      ),
-      actions: done
-          ? _ridePair(
-              _RideButton(
-                'Avaliar passageiro',
-                busy ? null : onRatePassenger,
-                icon: Icons.star_outline_rounded,
-              ),
-              _RideButton(
-                'Concluir e voltar para o mapa',
-                onComplete,
-                primary: true,
-                icon: Icons.check_circle,
-              ),
-            )
-          : _ridePair(
-                  _RideButton(
-                    underway ? 'Finalizar corrida' : 'Cancelar corrida',
-                    busy
-                        ? null
-                        : underway
-                        ? onComplete
-                        : onCancel,
-                    icon: Icons.cancel_outlined,
-                  ),
-                  _RideButton(
-                    underway ? 'Cheguei no destino' : 'Cheguei no embarque',
-                    busy
-                        ? null
-                        : underway
-                        ? onComplete
-                        : onArrived,
-                    primary: true,
-                    icon: Icons.flag_rounded,
-                  ),
-                ),
-      secondaryActions: done ? null : _ridePair(
-                  _RideButton(
-                    'Mensagem com passageiro',
-                    onChat,
-                    leading: chatIcon,
-                    compact: true,
-                    icon: Icons.chat_outlined,
-                  ),
-                  _RideButton(
-                    'Abrir no Google Maps',
-                    canNavigate ? onExternalNavigation : null,
-                    compact: true,
-                    icon: Icons.chevron_right,
-                  ),
-                ),
+          ),
+        );
+      }),
     );
   }
+}
+
+class _DockedDetail extends StatelessWidget {
+  const _DockedDetail(this.label, this.value);
+  final String label, value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(children: [
+      Expanded(child: Text(label, style: const TextStyle(color: _rideMuted, fontSize: 12))),
+      Flexible(child: Text(value, textAlign: TextAlign.end,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
+    ]),
+  );
 }
