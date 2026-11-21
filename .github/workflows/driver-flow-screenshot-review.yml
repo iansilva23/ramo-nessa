@@ -1,0 +1,83 @@
+name: Driver flow screenshots
+on:
+  push:
+    branches: [review/driver-flow-screenshots]
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Instrument the existing driver flow test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/driver/test/driver_flow_test.dart')
+          source = path.read_text()
+          a = source.index('  for (final viewport in const [')
+          b = source.index("  testWidgets(\n    'cadastro aprovado sem supply", a)
+          flow = source[a:b].replace('    Size(320, 640),\n    Size(375, 667),\n', '').replace('    Size(430, 932),\n', '')
+          flow = flow.replace('        RamoNessaDriverApp(\n', "        RepaintBoundary(key:const Key('real-driver-capture'),child:RamoNessaDriverApp(\n", 1)
+          flow = flow.replace('          navigationService: _FakeNavigationService(),\n        ),', '          navigationService: _FakeNavigationService(),\n        )),', 1)
+          def capture(stage):
+              return f"""      await expectLater(find.byKey(const Key('real-driver-capture')),
+                matchesGoldenFile('../../../artifacts/driver-flow/{stage}-\${{viewport.width.toInt()}}.png'));
+          """.replace(r'\$', '$')
+          stages = [
+              ('01-nova-corrida', "      await tester.ensureVisible(find.text('Aceitar corrida'));"),
+              ('02-indo-buscar', "      await tester.ensureVisible(find.text('Cheguei no embarque'));"),
+              ('03-no-embarque', "      await tester.ensureVisible(find.text('Iniciar corrida'));"),
+              ('04-em-andamento', "      expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);"),
+              ('05-finalizada', "      expect(tester.takeException(), isNull, reason: 'resumo final $viewport');"),
+          ]
+          for stage, anchor in stages:
+              assert flow.count(anchor) == 1, stage
+              flow = flow.replace(anchor, capture(stage)+anchor, 1)
+          a_main = source.index('void main() {')
+          # Include all helpers from the real suite, including declarations before the fake API.
+          result = ("import 'ride_identity_visual_review.dart' show fonts;\n"+source[:a_main]+
+              'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUpAll(fonts);\n'+
+              flow + '}\n'+source[source.index('\n}', b)+3:])
+          Path('apps/driver/test/driver_flow_capture_test.dart').write_text(result)
+          Path('artifacts/driver-flow').mkdir(parents=True, exist_ok=True)
+          PY
+      - working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub --update-goldens test/driver_flow_capture_test.dart
+      - name: Assemble the five real screenshots
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+          root=Path('artifacts/driver-flow')
+          fonts='/usr/share/fonts/truetype/dejavu/'
+          for width in (320, 390):
+              files=sorted(root.glob(f'0*-{width}.png'))
+              assert len(files)==5,files
+              imgs=[Image.open(f).convert('RGB') for f in files]
+              assert all(img.width==width for img in imgs)
+              labels=['Nova corrida','Indo buscar','No embarque','Em andamento','Finalizada']
+              pad,gap=20,16
+              canvas=Image.new('RGB',(pad*2+5*width+4*gap, max(i.height for i in imgs)+104),'#eeeef1')
+              draw=ImageDraw.Draw(canvas)
+              draw.text((20,16),f'RAMO NESSA  /  MOTORISTA  /  {width} px',font=ImageFont.truetype(fonts+'DejaVuSans-Bold.ttf',27),fill='#121212')
+              for index,(im,label) in enumerate(zip(imgs,labels)):
+                  x=pad+index*(width+gap)
+                  draw.text((x,61),label,font=ImageFont.truetype(fonts+'DejaVuSans-Bold.ttf',19),fill='#121212')
+                  canvas.paste(im,(x,89))
+              canvas.save(root/f'Ramo-Nessa-Motorista-Fluxo-{width}px.png')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-nessa-motorista-capturas-reais
+          path: artifacts/driver-flow/
+          if-no-files-found: error
