@@ -350,24 +350,16 @@ class _DriverOfferDesign extends StatelessWidget {
           if (offer.campaignPresentation != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: DriverCampaignNotice(presentation: offer.campaignPresentation!, compact: true)),
           Text('Seu ganho', style: const TextStyle(color: _rideMuted, fontSize: 12)),
           Row(children: [
-            Expanded(child: Text(
-              formatCents(offer.driverEarningsCents),
-              style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            Expanded(child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(formatCents(offer.driverEarningsCents),
+                maxLines: 1,
+                style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900)),
             )),
+            const SizedBox(width: 8),
             Flexible(child: _rideCategory(offer.categoryLabel)),
           ]),
-          const SizedBox(height: 7),
-          _OfferStop(Icons.radio_button_checked_rounded, offer.originDisplayName, pickupInfo),
-          _OfferStop(Icons.place_outlined, offer.destinationDisplayName, tripInfo),
-          if(offer.occurrenceBonusCents>0)_DriverNoticeStrip(icon:Icons.add_rounded,text:'Bônus de ocorrência + ${formatCents(offer.occurrenceBonusCents)}'),
-          if (offer.pickupCompensationCents > 0) ...[
-            const SizedBox(height: 10),
-            _DriverNoticeStrip(
-              icon: Icons.add_road_rounded,
-              text:
-                  '+ ${formatCents(offer.pickupCompensationCents)} de coleta distante, integral para você',
-            ),
-          ],
           if (change != null || offer.paymentMethod != null) ...[
             const SizedBox(height: 6),
             _DriverNoticeStrip(
@@ -376,6 +368,15 @@ class _DriverOfferDesign extends StatelessWidget {
                 _ridePayment(offer.paymentMethod),
             ),
           ],
+          const SizedBox(height: 7),
+          _OfferStop(Icons.radio_button_checked_rounded, offer.originDisplayName, pickupInfo),
+          _OfferStop(Icons.place_outlined, offer.destinationDisplayName, tripInfo),
+          if (offer.occurrenceBonusCents > 0)
+            _DriverNoticeStrip(icon: Icons.add_rounded,
+              text: 'Bônus + ${formatCents(offer.occurrenceBonusCents)}'),
+          if (offer.pickupCompensationCents > 0)
+            _DriverNoticeStrip(icon: Icons.add_road_rounded,
+              text: 'Coleta distante + ${formatCents(offer.pickupCompensationCents)}'),
         ],
       ),
       actions: _ridePair(
@@ -513,8 +514,10 @@ class _DriverActiveDesignState extends State<_DriverActiveDesign> {
         return Material(
           key: const ValueKey('ride-docked-panel'),
           color: Colors.white,
-          elevation: 8,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            side: BorderSide(color: Color(0xFFE7E8EB)),
+          ),
           clipBehavior: Clip.antiAlias,
           child: Center(
             heightFactor: 1,
