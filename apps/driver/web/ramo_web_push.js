@@ -215,6 +215,7 @@ function start(args) {
         if (!data.title || !data.body) return;
         void registration.showNotification(String(data.title).slice(0, 120), {
           body: String(data.body).slice(0, 500), icon: new URL('icons/Icon-192.png?v=marca-oficial-1', base).href,
+          ...(base.pathname.endsWith('/motorista/') && data.type === 'driver.offer.new' ? { silent: true } : {}),
           tag: 'ramo-' + String(data.type ?? 'notice').slice(0, 80),
           data: { ramo: true, type: data.type, rideId: data.rideId },
         }).catch(() => {});

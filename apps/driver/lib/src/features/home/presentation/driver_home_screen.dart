@@ -941,7 +941,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _lastAlertedOfferId = offer.id;
     _completedPresentation = null;
     _collapsedRidePanel = null;
-    unawaited(HapticFeedback.mediumImpact());
   }
 
   void _startRealtime() {

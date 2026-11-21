@@ -24,6 +24,7 @@ CORE_FILES.update({
     'driver-ride-service.js': '/app/dist/src/drivers/driver-ride-service.js',
     'postgres-ride-matching-repository.js': '/app/dist/src/matching/postgres-ride-matching-repository.js',
     'postgres-ride-repository.js': '/app/dist/src/rides/repositories/postgres-ride-repository.js',
+    'push-delivery-provider.js': '/app/dist/src/notifications/push-delivery-provider.js',
     'validation.js': '/app/dist/src/payments/validation.js',
 })
 CORE_FILES.update({name: '/app/migrations/'+name for name in MIGRATIONS})
@@ -41,15 +42,21 @@ ACTIVE_RELEASES = {
     'gateway': ('passenger-cancel-web-9a0c0cf1a4b8-', 'after.json'),
 }
 PRIOR_RELEASE_PREFIXES = ('cash-cancellation-0ddd7652593b-', 'cash-change-6368e809fd96-',
-                          'cash-confirmation-5add4361d1d2-')
+                          'cash-confirmation-5add4361d1d2-', 'cash-confirmation-a92989286fb1-')
 WEB_FILES = {'passenger': 'passageiro.js', 'driver': 'motorista.js'}
+DRIVER_ALERT_FILES = {
+    'ramo_offer_tone.js': 'ramo_offer_tone.js',
+    'ramo_web_push.js': 'ramo_web_push.js',
+    'ramo_push_worker.js': 'ramo_push_worker.js',
+    'nova_corrida.mp3': 'assets/assets/audio/nova_corrida.mp3',
+}
 
 
 def main():
     need(os.geteuid() == 0 and len(sys.argv) == 1,
          'Execute com sudo python3 -I publicar-cancelamento-dinheiro.py.')
     folder = Path(__file__).resolve().parent
-    expected = set(CORE_FILES) | set(WEB_FILES.values()) | { 'SOURCE_COMMIT.txt', 'publicar.py',
+    expected = set(CORE_FILES) | set(DRIVER_ALERT_FILES) | set(WEB_FILES.values()) | { 'SOURCE_COMMIT.txt', 'publicar.py',
                                   'prepare-guard.py', Path(__file__).name}
     checksums = {name: sha for sha, name in
                  (line.split() for line in (folder/'SHA256SUMS').read_text().splitlines())}
@@ -90,11 +97,15 @@ def main():
         shutil.copytree(web_before, web)
         for role, filename in WEB_FILES.items():
             p.extract({'main.dart.js': (folder/filename).read_bytes()}, web/role)
+        for filename, target in DRIVER_ALERT_FILES.items():
+            p.extract({target: (folder/filename).read_bytes()}, web/'driver')
+        permitted_web = {role+'/main.dart.js' for role in WEB_FILES} | {
+            'driver/'+target for target in DRIVER_ALERT_FILES.values()}
         old_tree, new_tree = p.tree(web_before), p.tree(web)
         changed_web = {name for name in old_tree if old_tree[name] != new_tree.get(name)}
         need(set(old_tree) == set(new_tree) and 'driver/main.dart.js' in changed_web and
-             changed_web <= {role+'/main.dart.js' for role in WEB_FILES},
-             'Há diferenças fora dos arquivos JavaScript dos dois apps.')
+             changed_web <= permitted_web,
+             'Há diferenças fora dos apps e dos arquivos de alerta do motorista.')
 
         overlay = anchor/'overlay'
         overlay.mkdir()
@@ -158,6 +169,10 @@ def main():
                 changed.append(role)
                 launch(h, snap, after)
             verify_live(h, web, adm)
+            for filename, target in DRIVER_ALERT_FILES.items():
+                response = h.run(['curl', '--fail', '--silent', '--show-error',
+                    'https://app.ramonessa.com.br/motorista/'+target+'?rev='+revision])
+                need(digest(response) == checksums[filename], 'Alerta publicado divergiu: '+target)
         except BaseException:
             for role in reversed(changed):
                 snap, before, _ = plans[role]
@@ -165,7 +180,7 @@ def main():
             verify_live(h, web_before, adm)
             print('CANCELAMENTO_E_TROCO_REVERTIDOS', flush=True)
             raise
-        print('PAINEIS_E_TROCO_PUBLICADOS '+revision, flush=True)
+        print('PAINEIS_TROCO_E_ALERTA_PUBLICADOS '+revision, flush=True)
 
 
 if __name__ == '__main__':

@@ -79,3 +79,11 @@ for (const role of ['passenger', 'driver']) {
     assert.equal(w.opened.length, 0);
   });
 }
+
+test('only a background driver offer requests the ride vibration', async () => {
+  for (const role of ['driver', 'passenger']) {
+    const w = worker(role);
+    await w.background({ data: { type: 'driver.offer.new', title: 'Corrida', body: 'Abra o app' } });
+    assert.equal(JSON.stringify(w.displayed[0][1].vibrate), role === 'driver' ? '[280,130,280]' : undefined);
+  }
+});

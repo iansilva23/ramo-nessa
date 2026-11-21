@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const script = await readFile(new URL('../../apps/driver/web/ramo_offer_tone.js', import.meta.url), 'utf8');
 const flush = async () => { for (let i = 0; i < 15; i++) await Promise.resolve(); };
 function fixture({slow = false, failure = false} = {}) {
+  const vibrations = [];
   let active = 0, starts = 0, stopped = 0, fetches = 0, url;
   let release;
   const handlers = new Map();
@@ -26,7 +27,7 @@ function fixture({slow = false, failure = false} = {}) {
       return {connect() {}, disconnect() {}, start() { starts++; active++; }, stop() { stopped++; active--; }};
     }
   }
-  const sandbox = {window: {AudioContext}, document, URL,
+  const sandbox = {window: {AudioContext, navigator: { vibrate(pattern) { vibrations.push(pattern); return true; } }}, document, URL,
     fetch: async value => {
       fetches++; url = value.href;
       if (slow) await new Promise(resolve => { release = resolve; });
@@ -35,7 +36,7 @@ function fixture({slow = false, failure = false} = {}) {
   };
   vm.runInNewContext(script, sandbox);
   const player = sandbox.window.RamoOfferTone.create();
-  return {player, handlers, gesture: () => handlers.get('pointerdown')?.(),
+  return {player, handlers, vibrations, gesture: () => handlers.get('pointerdown')?.(),
     release: () => release?.(), recover: () => { failure = false; },
     stats: () => ({active, starts, stopped, fetches, url, state: context.state})};
 }
@@ -56,7 +57,7 @@ test('online gesture unlocks before later GPS/API result and original asset uses
   assert.equal(f.stats().active, 0);
   await f.player.start(); await flush();
   assert.equal(f.stats().active, 1);
-  assert.equal(f.stats().url, 'https://app.example/motorista/assets/assets/audio/nova_corrida.mp3');
+  assert.equal(f.stats().url, 'https://app.example/motorista/assets/assets/audio/nova_corrida.mp3?v=2');
   await f.player.dispose();
 });
 test('accept, reject, offline, expiry and remote cancellation never replay on later gesture', async () => {
@@ -90,4 +91,15 @@ test('dispose removes event listeners and stops sound', async () => {
   assert.equal(f.stats().active, 0);
   assert.equal(f.handlers.size, 0);
   assert.equal(f.stats().state, 'closed');
+});
+
+test('one vibration pattern for each offer and stop clears it', async () => {
+  const f = fixture();
+  await f.player.start();
+  f.gesture();
+  await flush();
+  assert.equal(JSON.stringify(f.vibrations), '[[280,130,280]]');
+  f.player.stop();
+  assert.equal(f.vibrations.at(-1), 0);
+  await f.player.dispose();
 });

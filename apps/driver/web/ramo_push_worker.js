@@ -31,6 +31,7 @@ if (self.ramoPushConfig) {
     return self.registration.showNotification(String(data.title).slice(0, 120), {
       body: String(data.body).slice(0, 500),
       icon: new URL('icons/Icon-192.png?v=marca-oficial-1', appBase).href,
+      ...(appBase.pathname.endsWith('/motorista/') && data.type === 'driver.offer.new' ? { vibrate: [280, 130, 280] } : {}),
       tag: 'ramo-' + String(data.type ?? 'notice').slice(0, 80),
       data: { ramo: true, type: data.type, rideId: data.rideId },
     });

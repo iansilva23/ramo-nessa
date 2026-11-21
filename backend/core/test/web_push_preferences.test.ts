@@ -89,3 +89,14 @@ test('FCM Web mantém somente o identificador da corrida e tipo original', () =>
   const invalid = fcmMessagePayload({ ...request, message: { ...request.message, data: { rideId: 'https://evil.example' } } });
   assert.ok(!('rideId' in invalid.data));
 });
+
+test('native Android ride offers use the dedicated notification channel and a short TTL', () => {
+  const common = {...registration, platform: 'android' as const, tokenProvider: 'fcm' as const};
+  const message = {type: 'driver.offer.new', title: 'Nova corrida', body: 'Abra o app'};
+  assert.deepEqual(fcmMessagePayload({...common, message}).android, {
+    priority: 'high', ttl: '35s',
+    notification: {channel_id:'ramo_ride_offers_v2', tag:'ramo-driver-offer'},
+  });
+  assert.deepEqual(fcmMessagePayload({...common, message:{...message, type:'ride.updated'}}).android,
+    {priority:'high'});
+});

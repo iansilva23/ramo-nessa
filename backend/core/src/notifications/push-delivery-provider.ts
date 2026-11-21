@@ -197,7 +197,12 @@ export function fcmMessagePayload(input: PushDeliveryRequest) {
     token: input.token,
     notification: { title: input.message.title, body: input.message.body },
     data,
-    android: { priority: 'high' },
+    android: {
+      priority: 'high',
+      ...(input.message.type === 'driver.offer.new' ? {
+        ttl: '35s', notification: { channel_id: 'ramo_ride_offers_v2', tag: 'ramo-driver-offer' },
+      } : {}),
+    },
     apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
   };
 }
