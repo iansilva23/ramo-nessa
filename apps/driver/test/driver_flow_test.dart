@@ -582,6 +582,7 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'viagem 320 px');
 
       expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
+      expect(find.text('Cheguei no destino').hitTestable(), findsOneWidget);
       expect(find.text('Cancelar corrida'), findsNothing);
       await tester.tap(find.text('Finalizar corrida'));
       await tester.pumpAndSettle();

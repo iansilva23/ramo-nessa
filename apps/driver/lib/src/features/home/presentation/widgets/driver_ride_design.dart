@@ -462,7 +462,7 @@ class _DriverActiveDesignState extends State<_DriverActiveDesign> {
     final done = ride.state == 'COMPLETED';
     final heading = done ? 'Corrida finalizada' : underway ? 'Em andamento' :
         arrived ? 'Você chegou' : 'Indo buscar';
-    final action = done ? 'Voltar ao mapa' : underway ? 'Finalizar corrida' :
+    final action = done ? 'Voltar ao mapa' : underway ? 'Cheguei no destino' :
         arrived ? 'Iniciar corrida' : 'Cheguei';
     final onAction = done || underway ? widget.onComplete :
         arrived ? widget.onStart : widget.onArrived;
@@ -623,6 +623,11 @@ class _DriverActiveDesignState extends State<_DriverActiveDesign> {
                     if (canCancel)
                       _ridePair(
                         _RideButton('Cancelar corrida', widget.busy ? null : widget.onCancel),
+                        primaryAction,
+                      )
+                    else if (underway)
+                      _ridePair(
+                        _RideButton('Finalizar corrida', widget.busy ? null : widget.onComplete),
                         primaryAction,
                       )
                     else
