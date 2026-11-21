@@ -39,11 +39,12 @@ jobs:
           ]
           for stage, anchor in stages:
               assert flow.count(anchor) == 1, stage
-              flow = flow.replace(anchor, capture(stage)+anchor, 1)
+              settle = '      await tester.pump(const Duration(seconds: 5));\n      await tester.pumpAndSettle();\n' if stage == '05-finalizada' else ''
+              flow = flow.replace(anchor, settle+capture(stage)+anchor, 1)
           a_main = source.index('void main() {')
           # Include all helpers from the real suite, including declarations before the fake API.
-          result = ("import 'package:flutter/services.dart';\nimport 'ride_identity_visual_review.dart' show fonts;\n"+source[:a_main]+
-              'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUpAll(fonts);\n setUp(() { TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel("br.com.ramonessa.driver/screen-lock"), (_) async => null); });\n'+
+          result = ("import 'dart:io';\nimport 'package:flutter/services.dart';\nimport 'ride_identity_visual_review.dart' show fonts;\n"+source[:a_main]+
+              'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUpAll(() async { await fonts(); final bytes=await File("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").readAsBytes(); await (FontLoader("Ahem")..addFont(Future.value(ByteData.sublistView(bytes)))).load(); });\n setUp(() { TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel("br.com.ramonessa.driver/screen-lock"), (_) async => null); });\n'+
               flow + '}\n'+source[source.index('\n}', b)+3:])
           Path('apps/driver/test/driver_flow_capture_test.dart').write_text(result)
           Path('artifacts/driver-flow').mkdir(parents=True, exist_ok=True)
