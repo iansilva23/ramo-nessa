@@ -28,8 +28,8 @@ jobs:
           flow = flow.replace('          navigationService: _FakeNavigationService(),\n        ),', '          navigationService: _FakeNavigationService(),\n        )),', 1)
           def capture(stage):
               return f"""      await expectLater(find.byKey(const Key('real-driver-capture')),
-                matchesGoldenFile('../../../artifacts/driver-flow/{stage}-\${{viewport.width.toInt()}}.png'));
-          """.replace(r'\$', '$')
+                matchesGoldenFile('../../../artifacts/driver-flow/{stage}-__viewport__.png'));
+          """.replace('__viewport__', chr(36)+'{viewport.width.toInt()}')
           stages = [
               ('01-nova-corrida', "      await tester.ensureVisible(find.text('Aceitar corrida'));"),
               ('02-indo-buscar', "      await tester.ensureVisible(find.text('Cheguei no embarque'));"),
