@@ -254,6 +254,12 @@ Widget _rideCategory(String label) => Container(
   ),
 );
 
+String _ridePayment(String? method) => switch (method) {
+  'cash' => 'Dinheiro',
+  'pix' => 'Pix',
+  'card' || 'credit_card' || 'debit_card' => 'Cartão',
+  _ => method ?? 'Não informado',
+};
 String _rideDistance(double? distance) => distance == null
     ? '—'
     : distance < 1

@@ -46,6 +46,17 @@ jobs:
           result = ("import 'dart:io';\nimport 'package:flutter/services.dart';\nimport 'ride_identity_visual_review.dart' show fonts;\n"+source[:a_main]+
               'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUpAll(() async { await fonts(); final bytes=await File("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").readAsBytes(); await (FontLoader("Ahem")..addFont(Future.value(ByteData.sublistView(bytes)))).load(); });\n setUp(() { TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel("br.com.ramonessa.driver/screen-lock"), (_) async => null); });\n'+
               flow + '}\n'+source[source.index('\n}', b)+3:])
+          # Simulated cash trip and directions using the same app widgets.
+          result = result.replace('final api = _FakeDriverApi();', 'final api = _CaptureDriverApi();', 1)
+          result = result.replace('          navigationService: _FakeNavigationService(),', '          navigationService: _FakeNavigationService(),\n          routeService: _CountingRouteService(),', 1)
+          begin=result.index('class _FakeDriverApi')
+          end=result.index('class _IdentityReviewApi', begin)
+          fixture=result[begin:end]
+          fixture=fixture.replace('Duration(minutes: 2)', 'Duration(seconds: 35)', 1)
+          fixture=fixture.replace('pickupCompensationCents: 200,', "pickupCompensationCents: 200,\n      paymentMethod: 'cash',\n      cashCollectionAmountCents: 12000,\n      cashTenderedCents: 15000,")
+          fixture=fixture.replace('pickupCompensationCents: ride.pickupCompensationCents,', 'pickupCompensationCents: ride.pickupCompensationCents,\n      paymentMethod: ride.paymentMethod,\n      cashCollectionAmountCents: ride.cashCollectionAmountCents,\n      cashTenderedCents: ride.cashTenderedCents,')
+          result=result[:begin]+fixture+result[end:]
+          result += "\nclass _CaptureDriverApi extends _FakeDriverApi implements DriverRideIdentityApi { @override Future<Map<String,dynamic>> rideIdentification(String rideId) async => {'passengerName':'Mariana'}; }\n"
           Path('apps/driver/test/driver_flow_capture_test.dart').write_text(result)
           Path('artifacts/driver-flow').mkdir(parents=True, exist_ok=True)
           # Pin the runtime's normal Android font family instead of the test font.
