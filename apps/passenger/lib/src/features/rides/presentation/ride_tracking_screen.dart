@@ -19,6 +19,7 @@ import 'widgets/animated_ride_status.dart';
 import 'widgets/passenger_driver_avatar.dart';
 import 'tracking_map_transition_policy.dart';
 import 'passenger_cancellation_panel.dart';
+import 'ride_cancel_confirmation.dart';
 import '../data/passenger_ride_resume_service.dart';
 import 'passenger_boarding_card.dart';
 
@@ -72,6 +73,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
   bool _ratingSubmitting = false;
   bool _ratingSubmitted = false;
   bool _recoveryAction = false;
+  bool _checkingBackCancellation = false;
+  bool _allowBack = false;
   String? _ratingError;
 
   @override
@@ -573,6 +576,84 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     );
   }
 
+  bool get _offerCancellationOnBack =>
+      !_allowBack &&
+      (widget.paymentMethod == 'cash' || widget.paymentMethod == 'card') &&
+      widget.trackingService is PassengerManualCancellationApi &&
+      const {
+        'PAID',
+        'SEARCHING_DRIVER',
+        'NO_DRIVER_FOUND',
+        'DRIVER_ASSIGNED',
+        'DRIVER_ARRIVING',
+        'DRIVER_ARRIVED',
+      }.contains(_snapshot?.state);
+
+  Future<void> _closeTracking({bool cancelled = false}) async {
+    if (cancelled) await RideRecoveryMemory.clear();
+    if (!mounted) return;
+    setState(() => _allowBack = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    if (widget.onRecoveryClose != null) {
+      widget.onRecoveryClose!();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _handleTrackingBack() async {
+    if (_checkingBackCancellation) return;
+    if (!_offerCancellationOnBack) {
+      await _closeTracking();
+      return;
+    }
+
+    _checkingBackCancellation = true;
+    final api = widget.trackingService as PassengerManualCancellationApi;
+    try {
+      final data = await api.cancellationRequest(widget.rideId);
+      if (!mounted) return;
+      final terms = data['terms'] as Map<String, dynamic>?;
+      final until = DateTime.tryParse(terms?['cancelUntil'] as String? ?? '');
+      final serverTime = DateTime.tryParse(terms?['serverTime'] as String? ?? '');
+      if (data['canCancel'] != true ||
+          (until != null && (serverTime == null || !until.isAfter(serverTime)))) {
+        await _closeTracking();
+        return;
+      }
+      final confirmed = await confirmRideCancellation(
+        context,
+        description: widget.paymentMethod == 'cash'
+            ? 'A corrida será encerrada e ficará registrada em Atividades.'
+            : 'A corrida ficará registrada em Atividades. Você poderá acompanhar a devolução pelo app.',
+      );
+      if (!mounted || !confirmed) return;
+      await api.cancellationRequest(
+        widget.rideId,
+        method: 'POST',
+        body: {'reason': 'Desistência do passageiro'},
+      );
+      if (mounted) await _closeTracking(cancelled: true);
+    } on PassengerRideTrackingException catch (error) {
+      if (mounted) _showBackCancellationError(error.message);
+    } catch (_) {
+      if (mounted) {
+        _showBackCancellationError(
+          'Não foi possível conferir ou cancelar a corrida. Tente novamente.',
+        );
+      }
+    } finally {
+      _checkingBackCancellation = false;
+    }
+  }
+
+  void _showBackCancellationError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final snapshot = _snapshot;
@@ -587,13 +668,13 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
         ? null
         : LatLng(driver.latitude, driver.longitude);
 
-    return Scaffold(
+    final screen = Scaffold(
       appBar: AppBar(
         title: const Text('Sua corrida'),
         automaticallyImplyLeading: widget.onRecoveryClose == null,
-        leading: widget.onRecoveryClose == null
-            ? null
-            : BackButton(onPressed: widget.onRecoveryClose),
+        leading: widget.onRecoveryClose != null || _offerCancellationOnBack
+            ? BackButton(onPressed: _handleTrackingBack)
+            : null,
       ),
       body: Column(
         children: [
@@ -713,7 +794,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
                       if (snapshot?.state == 'NO_DRIVER_FOUND') ...[
                         const SizedBox(height: RamoSpacing.md),
                         Text(
-                          'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente. Se cancelar, acompanhe a devolução pelo app.',
+                          widget.paymentMethod == 'cash'
+                              ? 'Você pode tentar uma nova busca ou cancelar a corrida.'
+                              : 'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente. Se cancelar, acompanhe a devolução pelo app.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         const SizedBox(height: RamoSpacing.sm),
@@ -828,6 +911,18 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
           ),
         ],
       ),
+    );
+    return PopScope(
+      canPop: !_offerCancellationOnBack,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_handleTrackingBack());
+          });
+          WidgetsBinding.instance.ensureVisualUpdate();
+        }
+      },
+      child: screen,
     );
   }
 }
