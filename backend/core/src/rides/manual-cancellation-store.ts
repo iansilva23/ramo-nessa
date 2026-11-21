@@ -2,7 +2,7 @@ import type {Pool,PoolClient} from 'pg';
 import {randomUUID} from 'node:crypto';
 import {assertBalanced,type LedgerEntry} from '../payments/ledger.js';
 import {insertLedger,accountBalanceCents} from '../payments/repositories/postgres-finance-repository.js';
-import {CancellationError,cancellationFee,cancellationTerms,defaultCancellationPolicy,validateCancellationPolicy,validateRefundPix,validateCancellationReceipt,
+import {CancellationError,cashCancellationTerms,cancellationFee,cancellationTerms,defaultCancellationPolicy,validateCancellationPolicy,validateRefundPix,validateCancellationReceipt,
  type CancellationPolicy,type CancellationRule,type RefundPix,type CancellationReceipt} from './manual-cancellation-policy.js';
 
 export interface ManualCancellation {
@@ -60,6 +60,58 @@ export class PostgresManualCancellationStore {
   const terms=cancellationTerms(v.rule,v.accepted_at?.toISOString()??null,now);
   return {...terms,systemEnabled:v.system_enabled,cancelUntil:v.system_enabled?terms.cancelUntil:null};
  }
+ private async readCashCancellation(client: Pool | PoolClient, rideId: string, beforePayment: boolean) {
+  const result = await client.query<{
+   state: string; passenger_id: string; driver_id: string | null; payment_method: string | null;
+   requested_at: Date | null; accepted_at: Date | null;
+  }>(`SELECT r.state, r.passenger_id, r.driver_id, r.payment_method, t.accepted_at,
+      CASE WHEN r.payment_method = 'cash' THEN t.cash_requested_at ELSE
+        (SELECT MIN(created_at) FROM ride_offers WHERE ride_id = r.id) END AS requested_at
+    FROM rides r LEFT JOIN ride_cancellation_terms t ON t.ride_id = r.id
+    WHERE r.id = $1 AND (r.payment_method = 'cash' OR
+      ($2 AND r.payment_method IS NULL AND r.driver_consent_required
+        AND r.state IN ('AWAITING_PAYMENT', 'CANCELLED_BY_PASSENGER')))
+    `, [rideId, beforePayment]);
+  return result.rows[0];
+ }
+ async cashTerms(rideId: string, beforePayment: boolean) {
+  const ride = await this.readCashCancellation(this.pool, rideId, beforePayment);
+  return ride ? cashCancellationTerms({
+   requestedAt: ride.requested_at, acceptedAt: ride.accepted_at,
+   assigned: ride.driver_id !== null, state: ride.state, now: new Date(),
+  }) : null;
+ }
+ async cancelCash(input: { rideId: string; passengerId: string; beforePayment: boolean; reason: string; now?: Date }) {
+  if (!input.reason.trim() || input.reason.length > 500) {
+   throw new CancellationError('INVALID_REASON', 'Informe o motivo do cancelamento.', 400);
+  }
+  await this.transaction(async client => {
+   // Read the acceptance snapshot after acquiring the ride lock so an acceptance
+   // committed while waiting on the lock is visible to this transaction.
+   await client.query('SELECT id FROM rides WHERE id = $1 FOR UPDATE', [input.rideId]);
+   const ride = await this.readCashCancellation(client, input.rideId, input.beforePayment);
+   if (!ride || ride.passenger_id !== input.passengerId) {
+    throw new CancellationError('RIDE_NOT_CANCELLABLE', 'Esta corrida não pode ser cancelada nesta etapa.');
+   }
+   if (ride.state === 'CANCELLED_BY_PASSENGER') return;
+   const now = input.now ?? new Date();
+   const terms = cashCancellationTerms({
+    requestedAt: ride.requested_at, acceptedAt: ride.accepted_at,
+    assigned: ride.driver_id !== null, state: ride.state, now,
+   });
+   if (terms.accepted) throw new CancellationError('DRIVER_ALREADY_ACCEPTED', 'O motorista já aceitou. Combine com ele pelo chat da corrida.');
+   if (!terms.canCancel) throw new CancellationError('FREE_PERIOD_ENDED', 'O prazo de 20 segundos para cancelar terminou.');
+   await client.query("UPDATE rides SET state = 'CANCELLED_BY_PASSENGER', updated_at = $2 WHERE id = $1", [input.rideId, now]);
+   await client.query('UPDATE driver_supply SET reserved_ride_id = NULL, reserved_until = NULL, updated_at = $2 WHERE reserved_ride_id = $1', [input.rideId, now]);
+   await this.audit(client, input.rideId, input.passengerId, 'ride.cancelled', {
+    paidCents: 0, feeCents: 0, source: 'passenger', reason: input.reason.trim(),
+   });
+  });
+  // Matching locks an offer before its ride. Close offers after releasing the
+  // ride lock. A concurrent acceptance already sees the terminal ride state.
+  await this.pool.query("UPDATE ride_offers SET status = 'CANCELLED', updated_at = now() WHERE ride_id = $1 AND status = 'OFFERED'", [input.rideId]);
+  return { rideId: input.rideId, passengerId: input.passengerId, driverId: null, creditedFeeCents: 0 };
+ }
  async find(rideId:string):Promise<ManualCancellation|null>{
   const r=await this.pool.query<Row>('SELECT * FROM ride_manual_cancellations WHERE ride_id=$1',[rideId]);
   return r.rows[0]?record(r.rows[0]):null;
@@ -75,6 +127,7 @@ export class PostgresManualCancellationStore {
    const q=await c.query<{id:string;state:string;passenger_id:string;driver_id:string|null;manual_refund:boolean;payment_method:string|null}>('SELECT id,state,passenger_id,driver_id,manual_refund,payment_method FROM rides WHERE id=$1 FOR UPDATE',[input.rideId]);
    const ride=q.rows[0];
    if(!ride||ride.passenger_id!==input.passengerId)throw new CancellationError('RIDE_NOT_FOUND','Corrida não encontrada.',404);
+   if(input.passenger && ride.payment_method==='cash')throw new CancellationError('RIDE_CHANGED','A corrida mudou. Atualize e tente novamente.');
    const existing=(await c.query<Row>('SELECT * FROM ride_manual_cancellations WHERE ride_id=$1',[ride.id])).rows[0];
    if(existing)return record(existing);
    const policy=(await c.query<{system_enabled:boolean}>('SELECT system_enabled FROM ride_cancellation_policy WHERE id=true FOR SHARE')).rows[0];

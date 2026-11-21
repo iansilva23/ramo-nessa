@@ -1,0 +1,68 @@
+name: Passenger cash cancellation
+on:
+  push:
+    branches: [fix/passenger-cash-cancel-window]
+permissions:
+  contents: read
+jobs:
+  passenger-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramo
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: ramo_test
+        ports: ['5432:5432']
+        options: --health-cmd="pg_isready -U ramo -d ramo_test" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgres://ramo:ci-test-only@localhost:5432/ramo_test
+      RAMO_CANCELLATION_TEST_POSTGRES: 'true'
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Verify cancellation against Postgres
+        working-directory: backend/core
+        run: |
+          npm ci
+          npm run db:migrate
+          npx tsx --test --test-concurrency=1 test/manual_cancellation_policy.test.ts test/postgres_manual_cancellations.test.ts test/postgres_cash_cancellation.test.ts
+          npm run build
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=passenger
+      - working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub test/card_checkout_test.dart test/realtime_tracking_test.dart test/pix_back_reservation_test.dart test/flow_safety_test.dart test/manual_cancellation_panel_test.dart
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - name: Package the Passenger Web bundle and cash cancellation modules
+        run: |
+          folder=artifacts/cancelamento-dinheiro
+          mkdir -p "$folder"
+          cp apps/passenger/build/web/main.dart.js "$folder/"
+          cp backend/core/dist/src/rides/manual-cancellation-{policy,routes,store}.js "$folder/"
+          cp backend/core/migrations/109_cash_cancellation_window.sql "$folder/"
+          cp deploy/driver-photos/publicar-cancelamento-dinheiro.py "$folder/"
+          cp deploy/driver-photos/publicar.py "$folder/"
+          curl -fsSL --max-time 60 'https://raw.githubusercontent.com/iansilva23/ramo-nessa/437d951ff1327fbd45cf305f41e90c686846181c/deploy/second-update/prepare.py' -o "$folder/prepare-guard.py"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cd "$folder"
+          sha256sum SOURCE_COMMIT.txt *.js *.sql *.py > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-cancelamento-dinheiro-vps
+          path: artifacts/cancelamento-dinheiro
+          if-no-files-found: error

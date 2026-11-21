@@ -56,3 +56,29 @@ export function cancellationFee(input:{rule:CancellationRule;acceptedAt:string|n
   }
   return 0;
 }
+
+const cashCancellationWindowMs = 20_000;
+
+export function cashCancellationTerms(input: {
+  requestedAt: Date | null;
+  acceptedAt: Date | null;
+  assigned: boolean;
+  state: string;
+  now: Date;
+}) {
+  const accepted = input.assigned || input.acceptedAt !== null ||
+    ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED'].includes(input.state);
+  const deadline = input.requestedAt === null ? null :
+    new Date(input.requestedAt.getTime() + cashCancellationWindowMs);
+  const canCancel = !accepted && deadline !== null && input.now < deadline &&
+    ['AWAITING_PAYMENT', 'PAID', 'SEARCHING_DRIVER', 'NO_DRIVER_FOUND'].includes(input.state);
+  return {
+    accepted,
+    canCancel,
+    systemEnabled: true,
+    acceptedAt: input.acceptedAt?.toISOString() ?? null,
+    serverTime: input.now.toISOString(),
+    cancelUntil: canCancel ? deadline.toISOString() : null,
+    rule: { enabled: true, freeSeconds: 20, feeCents: 0 },
+  };
+}

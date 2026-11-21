@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../data/passenger_ride_tracking_service.dart';
 
 class PassengerCancellationPanel extends StatefulWidget {
- const PassengerCancellationPanel({super.key,required this.rideId,required this.api,required this.onChanged,this.now});
+ const PassengerCancellationPanel({super.key,required this.rideId,required this.api,required this.onChanged,this.now,this.cash=false});
  final DateTime Function()? now;
+ final bool cash;
  final String rideId;final PassengerManualCancellationApi api;final VoidCallback onChanged;
  @override State<PassengerCancellationPanel> createState()=>_PassengerCancellationPanelState();
 }
@@ -34,7 +35,9 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
   if(_busy)return;
   final confirm=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:const Text('Cancelar corrida?'),
-   content:const Text('Dentro do prazo gratuito não há taxa. Se já houve pagamento, a equipe fará a devolução manual. Você poderá informar seu Pix depois.'),
+   content:Text(widget.cash
+    ? 'A corrida será encerrada e ficará registrada em Atividades.'
+    : 'Dentro do prazo gratuito não há taxa. Se já houve pagamento, a equipe fará a devolução manual. Você poderá informar seu Pix depois.'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Continuar esperando')),
     FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirmar'))]));
   if(confirm!=true||!mounted)return;

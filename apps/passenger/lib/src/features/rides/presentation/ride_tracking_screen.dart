@@ -392,7 +392,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
       if (!mounted) return;
       setState(() {
         _error = result.dispatchStatus == 'NO_DRIVER_FOUND'
-            ? 'Ainda não encontramos motorista. Você pode tentar novamente ou cancelar a corrida.'
+            ? widget.paymentMethod == 'cash'
+                ? 'Ainda não encontramos motorista. Você pode tentar novamente.'
+                : 'Ainda não encontramos motorista. Você pode tentar novamente ou cancelar a corrida.'
             : null;
       });
       await _refresh();
@@ -576,18 +578,30 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     );
   }
 
+  bool get _canBeSearchingForCashDriver {
+    final state = _snapshot?.state ?? widget.initialDispatchStatus;
+    return state == null || const {
+      'PAID',
+      'SEARCHING_DRIVER',
+      'NO_DRIVER_FOUND',
+      'PENDING_RETRY',
+    }.contains(state);
+  }
+
   bool get _offerCancellationOnBack =>
       !_allowBack &&
-      (widget.paymentMethod == 'cash' || widget.paymentMethod == 'card') &&
       widget.trackingService is PassengerManualCancellationApi &&
-      const {
-        'PAID',
-        'SEARCHING_DRIVER',
-        'NO_DRIVER_FOUND',
-        'DRIVER_ASSIGNED',
-        'DRIVER_ARRIVING',
-        'DRIVER_ARRIVED',
-      }.contains(_snapshot?.state);
+      (widget.paymentMethod == 'cash'
+          ? _canBeSearchingForCashDriver
+          : widget.paymentMethod == 'card' &&
+                const {
+                  'PAID',
+                  'SEARCHING_DRIVER',
+                  'NO_DRIVER_FOUND',
+                  'DRIVER_ASSIGNED',
+                  'DRIVER_ARRIVING',
+                  'DRIVER_ARRIVED',
+                }.contains(_snapshot?.state));
 
   Future<void> _closeTracking({bool cancelled = false}) async {
     if (cancelled) await RideRecoveryMemory.clear();
@@ -771,9 +785,12 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
                       if (snapshot?.occurrencesEnabled == true && widget.trackingService is RamoRideOccurrenceApi)
                         RamoRideOccurrencePanel(api: widget.trackingService as RamoRideOccurrenceApi, rideId: widget.rideId, paymentMethod: widget.paymentMethod, onChanged: _refresh),
                       if (widget.trackingService
-                          is PassengerManualCancellationApi)
+                              is PassengerManualCancellationApi &&
+                          (widget.paymentMethod != 'cash' ||
+                              _canBeSearchingForCashDriver))
                         PassengerCancellationPanel(
                           rideId: widget.rideId,
+                          cash: widget.paymentMethod == 'cash',
                           api:
                               widget.trackingService
                                   as PassengerManualCancellationApi,
@@ -795,7 +812,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
                         const SizedBox(height: RamoSpacing.md),
                         Text(
                           widget.paymentMethod == 'cash'
-                              ? 'Você pode tentar uma nova busca ou cancelar a corrida.'
+                              ? 'Você pode tentar uma nova busca.'
                               : 'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente. Se cancelar, acompanhe a devolução pelo app.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
@@ -813,8 +830,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
                               ),
                             ),
                             const SizedBox(width: RamoSpacing.sm),
-                            if (widget.trackingService
-                                is! PassengerManualCancellationApi)
+                            if (widget.paymentMethod != 'cash' &&
+                                widget.trackingService
+                                    is! PassengerManualCancellationApi)
                               Expanded(
                                 flex: 3,
                                 child: FilledButton(

@@ -6,7 +6,7 @@ import {publicCancellation,type PostgresManualCancellationStore,type ManualCance
 export async function handleManualCancellationRoutes(input:{
  path:string;method:string;store:PostgresManualCancellationStore|null;rides:RideRepository;identities:AuthIdentityRepository;
  passenger():Promise<string>;driver():Promise<string>;authorize(scope:AdminScope):Promise<AdminActor>;
- readBody():Promise<unknown>;json(status:number,value:unknown):void;cancelled(record:ManualCancellation):Promise<void>;
+ readBody():Promise<unknown>;json(status:number,value:unknown):void;cancelled(record:Pick<ManualCancellation,'rideId'|'passengerId'|'driverId'|'creditedFeeCents'>):Promise<void>;
 }):Promise<boolean>{
  const {path,method,store}=input;
  const passenger=path.match(/^\/v1\/rides\/([0-9a-f-]{36})\/(cancellation|refund-pix|cancel-search)$/i);
@@ -30,12 +30,22 @@ export async function handleManualCancellationRoutes(input:{
    if(!ride||ride.passengerId!==passengerId){input.json(404,{error:'RIDE_NOT_FOUND'});return true;}
    if(!store)throw new CancellationError('POSTGRES_REQUIRED','Devoluções manuais exigem armazenamento persistente.',503);
    if(method==='GET'&&passenger[2]==='cancellation'){
+    const cashTerms=await store.cashTerms(ride.id,false);
+    if(cashTerms){
+     input.json(200,{terms:cashTerms,cancellation:null,canCancel:cashTerms.canCancel});return true;
+    }
     const c=await store.find(ride.id),terms=await store.terms(ride.id);
-    input.json(200,{terms,cancellation:c?publicCancellation(c):null,
+    const cashSearch=ride.state==='AWAITING_PAYMENT' ? await store.cashTerms(ride.id,true) : null;
+    input.json(200,{terms,cashSearch,cancellation:c?publicCancellation(c):null,
      canCancel:terms.systemEnabled&&['PAID','SEARCHING_DRIVER','NO_DRIVER_FOUND','DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED'].includes(ride.state)});return true;
    }
    if(method==='POST'&&['cancellation','cancel-search'].includes(passenger[2]!)){
-    const body=await input.readBody() as {reason?:unknown};
+    const body=await input.readBody() as {reason?:unknown;beforePayment?:unknown};
+    if(ride.paymentMethod==='cash'||body?.beforePayment===true){
+     const cash=await store.cancelCash({rideId:ride.id,passengerId,beforePayment:body?.beforePayment===true,
+      reason:typeof body?.reason==='string'?body.reason:'Desistência do passageiro'});
+     await input.cancelled(cash);input.json(200,{cancellation:null,refundStatus:'not_charged'});return true;
+    }
     const c=await store.cancel({rideId:ride.id,passengerId,actor:passengerId,passenger:true,reason:typeof body?.reason==='string'?body.reason:'Desistência do passageiro'});
     await input.cancelled(c);input.json(200,{cancellation:publicCancellation(c),refundStatus:'manual_review'});return true;
    }

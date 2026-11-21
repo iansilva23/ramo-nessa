@@ -188,6 +188,32 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     }
     _confirmingBackCancellation = true;
     try {
+      final tracking = widget.rideTrackingService;
+      if (_offerCashCancellationOnBack &&
+          _ride.driverConsentRequired &&
+          tracking is PassengerManualCancellationApi) {
+        final api = tracking as PassengerManualCancellationApi;
+        final data = await api.cancellationRequest(_ride.id);
+        if (!mounted) return;
+        final search = data['cashSearch'] as Map<String, dynamic>?;
+        if (search?['canCancel'] != true) {
+          await _closeCheckoutAfterCancellation();
+          return;
+        }
+        final confirmed = await confirmRideCancellation(
+          context,
+          description: 'A corrida será encerrada e ficará registrada em Atividades.',
+        );
+        if (!mounted || !confirmed) return;
+        await api.cancellationRequest(
+          _ride.id,
+          method: 'POST',
+          body: {'beforePayment': true, 'reason': 'Desistência do passageiro'},
+        );
+        await RideRecoveryMemory.clear();
+        if (mounted) await _closeCheckoutAfterCancellation();
+        return;
+      }
       if (_offerCashCancellationOnBack) {
         final confirmed = await confirmRideCancellation(
           context,
@@ -201,6 +227,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     } catch (error) {
       if (!mounted) return;
       final message = error is PassengerPaymentException
+          ? error.message
+          : error is PassengerRideTrackingException
           ? error.message
           : 'Não conseguimos cancelar agora. Tente novamente.';
       setState(() => _driverMessage = message);
