@@ -456,6 +456,7 @@ class _CouponPaymentService implements PassengerPaymentService, DriverConfirmati
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) =>
       throw UnimplementedError();
 

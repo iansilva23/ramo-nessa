@@ -2,6 +2,7 @@ import type { RideRecord } from '../rides/ride.js';
 import type { RideOfferRecord } from './ride-offer.js';
 
 export interface CreateRideOfferInput {
+  beforePayment?: true;
   rideId: string;
   driverId: string;
   approximatePickupDistanceKm: number;

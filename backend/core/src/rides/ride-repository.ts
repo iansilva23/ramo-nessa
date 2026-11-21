@@ -117,5 +117,6 @@ export interface RideRepository {
   getAdminOperationalSummary(
     since: string,
   ): Promise<AdminRideOperationalSummary>;
+  startCashSearch(ride: RideRecord): Promise<RideRecord | null>;
   save(ride: RideRecord): Promise<RideRecord>;
 }

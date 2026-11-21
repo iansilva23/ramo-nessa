@@ -276,6 +276,7 @@ export class PostgresRideMatchingRepository
       const ride = await lockRide(client, input.rideId);
       if (
         ride == null ||
+        (input.beforePayment === true && ride.state !== 'AWAITING_PAYMENT') ||
         (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER' &&
           !(ride.state === 'AWAITING_PAYMENT' && ride.driver_consent_required &&
             ride.reserved_driver_id === input.driverId && ride.driver_id == null &&

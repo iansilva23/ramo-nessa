@@ -8887,8 +8887,8 @@ const server = createServer(async (request, response) => {
         return;
       }
 
-      await assertPrepaymentDriverAvailable(ride);
       const body = parseCreatePaymentRequest(await readJson(request));
+      if (body.requestCashRide !== true) await assertPrepaymentDriverAvailable(ride);
       if(ride.occurrenceBonus&&!['pix','cash'].includes(body.method))throw new PaymentDomainError('PAYMENT_METHOD_DISABLED','Esta corrida com adicional está disponível por Pix ou dinheiro.');
       const idempotencyKey = readIdempotencyKey(request.headers);
       const paymentSettings =
@@ -8917,6 +8917,7 @@ const server = createServer(async (request, response) => {
           rideId: ride.id,
           passengerId,
           ...(body.cashTenderedCents == null ? {} : {cashTenderedCents: body.cashTenderedCents}),
+          ...(body.requestCashRide == null ? {} : {requestCashRide: body.requestCashRide}),
         });
 
         let currentRide = result.ride;

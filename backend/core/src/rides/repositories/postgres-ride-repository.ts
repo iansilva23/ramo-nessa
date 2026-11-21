@@ -749,6 +749,31 @@ export class PostgresRideRepository implements RideRepository {
     };
   }
 
+  async startCashSearch(ride: RideRecord): Promise<RideRecord | null> {
+    if ('release' in this.pool) throw new Error('A busca em dinheiro precisa de uma conexão própria.');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT id FROM rides WHERE id = $1 FOR UPDATE', [ride.id]);
+      const result = await client.query<RideRow>(`
+        UPDATE rides SET state = 'PAID', payment_status = 'authorized', payment_method = 'cash',
+          driver_consent_required = false, cash_tendered_cents = $3, updated_at = $4
+        WHERE id = $1 AND passenger_id = $2 AND state = 'AWAITING_PAYMENT' AND driver_id IS NULL
+          AND COALESCE(payment_expires_at, driver_hold_expires_at) > $4
+          AND NOT EXISTS (SELECT 1 FROM ride_offers WHERE ride_id = $1)
+        RETURNING ${RETURNING}
+      `, [ride.id, ride.passengerId, ride.cashTenderedCents ?? null, ride.updatedAt]);
+      await client.query('COMMIT');
+      const row = result.rows[0];
+      return row == null ? null : mapRow(row);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async save(ride: RideRecord): Promise<RideRecord> {
     const result = await this.pool.query<RideRow>(
       `

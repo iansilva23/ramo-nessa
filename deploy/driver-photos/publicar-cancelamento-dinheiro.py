@@ -17,7 +17,7 @@ need, digest, launch, verify_live = (
 )
 MIGRATIONS = ('109_cash_cancellation_window.sql', '110_cash_tendered_amount.sql')
 RIDE_MODULES = ('manual-cancellation-policy', 'manual-cancellation-routes',
-                'manual-cancellation-store', 'authorize-cash')
+                'manual-cancellation-store', 'authorize-cash', 'prepayment-driver-confirmation')
 CORE_FILES = {part+'.js': '/app/dist/src/rides/'+part+'.js' for part in RIDE_MODULES}
 CORE_FILES.update({
     'driver-app-service.js': '/app/dist/src/drivers/driver-app-service.js',
@@ -40,7 +40,7 @@ ACTIVE_RELEASES = {
     'core': ('passenger-driver-portrait-4ee0c0e45641-', 'core-after.json'),
     'gateway': ('passenger-cancel-web-9a0c0cf1a4b8-', 'after.json'),
 }
-CANCEL_ONLY_PREFIX = 'cash-cancellation-0ddd7652593b-'
+PRIOR_RELEASE_PREFIXES = ('cash-cancellation-0ddd7652593b-', 'cash-change-6368e809fd96-')
 WEB_FILES = {'passenger': 'passageiro.js', 'driver': 'motorista.js'}
 
 
@@ -69,7 +69,7 @@ def main():
                  'Serviço indisponível: ' + role)
             config = configs[role] = Path(live[role]['Config']['Labels']['com.docker.compose.project.config_files'])
             known = ((config.parent.name.startswith(prefix) and config.name == name) or
-                     (config.parent.name.startswith(CANCEL_ONLY_PREFIX) and config.name == role+'-after.json'))
+                     (config.parent.name.startswith(PRIOR_RELEASE_PREFIXES) and config.name == role+'-after.json'))
             need(config.parent.parent == ROOT and known, 'A revisão ativa mudou: '+role)
         gateway_config = configs['gateway']
         web_before = RELEASES/gateway_config.parent.name/'bundles'
@@ -81,7 +81,7 @@ def main():
         need({filename for filename in existing if filename.endswith('.sql')} <= installed,
              'Há migrações pendentes fora do escopo.')
 
-        anchor = Path(tempfile.mkdtemp(prefix='cash-change-' + revision[:12] + '-', dir=ROOT))
+        anchor = Path(tempfile.mkdtemp(prefix='cash-confirmation-' + revision[:12] + '-', dir=ROOT))
         h.DIRECTORY = anchor
         web = RELEASES/anchor.name/'bundles'
         web.parent.mkdir(mode=0o755)
@@ -91,7 +91,8 @@ def main():
             p.extract({'main.dart.js': (folder/filename).read_bytes()}, web/role)
         old_tree, new_tree = p.tree(web_before), p.tree(web)
         changed_web = {name for name in old_tree if old_tree[name] != new_tree.get(name)}
-        need(set(old_tree) == set(new_tree) and changed_web == {role+'/main.dart.js' for role in WEB_FILES},
+        need(set(old_tree) == set(new_tree) and 'passenger/main.dart.js' in changed_web and
+             changed_web <= {role+'/main.dart.js' for role in WEB_FILES},
              'Há diferenças fora dos arquivos JavaScript dos dois apps.')
 
         overlay = anchor/'overlay'
@@ -100,7 +101,21 @@ def main():
         server = h.run(['docker', 'exec', base['CORE'], 'cat', SERVER_PATH])
         need(server.count(SERVER_MARKER) == 1, 'A autorização em dinheiro do Core ativo divergiu.')
         parameter = b'                    ...(body.cashTenderedCents == null ? {} : { cashTenderedCents: body.cashTenderedCents }),\n'
-        server = server.replace(SERVER_MARKER, SERVER_MARKER+parameter, 1)
+        existing_marker = SERVER_MARKER+parameter
+        old_marker = existing_marker if existing_marker in server else SERVER_MARKER
+        request_flag = b'                    ...(body.requestCashRide == null ? {} : { requestCashRide: body.requestCashRide }),\n'
+        server = server.replace(old_marker, existing_marker+request_flag, 1)
+        previous_validation = (
+            b'            await assertPrepaymentDriverAvailable(ride);\n'
+            b'            const body = parseCreatePaymentRequest(await readJson(request));\n'
+        )
+        next_validation = (
+            b'            const body = parseCreatePaymentRequest(await readJson(request));\n'
+            b'            if (body.requestCashRide !== true)\n'
+            b'                await assertPrepaymentDriverAvailable(ride);\n'
+        )
+        need(server.count(previous_validation) == 1, 'A validação de pagamento do Core ativo divergiu.')
+        server = server.replace(previous_validation, next_validation, 1)
         p.extract({**{name: (folder/name).read_bytes() for name in CORE_FILES}, 'server.js': server}, overlay)
         for name in core_files:
             if name.endswith('.js'):

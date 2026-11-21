@@ -3,7 +3,7 @@ import '../../home/presentation/widgets/shared_transfer_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'card_checkout_screen.dart';
-import 'cash_change_dialog.dart';
+import 'cash_change_sheet.dart';
 import 'pix_exit_dialog.dart';
 import '../data/saved_card_service.dart';
 import 'dart:async';
@@ -96,6 +96,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   PassengerPaymentPolicy? _paymentPolicy;
   bool _paymentPolicyLoading = false;
   bool _authorizingCash = false;
+  bool _cashSelected = false;
+  bool _canRequestCashBeforeSearch = false;
   String? _cashMessage;
   late final String _walletIdempotencyKey;
   late final String _cashIdempotencyKey;
@@ -118,14 +120,29 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       const Duration(seconds: 1),
       (_) => _updateRemaining(),
     );
-    _loadPaymentPolicy();
-    if (_ride.driverConsentRequired) unawaited(_findDriver());
+    unawaited(_startCheckout());
+  }
+
+  Future<void> _startCheckout() async {
+    await _loadPaymentPolicy();
+    if (!mounted || !_ride.driverConsentRequired) return;
+    if (_cashAvailable && _confirmationService != null) {
+      await _refreshDriverConfirmation();
+      if (!mounted) return;
+      if (_confirmation?.status == 'NOT_STARTED') {
+        setState(() => _canRequestCashBeforeSearch = true);
+        return;
+      }
+    }
+    await _findDriver();
   }
 
   Future<void> _findDriver() async {
     final service = _confirmationService;
     if (service == null || _findingDriver) return;
     setState(() {
+      _canRequestCashBeforeSearch = false;
+      _cashSelected = false;
       _findingDriver = true;
       _driverMessage = null;
     });
@@ -180,7 +197,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   }
 
   bool get _offerCashCancellationOnBack =>
-      !_leaving && _cashAvailable && _confirmationService != null;
+      !_leaving && !_canRequestCashBeforeSearch && _cashAvailable &&
+      _confirmationService != null;
 
   Future<void> _leaveReservation() async {
     if (_leaving || _confirmingBackCancellation || _creatingPix ||
@@ -192,6 +210,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       final tracking = widget.rideTrackingService;
       if (_offerCashCancellationOnBack &&
           _ride.driverConsentRequired &&
+          !_canRequestCashBeforeSearch &&
           tracking is PassengerManualCancellationApi) {
         final api = tracking as PassengerManualCancellationApi;
         final data = await api.cancellationRequest(_ride.id);
@@ -843,9 +862,17 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       return;
     }
 
-    final tendered = await showDialog<int>(
+    final requestCashRide = !_ride.driverConsentRequired || _canRequestCashBeforeSearch;
+    final tendered = await showModalBottomSheet<int>(
       context: context,
-      builder: (_) => CashChangeDialog(totalCents: _ride.payableAmountCents),
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 480),
+      builder: (_) => CashChangeSheet(
+        totalCents: _ride.payableAmountCents,
+        searches: requestCashRide,
+      ),
     );
     if (!mounted || tendered == null || _remaining == Duration.zero) return;
 
@@ -859,6 +886,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         rideId: _ride.id,
         idempotencyKey: _cashIdempotencyKey,
         cashTenderedCents: tendered == 0 ? null : tendered,
+        requestCashRide: requestCashRide,
       );
 
       if (!mounted) return;
@@ -1008,6 +1036,32 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         : _cashAvailable
         ? 'Pague diretamente ao motorista no fim da corrida'
         : 'Em breve · será liberado pelo Ramo Nessa';
+
+    final cashOption = <Widget>[
+      _PaymentOption(
+        key: const Key('payment-option-cash'),
+        icon: Icons.payments_rounded,
+        title: 'Dinheiro',
+        subtitle: cashSubtitle,
+        enabled: !expired && !_paymentPolicyLoading && _cashAvailable && !_authorizingCash,
+        trailing: _authorizingCash
+            ? const SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : !_cashAvailable
+                ? const Chip(label: Text('Em breve'), visualDensity: VisualDensity.compact)
+                : _cashSelected
+                    ? const Icon(Icons.check_circle_rounded)
+                    : null,
+        onTap: () => setState(() => _cashSelected = true),
+      ),
+      if (_cashSelected && _cashAvailable && !expired)
+        FilledButton(
+          onPressed: _authorizingCash ? null : _authorizeCash,
+          child: const Text('Confirmar dinheiro'),
+        ),
+    ];
 
     final pixPrice = PreparedRide.formatCents(_pixTotalAmountCents);
     final pixAdjustment = PreparedRide.formatCents(_pixAdjustmentCents);
@@ -1200,7 +1254,16 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ],
               const SizedBox(height: RamoSpacing.xl),
               if (_ride.driverConsentRequired) ...[
-                _driverConfirmationCard(),
+                if (_canRequestCashBeforeSearch) ...[
+                  ...cashOption,
+                  const SizedBox(height: RamoSpacing.sm),
+                  TextButton(
+                    onPressed: _authorizingCash || expired ? null : _findDriver,
+                    child: const Text('Escolher outra forma de pagamento'),
+                  ),
+                  if (_cashMessage != null) Text(_cashMessage!),
+                ] else
+                  _driverConfirmationCard(),
                 if (_ride.occurrenceAdditionalAmountCents > 0) ExpansionTile(title:const Text('Detalhamento do valor'),children:[ListTile(title:const Text('Adicional de ocorrência'),trailing:Text(PreparedRide.formatCents(_ride.occurrenceAdditionalAmountCents)))]),
               const SizedBox(height: RamoSpacing.lg),
               ],
@@ -1335,29 +1398,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                     onTap: _payWallet,
                   ),
                   const SizedBox(height: RamoSpacing.sm),
-                  _PaymentOption(
-                    key: const Key('payment-option-cash'),
-                    icon: Icons.payments_rounded,
-                    title: 'Dinheiro',
-                    subtitle: cashSubtitle,
-                    enabled:
-                        !expired &&
-                        !_paymentPolicyLoading &&
-                        _cashAvailable &&
-                        !_authorizingCash,
-                    trailing: _authorizingCash
-                        ? const SizedBox.square(
-                            dimension: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : !_cashAvailable
-                        ? const Chip(
-                            label: Text('Em breve'),
-                            visualDensity: VisualDensity.compact,
-                          )
-                        : null,
-                    onTap: _authorizeCash,
-                  ),
+                  ...cashOption,
                   if (_pixMessage != null) ...[
                     const SizedBox(height: RamoSpacing.xs),
                     Text(

@@ -434,6 +434,7 @@ final class _PreviewPaymentService implements PassengerPaymentService {
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) async {
     return const CashRideAuthorizationResult(
       rideState: 'AWAITING_PAYMENT',

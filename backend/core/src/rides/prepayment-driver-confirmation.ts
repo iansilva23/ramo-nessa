@@ -21,6 +21,7 @@ export async function createPrepaymentDriverOffer(input: {
     throw new Error('A reserva do motorista está vencida ou possui prazo inválido.');
   }
   const result = await input.matching.createOffer({
+    beforePayment: true,
     rideId: input.ride.id, driverId: input.ride.reservedDriverId,
     approximatePickupDistanceKm: input.ride.driverPickupDistanceKm ?? 0,
     createdAt: now.toISOString(),

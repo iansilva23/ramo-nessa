@@ -228,3 +228,20 @@ test('cash validates optional tender, preserves the fare and exposes it to the d
   const retry = await authorizeCashRide({...input, cashTenderedCents:20000});
   assert.equal(retry.ride.cashTenderedCents, 15000);
 });
+
+
+test('explicit cash confirmation starts a paid search before driver acceptance', async () => {
+  const rides = new InMemoryRideRepository();
+  const settings = new InMemoryPaymentPolicySettingsRepository();
+  const finance = new InMemoryFinanceRepository();
+  const ride = preparedRide({driverConsentRequired: true});
+  await rides.create(ride);
+  await settings.setCashEnabled(true, now.toISOString());
+  const input = {rides, settings, finance, rideId:ride.id, passengerId:ride.passengerId, now};
+  await assert.rejects(authorizeCashRide(input), {code:'RIDE_NOT_PREPARED'});
+  const result = await authorizeCashRide({...input, requestCashRide:true, cashTenderedCents:15000});
+  assert.equal(result.ride.state, 'PAID');
+  assert.equal(result.ride.driverConsentRequired, false);
+  assert.equal(result.ride.cashTenderedCents, 15000);
+  assert.equal(result.ride.driverId, undefined);
+});

@@ -20,6 +20,7 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payme
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/cash_change_sheet.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/driver_confirmation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
@@ -192,15 +193,16 @@ void main() {
   testWidgets(
     'dinheiro aparece ativo quando a política central libera cash',
     (tester) async {
-      final service = _FakeCashPassengerPaymentService();
       final ride = PreparedRide(
         id: 'ride-cash-enabled',
         state: 'AWAITING_PAYMENT',
+        driverConsentRequired: true,
         baseAmountCents: 4500,
         pickupCompensationCents: 0,
         totalAmountCents: 4500,
         holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
       );
+      final service = _FakeCashPassengerPaymentService(ride);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -213,11 +215,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.drag(
-        find.byType(ListView),
-        const Offset(0, -280),
-      );
-      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Dinheiro'), 100);
 
       expect(find.text('Dinheiro'), findsOneWidget);
       expect(find.text('Em breve'), findsNothing);
@@ -225,10 +223,14 @@ void main() {
       await tester.tap(find.text('Dinheiro'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Precisa de troco?'));
+      expect(service.cashAuthorizations, 0);
+      expect(service.driverRequests, 0);
+      final openCash = find.widgetWithText(FilledButton, 'Confirmar dinheiro');
+      await tester.ensureVisible(openCash);
+      await tester.tap(openCash);
       await tester.pumpAndSettle();
       final amount = find.byKey(const Key('cash-change-amount'));
-      final confirm = find.widgetWithText(FilledButton, 'Confirmar dinheiro');
+      final confirm = find.widgetWithText(FilledButton, 'Confirmar e buscar motorista');
       await tester.enterText(amount, '40,00');
       await tester.pump();
       expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
@@ -240,6 +242,8 @@ void main() {
 
       expect(service.cashAuthorizations, 1);
       expect(service.tendered, 5050);
+      expect(service.startedCashSearch, true);
+      expect(service.driverRequests, 0);
       expect(find.text('Pagamento em dinheiro'), findsOneWidget);
       expect(
         find.textContaining('Pague R\$ 45,00 diretamente ao motorista'),
@@ -247,6 +251,38 @@ void main() {
       );
     },
   );
+
+  testWidgets('confirma sem troco em tela compacta', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    int? confirmed;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(builder: (context) => Scaffold(
+        body: TextButton(
+          onPressed: () async {
+            confirmed = await showModalBottomSheet<int>(
+              context: context,
+              isScrollControlled: true,
+              showDragHandle: true,
+              builder: (_) => const CashChangeSheet(totalCents: 3200, searches: true),
+            );
+          },
+          child: const Text('Abrir troco'),
+        ),
+      )),
+    ));
+    await tester.tap(find.text('Abrir troco'));
+    await tester.pumpAndSettle();
+    final submit = find.widgetWithText(FilledButton, 'Confirmar e buscar motorista');
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+    await tester.ensureVisible(find.text('Não preciso de troco'));
+    await tester.tap(find.text('Não preciso de troco'));
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(confirmed, 0);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'sem motorista o valor volta para a carteira e a tela explica o estorno',
@@ -647,6 +683,7 @@ class _FakePassengerPaymentService extends _CouponAwarePaymentService {
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
   }
@@ -707,9 +744,24 @@ class _FakePassengerPaymentService extends _CouponAwarePaymentService {
 
 
 class _FakeCashPassengerPaymentService
-    extends _CouponAwarePaymentService {
+    extends _CouponAwarePaymentService implements DriverConfirmationService {
+  _FakeCashPassengerPaymentService(this.ride);
+  final PreparedRide ride;
+  int driverRequests = 0;
+
+  @override
+  Future<void> requestDriverConfirmation(String rideId) async => driverRequests++;
+
+  @override
+  Future<DriverConfirmation> driverConfirmation(String rideId) async =>
+      DriverConfirmation(status: 'NOT_STARTED', ride: ride);
+
+  @override
+  Future<void> releaseDriverReservation(String rideId) async {}
+
   int cashAuthorizations = 0;
   int? tendered;
+  bool startedCashSearch = false;
 
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {
@@ -749,9 +801,11 @@ class _FakeCashPassengerPaymentService
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) async {
     cashAuthorizations++;
     tendered = cashTenderedCents;
+    startedCashSearch = requestCashRide;
     return const CashRideAuthorizationResult(
       rideState: 'SEARCHING_DRIVER',
       amountCents: 4500,
@@ -864,6 +918,7 @@ class _FakeRefundedPassengerPaymentService
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
   }
@@ -974,6 +1029,7 @@ class _FakePixPassengerPaymentService
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) async {
     throw StateError('Cash não faz parte deste teste Pix.');
   }

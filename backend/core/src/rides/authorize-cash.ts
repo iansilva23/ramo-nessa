@@ -32,6 +32,7 @@ export async function authorizeCashRide(input: {
   passengerId: string;
   now?: Date;
   cashTenderedCents?: number;
+  requestCashRide?: true;
 }) {
   const now = input.now ?? new Date();
   const ride = await input.rides.findById(input.rideId);
@@ -72,7 +73,9 @@ export async function authorizeCashRide(input: {
       'Corrida não está aguardando forma de pagamento.',
     );
   }
-  if (!isRidePreparedForPayment(ride)) {
+  const requestCashRide = input.requestCashRide === true;
+  const prepared = requestCashRide ? {...ride, driverConsentRequired: false} : ride;
+  if (!isRidePreparedForPayment(prepared)) {
     throw new PaymentDomainError(
       'RIDE_NOT_PREPARED',
       'Corrida precisa ser preparada antes de autorizar dinheiro.',
@@ -108,14 +111,24 @@ export async function authorizeCashRide(input: {
     status: 'authorized',
     amountCents: ride.quote.totalAmountCents,
   });
-  const updated = await input.rides.save({
+  const authorized: RideRecord = {
     ...ride,
     state,
     paymentStatus: 'authorized',
     paymentMethod: 'cash',
     ...(cashTenderedCents == null ? {} : {cashTenderedCents}),
     updatedAt: now.toISOString(),
-  });
+  };
+  const updated = requestCashRide
+    ? await input.rides.startCashSearch(authorized)
+    : await input.rides.save(authorized);
+  if (updated == null) {
+    const current = await input.rides.findById(ride.id);
+    if (current?.paymentMethod === 'cash' && CASH_CONFIRMED_STATES.has(current.state)) {
+      return {ride: current, duplicateAuthorization: true, cashPolicy};
+    }
+    throw new PaymentDomainError('RIDE_NOT_PREPARED', 'A busca já começou ou o prazo expirou. Volte e solicite uma nova corrida.');
+  }
 
   return {
     ride: updated,

@@ -57,6 +57,7 @@ abstract interface class PassengerPaymentService {
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   });
 
   Future<WalletRidePaymentResult> payRideWithWallet({

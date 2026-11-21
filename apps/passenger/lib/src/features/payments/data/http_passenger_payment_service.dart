@@ -608,6 +608,7 @@ class HttpPassengerPaymentService
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) async {
     final response = await _client
         .post(
@@ -615,6 +616,7 @@ class HttpPassengerPaymentService
           headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
           body: jsonEncode({
             'method': 'cash',
+            if (requestCashRide) 'requestCashRide': true,
             if (cashTenderedCents != null) 'cashTenderedCents': cashTenderedCents,
           }),
         )

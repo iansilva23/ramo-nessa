@@ -96,7 +96,8 @@ export class InMemoryRideMatchingRepository
     input: CreateRideOfferInput,
   ): Promise<RideOfferMutationResult> {
     const ride = await this.rides.findById(input.rideId);
-    if (ride == null || (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER' &&
+    if (ride == null || (input.beforePayment === true && ride.state !== 'AWAITING_PAYMENT') ||
+      (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER' &&
       !(ride.state === 'AWAITING_PAYMENT' && ride.driverConsentRequired &&
         ride.reservedDriverId === input.driverId && ride.driverId == null &&
         Date.parse(ride.driverHoldExpiresAt ?? '') > Date.parse(input.createdAt)))) {

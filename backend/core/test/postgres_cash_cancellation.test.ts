@@ -43,10 +43,11 @@ test('Postgres cash cancellation handles pending offers, acceptance, retries and
       driverConsentRequired: beforePayment,
       quote: { ruleId: 'cash-test', baseAmountCents: 3200, pickupCompensationCents: 0,
         totalAmountCents: 3200, platformCommissionCents: 320, driverNetCents: 2880 },
-      createdAt: requestedAt, updatedAt: requestedAt,
+      createdAt: requestedAt, updatedAt: requestedAt, paymentExpiresAt: deadline.toISOString(),
     });
     if (!beforePayment) {
-      const authorized = await rides.save({ ...draft, state: 'PAID', paymentMethod: 'cash', paymentStatus: 'authorized', cashTenderedCents: 5000 });
+      const authorized = await rides.startCashSearch({...draft, cashTenderedCents: 5000});
+      assert.ok(authorized);
       assert.equal(authorized.cashTenderedCents, 5000);
       assert.equal((await rides.save({ ...authorized, cashTenderedCents: 9500 })).cashTenderedCents, 5000);
       await pool.query("UPDATE rides SET state='SEARCHING_DRIVER', updated_at=$2 WHERE id=$1", [id, beforeDeadline]);
@@ -61,6 +62,8 @@ test('Postgres cash cancellation handles pending offers, acceptance, retries and
       fourByFour: false, seatCapacity: 4, online: true, busy: false, latitude: -2.82, longitude: -40.41,
       locationUpdatedAt: requestedAt, updatedAt: requestedAt });
     const pending = await fixture(true);
+    const draftPending = (await rides.findById(pending.rideId))!;
+    assert.equal(await rides.startCashSearch({...draftPending, cashTenderedCents:5000}), null);
     await store.cancelCash(pending);
     await store.cancelCash(pending);
     assert.equal((await rides.findById(pending.rideId))?.state, 'CANCELLED_BY_PASSENGER');

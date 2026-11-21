@@ -422,6 +422,12 @@ export class InMemoryRideRepository implements RideRepository {
     return structuredClone(message);
   }
 
+  async startCashSearch(ride: RideRecord): Promise<RideRecord | null> {
+    const current = this.rides.get(ride.id);
+    if (current?.state !== 'AWAITING_PAYMENT' || current.driverId != null) return null;
+    return this.save({...ride, driverConsentRequired: false});
+  }
+
   async save(ride: RideRecord): Promise<RideRecord> {
     if (ride.state.startsWith('CANCELLED_')) ride = { ...ride, cancellationState: ride.state };
     if (!this.rides.has(ride.id)) {

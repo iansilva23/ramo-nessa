@@ -16,6 +16,7 @@ export interface CreatePaymentRequest {
   method: EnabledPaymentMethod | 'cash';
   payerEmail?: string;
   cashTenderedCents?: number;
+  requestCashRide?: true;
   savedCardId?: string;
   cardToken?: string;
   paymentMethodId?: string;
@@ -43,6 +44,9 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
     );
   }
 
+  if (record.requestCashRide != null && (method !== 'cash' || record.requestCashRide !== true)) {
+    throw new InvalidPaymentRequestError('Confirmação da corrida em dinheiro inválida.');
+  }
   const cashTenderedCents = record.cashTenderedCents;
   if (cashTenderedCents != null &&
       (method !== 'cash' || typeof cashTenderedCents !== 'number' ||
@@ -144,6 +148,7 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
 
   return {
     method,
+    ...(record.requestCashRide === true ? {requestCashRide: true as const} : {}),
     ...(cashTenderedCents == null ? {} : { cashTenderedCents }),
     ...(payerEmail == null ? {} : { payerEmail }),
     ...(record.savedCardId == null ? {} : { savedCardId: record.savedCardId as string }),

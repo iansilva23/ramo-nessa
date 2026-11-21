@@ -172,6 +172,7 @@ class _PolicyOnlyPaymentService extends _CouponAwarePaymentService {
     required String rideId,
     required String idempotencyKey,
     int? cashTenderedCents,
+    bool requestCashRide = false,
   }) =>
       throw UnimplementedError();
 

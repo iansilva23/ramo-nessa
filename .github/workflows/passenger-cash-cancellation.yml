@@ -33,7 +33,7 @@ jobs:
         run: |
           npm ci
           npm run db:migrate
-          npx tsx --test --test-concurrency=1 test/manual_cancellation_policy.test.ts test/postgres_manual_cancellations.test.ts test/postgres_cash_cancellation.test.ts test/cash_ride_authorization.test.ts test/payment_validation.test.ts
+          npx tsx --test --test-concurrency=1 test/manual_cancellation_policy.test.ts test/postgres_manual_cancellations.test.ts test/postgres_cash_cancellation.test.ts test/cash_ride_authorization.test.ts test/payment_validation.test.ts test/prepayment_driver_confirmation.test.ts
           npm run build
       - uses: subosito/flutter-action@v2.23.0
         with:
@@ -68,7 +68,7 @@ jobs:
           cp apps/driver/build/web/main.dart.js "$folder/motorista.js"
           cp backend/core/dist/src/rides/manual-cancellation-{policy,routes,store}.js "$folder/"
           core=backend/core/dist/src
-          cp "$core/rides/authorize-cash.js" "$core/payments/validation.js" "$folder/"
+          cp "$core"/rides/{authorize-cash,prepayment-driver-confirmation}.js "$core/payments/validation.js" "$folder/"
           cp "$core"/drivers/driver-{app,ride}-service.js "$folder/"
           cp "$core/matching/postgres-ride-matching-repository.js" "$core/rides/repositories/postgres-ride-repository.js" "$folder/"
           cp backend/core/migrations/{109_cash_cancellation_window,110_cash_tendered_amount}.sql "$folder/"
@@ -80,6 +80,6 @@ jobs:
           sha256sum SOURCE_COMMIT.txt *.js *.sql *.py > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: ramo-cancelamento-e-troco-vps
+          name: ramo-troco-premium-vps
           path: artifacts/cancelamento-e-troco
           if-no-files-found: error
