@@ -27,3 +27,4 @@ export 'src/auth/ramo_password_access_flow.dart';
 export 'src/auth/ramo_password_recovery.dart';
 
 export 'src/privacy/ramo_account_deletion.dart';
+export 'src/auth/ramo_social_access.dart';

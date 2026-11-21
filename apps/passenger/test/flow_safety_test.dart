@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_nessa_passenger/src/app.dart';
 import 'package:ramo_nessa_passenger/src/core/location/location_service.dart';
 import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
@@ -206,6 +207,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: RamoTheme.dark,
           home: RidePaymentScreen(
             ride: ride,
             paymentService: service,
@@ -221,13 +223,21 @@ void main() {
       expect(find.text('Em breve'), findsNothing);
       await tester.ensureVisible(find.text('Dinheiro'));
       await tester.tap(find.text('Dinheiro'));
+      await tester.tap(find.text('Dinheiro'), warnIfMissed: false);
       await tester.pumpAndSettle();
 
       expect(service.cashAuthorizations, 0);
       expect(service.driverRequests, 0);
-      final openCash = find.widgetWithText(FilledButton, 'Confirmar dinheiro');
-      await tester.ensureVisible(openCash);
-      await tester.tap(openCash);
+      expect(find.text('Confirmar dinheiro'), findsNothing);
+      expect(tester.widget<BottomSheet>(find.byType(BottomSheet)).backgroundColor,
+          RamoTheme.dark.colorScheme.surface);
+      await tester.tap(find.byTooltip('Voltar').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(CashChangeSheet), findsNothing);
+      expect(service.cashAuthorizations, 0);
+      expect(service.driverRequests, 0);
+      await tester.ensureVisible(find.text('Dinheiro'));
+      await tester.tap(find.text('Dinheiro'));
       await tester.pumpAndSettle();
       final amount = find.byKey(const Key('cash-change-amount'));
       final confirm = find.widgetWithText(FilledButton, 'Confirmar e buscar motorista');
@@ -237,7 +247,10 @@ void main() {
       await tester.enterText(amount, '50,50');
       await tester.pump();
       expect(find.text(r'Seu troco · R$ 5,50'), findsOneWidget);
-      await tester.tap(confirm);
+      await tester.ensureVisible(confirm);
+      final confirmPosition = tester.getCenter(confirm);
+      await tester.tapAt(confirmPosition);
+      await tester.tapAt(confirmPosition);
       await tester.pumpAndSettle();
 
       expect(service.cashAuthorizations, 1);
@@ -255,6 +268,12 @@ void main() {
   testWidgets('confirma sem troco em tela compacta', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final safeArea = FakeViewPadding(bottom: 34 * tester.view.devicePixelRatio);
+    tester.view.viewPadding = safeArea;
+    tester.view.padding = safeArea;
+    addTearDown(tester.view.resetViewPadding);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewInsets);
     int? confirmed;
     await tester.pumpWidget(MaterialApp(
       home: Builder(builder: (context) => Scaffold(
@@ -274,12 +293,30 @@ void main() {
     await tester.tap(find.text('Abrir troco'));
     await tester.pumpAndSettle();
     final submit = find.widgetWithText(FilledButton, 'Confirmar e buscar motorista');
+    final amount = find.byKey(const Key('cash-change-amount'));
+    final exact = find.text('Não preciso de troco');
     expect(tester.widget<FilledButton>(submit).onPressed, isNull);
-    await tester.enterText(find.byKey(const Key('cash-change-amount')), '0,00');
+    tester.view.padding = const FakeViewPadding();
+    tester.view.viewInsets =
+        FakeViewPadding(bottom: 240 * tester.view.devicePixelRatio);
+    await tester.enterText(amount, '0,00');
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(submit).onPressed, isNull);
-    await tester.ensureVisible(find.text('Não preciso de troco'));
-    await tester.tap(find.text('Não preciso de troco'));
+    await tester.enterText(amount, '50,00');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(exact);
+    await tester.tap(exact);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(amount).controller?.text, isEmpty);
+    expect(find.textContaining('Seu troco'), findsNothing);
+    await tester.ensureVisible(amount);
+    await tester.enterText(amount, '40,00');
+    await tester.pumpAndSettle();
+    expect(find.text(r'Seu troco · R$ 8,00'), findsOneWidget);
+    await tester.ensureVisible(exact);
+    await tester.tap(exact);
+    tester.view.resetViewInsets();
+    tester.view.padding = safeArea;
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
     await tester.ensureVisible(submit);

@@ -14,10 +14,15 @@ class RamoAuthScaffold extends StatefulWidget {
     super.key,
     required this.child,
     this.heroImageUrl,
+    this.showHero = true,
+    this.heroOverlay,
+    this.compactHero = false,
   });
 
   final Widget child;
   final String? heroImageUrl;
+  final bool showHero, compactHero;
+  final Widget? heroOverlay;
 
   @override
   State<RamoAuthScaffold> createState() => _RamoAuthScaffoldState();
@@ -38,38 +43,57 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final media = MediaQuery.of(context);
     final compact = media.size.height < 720 || media.viewInsets.bottom > 0;
     final heroHeight = media.size.height * (compact ? .30 : .42);
-    final cardTop = media.size.height * (compact ? .18 : .34);
-    final animation = reduceMotion ? const AlwaysStoppedAnimation(1.0) : _controller;
+    final cardTop = widget.showHero
+        ? media.size.height *
+              (compact
+                  ? .18
+                  : widget.compactHero
+                  ? .25
+                  : .34)
+        : 0.0;
+    final animation = reduceMotion
+        ? const AlwaysStoppedAnimation(1.0)
+        : _controller;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AnimatedBuilder(
         animation: animation,
         builder: (context, _) {
           final value = animation.value;
-          final heroT = Curves.easeOutCubic.transform(math.min(1, value * 1.55));
+          final heroT = Curves.easeOutCubic.transform(
+            math.min(1, value * 1.55),
+          );
           final cardT = Curves.easeOutCubic.transform(
             ((value - .18) / .82).clamp(0.0, 1.0).toDouble(),
           );
           return Stack(
             children: [
-              Positioned.fill(
-                bottom: null,
-                child: Opacity(
-                  opacity: heroT,
-                  child: Transform.scale(
-                    scale: 1.06 - (.06 * heroT),
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      height: heroHeight,
-                      child: _HeroImage(url: widget.heroImageUrl),
+              if (widget.showHero)
+                Positioned.fill(
+                  bottom: null,
+                  child: Opacity(
+                    opacity: heroT,
+                    child: Transform.scale(
+                      scale: 1.06 - (.06 * heroT),
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        height: heroHeight,
+                        child: _HeroImage(url: widget.heroImageUrl),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              if (widget.showHero && widget.heroOverlay != null)
+                Positioned(
+                  top: media.padding.top + 18,
+                  left: 28,
+                  child: Opacity(opacity: heroT, child: widget.heroOverlay),
+                ),
               Positioned.fill(
                 top: cardTop,
                 child: Transform.translate(
@@ -91,7 +115,7 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
                         ],
                       ),
                       child: SafeArea(
-                        top: false,
+                        top: !widget.showHero,
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(28, 30, 28, 36),
                           child: Center(
@@ -240,18 +264,28 @@ class _RouteLoadingPainter extends CustomPainter {
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
     for (double x = 3; x < size.width; x += 12) {
-      canvas.drawLine(Offset(x, size.height * .67), Offset(x + 6, size.height * .67), route);
+      canvas.drawLine(
+        Offset(x, size.height * .67),
+        Offset(x + 6, size.height * .67),
+        route,
+      );
     }
     final x = 9 + ((size.width - 34) * Curves.easeInOut.transform(progress));
     canvas.save();
     canvas.translate(x, size.height * .5);
     final car = Paint()..color = RamoColors.brandYellow;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(const Rect.fromLTWH(-10, -6, 22, 11), const Radius.circular(4)),
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-10, -6, 22, 11),
+        const Radius.circular(4),
+      ),
       car,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(const Rect.fromLTWH(-5, -11, 12, 8), const Radius.circular(3)),
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-5, -11, 12, 8),
+        const Radius.circular(3),
+      ),
       car,
     );
     final wheel = Paint()..color = RamoColors.brandBlack;
@@ -261,5 +295,6 @@ class _RouteLoadingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _RouteLoadingPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _RouteLoadingPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

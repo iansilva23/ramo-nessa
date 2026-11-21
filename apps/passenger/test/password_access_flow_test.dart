@@ -103,15 +103,18 @@ void main() {
       onAuthenticated: (_) {},
     ),
   );
-  testWidgets('landing, login, back and registration share one coherent flow', (
+  testWidgets('password sign-in and email registration work from the same screen', (
     t,
   ) async {
     final s = Service(), store = Store();
     await t.pumpWidget(app(s, store));
-    expect(find.text('Criar conta'), findsOneWidget);
+    expect(find.text('Criar conta com e-mail'), findsOneWidget);
     expect(find.text('Esqueci minha senha'), findsNothing);
     expect(find.byKey(const Key('auth-code-field')), findsNothing);
-    await tap(t, 'auth-login-button');
+    final remember = find.byKey(const Key('auth-remember-password'));
+    expect(t.widget<Checkbox>(remember).value, isFalse);
+    await tap(t, 'auth-remember-password');
+    expect(t.widget<Checkbox>(remember).value, isTrue);
     await t.enterText(
       find.byKey(const Key('auth-email-field')),
       'passenger@example.test',
@@ -123,7 +126,6 @@ void main() {
     await tap(t, 'auth-primary-button');
     expect(s.loginCalls, 1);
     expect(store.token, isNotNull);
-    await tap(t, 'auth-back-button');
     await tap(t, 'auth-create-account-button');
     await t.enterText(find.byKey(const Key('auth-name-field')), 'Conta Teste');
 
@@ -145,7 +147,6 @@ void main() {
   ) async {
     final s = Service()..fail = true, store = Store();
     await t.pumpWidget(app(s, store));
-    await tap(t, 'auth-login-button');
     await t.enterText(
       find.byKey(const Key('auth-email-field')),
       'account@example.test',

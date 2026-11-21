@@ -225,7 +225,7 @@ void main() {
 
     expect(store.cleared, isTrue);
     expect(ended, 1);
-    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
     expect(find.byKey(const Key('auth-create-account-button')), findsOneWidget);
     expect(find.text('HOME AUTH'), findsNothing);
   });
@@ -259,7 +259,7 @@ void main() {
     expect(store.cleared, isFalse);
     expect(store.token, 'abcdefghijklmnopqrstuvwxyz123456');
     expect(find.text('HOME OFFLINE'), findsOneWidget);
-    expect(find.byKey(const Key('auth-login-button')), findsNothing);
+    expect(find.byKey(const Key('auth-primary-button')), findsNothing);
   });
 
   testWidgets('logout revoga servidor antes de apagar sessão', (tester) async {
@@ -294,7 +294,7 @@ void main() {
 
     expect(service.logoutCalls, 1);
     expect(store.cleared, isTrue);
-    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
   });
 
   testWidgets('revoked logout returns to login while push cleanup is pending', (
@@ -336,7 +336,7 @@ void main() {
     expect(await result, true);
     expect(ended, 1);
     expect(store.cleared, true);
-    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
     cleanup.completeError(StateError('late push failure'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -391,7 +391,7 @@ void main() {
     pending.complete();
     await tester.pumpAndSettle();
     expect(await first, true);
-    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -440,7 +440,7 @@ void main() {
     expect(await result, true);
     expect(service.logoutCalls, 2);
     expect(ended, 1);
-    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -484,7 +484,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(ended, 1);
       expect(tester.takeException(), isNull);
-      expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+      expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -528,7 +528,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.cleared, true);
       expect(ended, 1);
-      expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+      expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
       await tester.pump(const Duration(minutes: 2));
       expect(service.sessionChecks, 3);
       await tester.pumpWidget(const SizedBox());
@@ -566,7 +566,7 @@ void main() {
       service.invalidCurrentSession = true;
       await tester.pump(const Duration(seconds: 60));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+      expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -600,7 +600,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(service.sessionChecks, 2);
-      expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+      expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -699,7 +699,7 @@ void main() {
       await tester.pump(const Duration(seconds: 61));
       await tester.pumpAndSettle();
       expect(store.cleared, true);
-      expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+      expect(find.byKey(const Key('auth-primary-button')), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
   }

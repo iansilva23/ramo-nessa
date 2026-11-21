@@ -22,6 +22,9 @@ class _SessionHttpClient extends http.BaseClient {
               '/v1/auth/passenger/password/register',
               '/v1/auth/driver/password/login',
               '/v1/auth/driver/password/register',
+              '/v1/auth/passenger/social/start',
+              '/v1/auth/passenger/social/register',
+              '/v1/auth/passenger/social/link',
             ].contains(request.url.path)) ||
         (request.method == 'DELETE' && request.url.path == '/v1/auth/session');
     if (request.method == 'POST' && request.url.path.startsWith('/v1/auth/')) {

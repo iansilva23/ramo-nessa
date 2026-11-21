@@ -5,7 +5,11 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import '../../rides/domain/prepared_ride.dart';
 
 class CashChangeSheet extends StatefulWidget {
-  const CashChangeSheet({super.key, required this.totalCents, required this.searches});
+  const CashChangeSheet({
+    super.key,
+    required this.totalCents,
+    required this.searches,
+  });
 
   final int totalCents;
   final bool searches;
@@ -25,13 +29,21 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
   }
 
   void _updateAmount(String value) {
-    final match = RegExp(r'^(\d{1,5})(?:[,.](\d{0,2}))?$').firstMatch(value.trim());
+    final match = RegExp(
+      r'^(\d{1,5})(?:[,.](\d{0,2}))?$',
+    ).firstMatch(value.trim());
     setState(() {
       _tenderedCents = match == null
           ? null
           : int.parse(match.group(1)!) * 100 +
                 int.parse((match.group(2) ?? '').padRight(2, '0'));
     });
+  }
+
+  void _close([int? tendered]) {
+    if (ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.pop(context, tendered);
+    }
   }
 
   @override
@@ -44,7 +56,9 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           child: Column(
@@ -54,20 +68,30 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
               Row(
                 children: [
                   const DecoratedBox(
-                    decoration: BoxDecoration(color: RamoColors.signal, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: RamoColors.signal,
+                      shape: BoxShape.circle,
+                    ),
                     child: Padding(
-                      padding: EdgeInsets.all(11),
-                      child: Icon(Icons.payments_outlined, color: RamoColors.ink),
+                      padding: EdgeInsets.all(9),
+                      child: Icon(
+                        Icons.payments_outlined,
+                        color: RamoColors.ink,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text('Pagamento em dinheiro',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    child: Text(
+                      'Pagamento em dinheiro',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Voltar',
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _close,
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ],
@@ -82,21 +106,36 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Total da corrida', style: theme.textTheme.labelLarge?.copyWith(color: colors.onInverseSurface)),
-                    Text(PreparedRide.formatCents(widget.totalCents), style: theme.textTheme.headlineMedium?.copyWith(
-                      color: colors.onInverseSurface,
-                      fontWeight: FontWeight.w900,
-                    )),
+                    Text(
+                      'Total da corrida',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: colors.onInverseSurface,
+                      ),
+                    ),
+                    Text(
+                      PreparedRide.formatCents(widget.totalCents),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: colors.onInverseSurface,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 22),
-              Text('Precisa de troco?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                'Precisa de troco?',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 10),
               TextField(
                 key: const Key('cash-change-amount'),
                 controller: _amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
                   LengthLimitingTextInputFormatter(8),
@@ -117,14 +156,27 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Semantics(
                     liveRegion: true,
-                    child: Text('Seu troco · ${PreparedRide.formatCents(tendered! - widget.totalCents)}',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    child: Text(
+                      'Seu troco · ${PreparedRide.formatCents(tendered! - widget.totalCents)}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                 ),
               Semantics(
                 selected: exact,
                 child: OutlinedButton.icon(
-                  icon: Icon(exact ? Icons.check_circle_rounded : Icons.circle_outlined),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    foregroundColor: exact ? colors.primary : colors.onSurface,
+                    side: BorderSide(
+                      color: exact ? colors.primary : colors.outline,
+                    ),
+                  ),
+                  icon: Icon(
+                    exact ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  ),
                   onPressed: () {
                     _amount.clear();
                     FocusScope.of(context).unfocus();
@@ -140,8 +192,14 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
                   backgroundColor: RamoColors.signal,
                   foregroundColor: RamoColors.ink,
                 ),
-                onPressed: exact || validChange ? () => Navigator.pop(context, tendered) : null,
-                child: Text(widget.searches ? 'Confirmar e buscar motorista' : 'Confirmar pagamento'),
+                onPressed: exact || validChange
+                    ? () => _close(tendered)
+                    : null,
+                child: Text(
+                  widget.searches
+                      ? 'Confirmar e buscar motorista'
+                      : 'Confirmar pagamento',
+                ),
               ),
             ],
           ),

@@ -3,6 +3,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import 'auth_token_store.dart';
 import 'password_auth_service.dart';
+import 'session_http_client.dart';
 
 import '../config/ramo_core_config.dart';
 
@@ -34,14 +35,36 @@ class PassengerAuthScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => RamoPasswordAccessFlow(
     driver: false,
+    socialAccess: RamoCoreConfig.baseUri == null
+        ? null
+        : RamoSocialAccess(
+            baseUri: RamoCoreConfig.baseUri!,
+            driver: false,
+            clientFactory: () => createSessionHttpClient('passenger'),
+          ),
+    onSocialAuthenticated: (data) => _save(
+      AuthSession(
+        accessToken: data['accessToken'] as String,
+        expiresAt: DateTime.parse(data['expiresAt'] as String),
+        subjectId: data['subjectId'] as String,
+        subjectType: data['subjectType'] as String,
+      ),
+    ),
     heroImageUrl: RamoCoreConfig.baseUri
         ?.resolve('/v1/content/app-auth-branding/hero')
         .toString(),
-    onRecoverPassword: RamoCoreConfig.baseUri == null ? null : () {
-      Navigator.of(context).push(MaterialPageRoute<void>(
-        builder: (_) => RamoPasswordRecovery(baseUri: RamoCoreConfig.baseUri!, driver: false),
-      ));
-    },
+    onRecoverPassword: RamoCoreConfig.baseUri == null
+        ? null
+        : () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RamoPasswordRecovery(
+                  baseUri: RamoCoreConfig.baseUri!,
+                  driver: false,
+                ),
+              ),
+            );
+          },
     onLogin: (values) async {
       await _save(
         await service.loginWithPassword(

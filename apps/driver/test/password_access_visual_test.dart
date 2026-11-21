@@ -126,9 +126,6 @@ void main() {
       }
 
       await shot('landing');
-      await tester.tap(find.byKey(const Key('auth-login-button')));
-      await tester.pumpAndSettle();
-      await shot('login');
       final password = find.byKey(const Key('auth-password-field'));
       expect(tester.widget<TextField>(password).obscureText, isTrue);
       await tester.tap(find.byTooltip('Mostrar senha'));
@@ -138,8 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(password).obscureText, isTrue);
 
-      await tester.tap(find.byKey(const Key('auth-back-button')));
-      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('auth-create-account-button')));
       await tester.tap(find.byKey(const Key('auth-create-account-button')));
       await tester.pumpAndSettle();
       await shot('registration');
@@ -237,8 +233,6 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.byKey(const Key('auth-login-button')));
-    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('auth-email-field')),
       'account@example.test',
