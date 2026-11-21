@@ -39,7 +39,7 @@ class _CashChangeSheetState extends State<CashChangeSheet> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final tendered = _tenderedCents;
-    final exact = tendered == 0;
+    final exact = tendered == 0 && _amount.text.isEmpty;
     final validChange = tendered != null && tendered > widget.totalCents;
     return SafeArea(
       top: false,

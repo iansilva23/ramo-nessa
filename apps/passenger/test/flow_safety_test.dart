@@ -275,8 +275,13 @@ void main() {
     await tester.pumpAndSettle();
     final submit = find.widgetWithText(FilledButton, 'Confirmar e buscar motorista');
     expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+    await tester.enterText(find.byKey(const Key('cash-change-amount')), '0,00');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
     await tester.ensureVisible(find.text('Não preciso de troco'));
     await tester.tap(find.text('Não preciso de troco'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
     await tester.ensureVisible(submit);
     await tester.tap(submit);
     await tester.pumpAndSettle();
