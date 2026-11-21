@@ -69,7 +69,7 @@ void main() {
     );
     realtime.add(DriverRealtimeUpdate(ride: ride('DRIVER_ARRIVING'), rideUpdated: true));
     await tester.pumpAndSettle();
-    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('ride-mini-ride-live-DRIVER_ARRIVING')), findsOneWidget);
     expect(find.byKey(const ValueKey('ride-drag-handle')), findsNothing);
@@ -81,16 +81,16 @@ void main() {
     expect(find.byKey(const ValueKey('ride-drag-handle')), findsNothing);
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    expect(find.text('Passageiro a bordo'), findsOneWidget);
+    expect(find.text('Em andamento'), findsOneWidget);
     expect(find.byKey(const ValueKey('ride-mini-ride-live-IN_PROGRESS')), findsNothing);
 
     realtime.add(const DriverRealtimeUpdate(rideUpdated: true));
     await tester.pumpAndSettle();
-    expect(find.text('Passageiro a bordo'), findsNothing);
+    expect(find.text('Em andamento'), findsNothing);
     expect(find.byTooltip('Expandir corrida'), findsNothing);
     realtime.add(DriverRealtimeUpdate(ride: ride('DRIVER_ARRIVING', id: 'ride-next'), rideUpdated: true));
     await tester.pumpAndSettle();
-    expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.text('Indo buscar'), findsOneWidget);
     expect(find.byTooltip('Expandir corrida'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

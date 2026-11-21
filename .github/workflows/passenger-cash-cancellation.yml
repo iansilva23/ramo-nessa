@@ -1,4 +1,4 @@
-name: Cash cancellation and change
+name: Driver panels and cash checkout
 on:
   push:
     branches: [fix/passenger-cash-cancel-window]
@@ -53,7 +53,7 @@ jobs:
         run: |
           flutter pub get --enforce-lockfile
           export CHROME_EXECUTABLE="$(command -v google-chrome)"
-          flutter test --platform chrome --no-pub test/driver_map_gestures_test.dart test/web_map_camera_test.dart test/driver_camera_follow_test.dart
+          flutter test --platform chrome --no-pub test/driver_map_gestures_test.dart test/web_map_camera_test.dart test/driver_camera_follow_test.dart test/driver_flow_test.dart test/realtime_offer_test.dart
           flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ \
             --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false \
             --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
@@ -80,6 +80,6 @@ jobs:
           sha256sum SOURCE_COMMIT.txt *.js *.sql *.py > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: ramo-troco-premium-vps
+          name: ramo-paineis-e-troco-vps
           path: artifacts/cancelamento-e-troco
           if-no-files-found: error

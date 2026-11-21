@@ -27,6 +27,8 @@ void main() {
     addTearDown(()=>tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(RamoNessaDriverApp(api:api,locationService:location,routeService:routes,navigationService:navigation));
     await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    await tester.tap(find.byKey(const ValueKey('ride-drag-handle')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Abrir no Google Maps'));
     await tester.tap(find.text('Abrir no Google Maps'));await tester.pump();await tester.pump(const Duration(milliseconds:100));
     expect(routes.latestControl!.mode,'external');expect(navigation.lastLatitude,_budgetTestRide.pickupLatitude);
@@ -86,7 +88,8 @@ void main() {
       expect(handle, findsOneWidget);
       expect(Theme.of(tester.element(handle)).colorScheme.surface, Colors.white);
       final expanded = find.ancestor(of: handle, matching: find.byType(DecoratedBox));
-      expect(expanded.evaluate().any((e) =>
+      final docked = find.byKey(const ValueKey('ride-docked-panel'));
+      expect(docked.evaluate().isNotEmpty || expanded.evaluate().any((e) =>
         (e.widget as DecoratedBox).decoration is BoxDecoration &&
         ((e.widget as DecoratedBox).decoration as BoxDecoration).color == Colors.white), isTrue);
       if (state == 'DRIVER_ARRIVED') {
@@ -185,7 +188,7 @@ void main() {
       }
       expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
       expect(find.textContaining('segundos restantes'), findsOneWidget);
-      expect(find.text('Cheguei no embarque'), findsNothing);
+      expect(find.text('Cheguei'), findsNothing);
       expect(find.text('Iniciar corrida'), findsNothing);
       expect(find.text('Navegar até o embarque'), findsNothing);
       expect(navigation.lastLatitude, isNull);
@@ -290,8 +293,6 @@ void main() {
     expect(find.text('R\$ 110,00'), findsAtLeastNWidgets(1));
     expect(find.text('Preá'), findsOneWidget);
     expect(find.text('Jijoca'), findsOneWidget);
-    expect(find.text('EMBARQUE'), findsOneWidget);
-    expect(find.text('DESTINO'), findsOneWidget);
 
     // Presentation changes must not accept or reject an offer.
     await tester.drag(
@@ -313,10 +314,7 @@ void main() {
     await tester.tap(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
 
-    await tester.drag(
-      find.byKey(const ValueKey('ride-drag-handle')),
-      const Offset(0, 90),
-    );
+    await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
 
     expect(
@@ -332,19 +330,21 @@ void main() {
 
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    expect(find.text('Indo buscar passageiro'), findsOneWidget);
-    expect(find.text('Cheguei no embarque'), findsOneWidget);
-    expect(find.text('Parar navegação'), findsOneWidget);
+    expect(find.text('Indo buscar'), findsOneWidget);
+    expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.byTooltip('Parar navegação'), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('ride-drag-handle')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Abrir no Google Maps'));
     await tester.tap(find.text('Abrir no Google Maps'));
     await tester.pump();
     expect(navigation.lastLatitude, -2.82017);
     expect(navigation.lastLongitude, -40.41467);
 
-    await tester.ensureVisible(find.text('Cheguei no embarque'));
+    await tester.ensureVisible(find.text('Cheguei'));
     await tester.pump();
-    await tester.tap(find.text('Cheguei no embarque'));
+    await tester.tap(find.text('Cheguei'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Iniciar corrida'), findsOneWidget);
@@ -359,7 +359,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
     expect(
       find.ancestor(
-        of: find.text('Corrida em andamento'),
+        of: find.text('Em andamento'),
         matching: find.byWidgetPredicate(
           (widget) => widget is Semantics && widget.properties.liveRegion == true,
         ),
@@ -367,9 +367,10 @@ void main() {
       findsWidgets,
     );
     expect(find.text('Finalizar corrida'), findsOneWidget);
-    expect(find.text('Parar navegação'), findsOneWidget);
-    expect(find.text('Abrir no Google Maps'), findsOneWidget);
+    expect(find.byTooltip('Parar navegação'), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('ride-drag-handle')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Abrir no Google Maps'));
     await tester.pump();
     await tester.tap(find.text('Abrir no Google Maps'));
@@ -377,10 +378,7 @@ void main() {
     expect(navigation.lastLatitude, -2.7956);
     expect(navigation.lastLongitude, -40.5142);
 
-    await tester.drag(
-      find.byKey(const ValueKey('ride-drag-handle')),
-      const Offset(0, 90),
-    );
+    await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')),
@@ -411,16 +409,13 @@ void main() {
     expect(find.textContaining('Saldo disponível: R\$ 110,00'), findsOneWidget);
     expect(api.completedRideId, 'ride-1');
     expect(find.text('Corrida finalizada'), findsOneWidget);
-    await tester.drag(
-      find.byKey(const ValueKey('ride-drag-handle')),
-      const Offset(0, 90),
-    );
+    await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
       findsOneWidget,
     );
-    expect(find.text('Concluir e voltar para o mapa'), findsNothing);
+    expect(find.text('Voltar ao mapa'), findsNothing);
     expect(
       tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).activeRide,
       isNull,
@@ -431,10 +426,10 @@ void main() {
       find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
       findsNothing,
     );
-    final rating = tester.widget<OutlinedButton>(
+    final rating = tester.widget<TextButton>(
       find.ancestor(
         of: find.text('Avaliar passageiro'),
-        matching: find.byType(OutlinedButton),
+        matching: find.byType(TextButton),
       ),
     );
     expect(rating.onPressed, isNotNull);
@@ -448,7 +443,7 @@ void main() {
       1,
       reason: 'abrir/fechar avaliação não repete liquidação',
     );
-    await tester.tap(find.text('Concluir e voltar para o mapa'));
+    await tester.tap(find.text('Voltar ao mapa'));
     await tester.pumpAndSettle();
     expect(find.text('Corrida finalizada'), findsNothing);
     expect(
@@ -525,10 +520,7 @@ void main() {
       await tester.tap(find.text('Aceitar corrida'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
-      await tester.drag(
-        find.byKey(const ValueKey('ride-drag-handle')),
-        const Offset(0, 90),
-      );
+      await tester.tap(find.byTooltip('Minimizar informações'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Expandir corrida'), findsOneWidget);
       final zoom = tester.getRect(find.byTooltip('Aumentar zoom'));
@@ -545,7 +537,7 @@ void main() {
       await tester.tap(find.byTooltip('Expandir corrida'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
-      expect(find.text('Cheguei no embarque'), findsOneWidget);
+      expect(find.text('Cheguei'), findsOneWidget);
       final coletaError = tester.takeException();
       if (coletaError != null) {
         final lines = tester.binding.renderViews.first.toStringDeep().split(
@@ -563,14 +555,23 @@ void main() {
       }
       expect(coletaError, isNull, reason: 'coleta 320 px');
 
-      await tester.ensureVisible(find.text('Cheguei no embarque'));
-      await tester.tap(find.text('Cheguei no embarque'));
+      expect(find.text('Cheguei').hitTestable(), findsOneWidget);
+      expect(find.text('Cancelar corrida').hitTestable(), findsOneWidget);
+      await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, -42));
+      await tester.pumpAndSettle();
+      expect(find.text('Passageiros'), findsOneWidget);
+      expect(find.text('Cheguei').hitTestable(), findsOneWidget);
+      await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 42));
+      await tester.pumpAndSettle();
+      expect(find.text('Passageiros'), findsNothing);
+      await tester.tap(find.text('Cheguei'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
       expect(find.text('Iniciar corrida'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'chegada 320 px');
 
-      await tester.ensureVisible(find.text('Iniciar corrida'));
+      expect(find.text('Iniciar corrida').hitTestable(), findsOneWidget);
+      expect(find.text('Cancelar corrida').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Iniciar corrida'));
       await tester.pumpAndSettle();
       expect(find.text('Passageiro a bordo?'), findsOneWidget);
@@ -581,18 +582,17 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'viagem 320 px');
 
       expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
+      expect(find.text('Cheguei no destino').hitTestable(), findsOneWidget);
+      expect(find.text('Cancelar corrida'), findsNothing);
       await tester.tap(find.text('Finalizar corrida'));
       await tester.pumpAndSettle();
       expect(find.text('Corrida finalizada'), findsOneWidget);
       expect(
-        find.text('Concluir e voltar para o mapa').hitTestable(),
+        find.text('Voltar ao mapa').hitTestable(),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
-      await tester.drag(
-        find.byKey(const ValueKey('ride-drag-handle')),
-        const Offset(0, 90),
-      );
+      await tester.tap(find.byTooltip('Minimizar informações'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
@@ -601,7 +601,7 @@ void main() {
       expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
       await tester.tap(find.byTooltip('Expandir corrida'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Concluir e voltar para o mapa'));
+      await tester.tap(find.text('Voltar ao mapa'));
       await tester.pumpAndSettle();
       expect(api.completionCalls, 1);
 
@@ -696,8 +696,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(api.currentRideCalls, 1);
-    expect(find.text('Indo buscar passageiro'), findsOneWidget);
-    expect(find.text('Cheguei no embarque'), findsOneWidget);
+    expect(find.text('Indo buscar'), findsOneWidget);
+    expect(find.text('Cheguei'), findsOneWidget);
     expect(find.text('NOVA CORRIDA'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());

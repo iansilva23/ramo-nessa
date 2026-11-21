@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/driver_api.dart';
 class DriverPassengerIdentity extends StatefulWidget {
- const DriverPassengerIdentity({super.key,required this.api,required this.rideId,this.showDeadline=true,this.compact=false});
- final DriverRideIdentityApi api;final String rideId;final bool showDeadline,compact;
+ const DriverPassengerIdentity({super.key,required this.api,required this.rideId,this.showDeadline=true,this.compact=false,this.inline=false});
+ final DriverRideIdentityApi api;final String rideId;final bool showDeadline,compact,inline;
  @override State<DriverPassengerIdentity> createState()=>_DriverPassengerIdentityState();
 }
 class _DriverPassengerIdentityState extends State<DriverPassengerIdentity> {
@@ -22,6 +22,8 @@ class _DriverPassengerIdentityState extends State<DriverPassengerIdentity> {
  @override Widget build(BuildContext context){
   final seconds=_remaining==null?null:(_remaining!-_clock.elapsed).inSeconds;
   if(widget.compact)return Text(_name,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700,fontSize:12));
+  if(widget.inline)return Text(_name,maxLines:1,overflow:TextOverflow.ellipsis,
+    style:const TextStyle(color:Color(0xFF555A63),fontWeight:FontWeight.w700,fontSize:12));
   return Container(width:double.infinity,padding:const EdgeInsets.all(12),margin:const EdgeInsets.only(bottom:10),
    decoration:BoxDecoration(color:const Color(0xFFF4F4F6),borderRadius:BorderRadius.circular(16)),
    child:Row(children:[const CircleAvatar(backgroundColor:Color(0xFFE8E8EC),foregroundColor:Colors.black,child:Icon(Icons.person_rounded)),

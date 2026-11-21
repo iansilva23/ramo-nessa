@@ -40,7 +40,8 @@ ACTIVE_RELEASES = {
     'core': ('passenger-driver-portrait-4ee0c0e45641-', 'core-after.json'),
     'gateway': ('passenger-cancel-web-9a0c0cf1a4b8-', 'after.json'),
 }
-PRIOR_RELEASE_PREFIXES = ('cash-cancellation-0ddd7652593b-', 'cash-change-6368e809fd96-')
+PRIOR_RELEASE_PREFIXES = ('cash-cancellation-0ddd7652593b-', 'cash-change-6368e809fd96-',
+                          'cash-confirmation-5add4361d1d2-')
 WEB_FILES = {'passenger': 'passageiro.js', 'driver': 'motorista.js'}
 
 
@@ -91,7 +92,7 @@ def main():
             p.extract({'main.dart.js': (folder/filename).read_bytes()}, web/role)
         old_tree, new_tree = p.tree(web_before), p.tree(web)
         changed_web = {name for name in old_tree if old_tree[name] != new_tree.get(name)}
-        need(set(old_tree) == set(new_tree) and 'passenger/main.dart.js' in changed_web and
+        need(set(old_tree) == set(new_tree) and 'driver/main.dart.js' in changed_web and
              changed_web <= {role+'/main.dart.js' for role in WEB_FILES},
              'Há diferenças fora dos arquivos JavaScript dos dois apps.')
 
@@ -104,7 +105,8 @@ def main():
         existing_marker = SERVER_MARKER+parameter
         old_marker = existing_marker if existing_marker in server else SERVER_MARKER
         request_flag = b'                    ...(body.requestCashRide == null ? {} : { requestCashRide: body.requestCashRide }),\n'
-        server = server.replace(old_marker, existing_marker+request_flag, 1)
+        if existing_marker+request_flag not in server:
+            server = server.replace(old_marker, existing_marker+request_flag, 1)
         previous_validation = (
             b'            await assertPrepaymentDriverAvailable(ride);\n'
             b'            const body = parseCreatePaymentRequest(await readJson(request));\n'
@@ -114,8 +116,9 @@ def main():
             b'            if (body.requestCashRide !== true)\n'
             b'                await assertPrepaymentDriverAvailable(ride);\n'
         )
-        need(server.count(previous_validation) == 1, 'A validação de pagamento do Core ativo divergiu.')
-        server = server.replace(previous_validation, next_validation, 1)
+        if next_validation not in server:
+            need(server.count(previous_validation) == 1, 'A validação de pagamento do Core ativo divergiu.')
+            server = server.replace(previous_validation, next_validation, 1)
         p.extract({**{name: (folder/name).read_bytes() for name in CORE_FILES}, 'server.js': server}, overlay)
         for name in core_files:
             if name.endswith('.js'):
@@ -162,7 +165,7 @@ def main():
             verify_live(h, web_before, adm)
             print('CANCELAMENTO_E_TROCO_REVERTIDOS', flush=True)
             raise
-        print('CANCELAMENTO_E_TROCO_PUBLICADOS '+revision, flush=True)
+        print('PAINEIS_E_TROCO_PUBLICADOS '+revision, flush=True)
 
 
 if __name__ == '__main__':
