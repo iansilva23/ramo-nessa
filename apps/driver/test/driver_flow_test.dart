@@ -314,8 +314,6 @@ void main() {
     await tester.tap(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
 
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
 
@@ -380,8 +378,6 @@ void main() {
     expect(navigation.lastLatitude, -2.7956);
     expect(navigation.lastLongitude, -40.5142);
 
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
     expect(
@@ -413,7 +409,7 @@ void main() {
     expect(find.textContaining('Saldo disponível: R\$ 110,00'), findsOneWidget);
     expect(api.completedRideId, 'ride-1');
     expect(find.text('Corrida finalizada'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
@@ -439,7 +435,9 @@ void main() {
       ),
     );
     expect(rating.onPressed, isNotNull);
-    await tester.tap(find.text('Avaliar passageiro'));
+    final ratingButton = find.widgetWithText(TextButton, 'Avaliar passageiro');
+    await tester.ensureVisible(ratingButton);
+    await tester.tap(ratingButton);
     await tester.pumpAndSettle();
     expect(find.text('Como foi sua experiência?'), findsOneWidget);
     await tester.tap(find.text('Agora não'));
@@ -526,8 +524,6 @@ void main() {
       await tester.tap(find.text('Aceitar corrida'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
-      await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Expandir corrida'), findsOneWidget);
@@ -600,7 +596,7 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
-      await tester.pump(const Duration(seconds: 5));
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
       await tester.pumpAndSettle();
