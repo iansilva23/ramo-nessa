@@ -6986,6 +6986,9 @@ const server = createServer(async (request, response) => {
     if (driverPhotoPreview && await driverVerificationPhotoRoutes({
       request, response, url: requestUrl, json,
       photos: driverPhotoPreview.photos, storage: driverPhotoPreview.storage,
+      rides: rideRepository,
+      passenger: async () => (await authenticateBearer({ repository: authSessionRepository,
+        headers: request.headers, requiredType: 'passenger', identities: authIdentityRepository })).subjectId,
       driver: async () => (await authenticateBearer({ repository: authSessionRepository,
         headers: request.headers, requiredType: 'driver', allowDriverRegistration: true,
         identities: authIdentityRepository })).subjectId,

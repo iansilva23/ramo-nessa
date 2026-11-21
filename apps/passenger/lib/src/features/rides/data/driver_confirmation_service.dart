@@ -22,14 +22,16 @@ class DriverConfirmation {
 
 class ConfirmedDriver {
   const ConfirmedDriver({required this.name, required this.vehicle, required this.plate,
-    this.photoUrl, this.ratingAverage, this.ratingCount = 0, this.arrivalSeconds});
+    this.id, this.photoUrl, this.ratingAverage, this.ratingCount = 0, this.arrivalSeconds});
   factory ConfirmedDriver.fromJson(Map<String, dynamic> json) => ConfirmedDriver(
+    id: json['id'] as String?,
     name: json['displayName'] as String, vehicle: json['vehicle'] as String,
     plate: json['plate'] as String, photoUrl: json['photoUrl'] as String?,
     ratingAverage: (json['ratingAverage'] as num?)?.toDouble(),
     ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
     arrivalSeconds: (json['arrivalSeconds'] as num?)?.toInt(),
   );
+  final String? id;
   final String name;
   final String vehicle;
   final String plate;

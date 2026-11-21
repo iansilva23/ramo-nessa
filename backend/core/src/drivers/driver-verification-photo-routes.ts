@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { RideRepository } from '../rides/ride-repository.js';
 import type { AdminActor } from '../admin/admin-repository.js';
 import { readBinaryBody, readJsonBody } from '../http/request-body.js';
 import type { LocalPrivateDocumentStorage } from './driver-document-private-storage.js';
@@ -8,11 +9,14 @@ import {
 
 const driverPath = '/v1/driver/me/verification-photos';
 const adminPath = '/v1/admin/driver-verification-photos';
+const visibleRideStates = new Set(['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'IN_PROGRESS', 'COMPLETED']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function driverVerificationPhotoRoutes(input: {
   request: IncomingMessage; response: ServerResponse; url: URL;
   photos: DriverVerificationPhotos; storage: LocalPrivateDocumentStorage;
+  passenger?: () => Promise<string>;
+  rides?: Pick<RideRepository, 'findById'>;
   driver: () => Promise<string>; admin: (write: boolean) => Promise<AdminActor>;
   openAccount: <T>(driverId: string, action: () => Promise<T>) => Promise<T>;
   json: (response: ServerResponse, status: number, payload: unknown) => void;
@@ -21,8 +25,18 @@ export async function driverVerificationPhotoRoutes(input: {
   const method = request.method;
   const path = url.pathname;
   const directUpload = path === '/v1/driver/me/photo' && method === 'PUT';
-  if (!directUpload && path !== driverPath && !path.startsWith(driverPath + '/') &&
+  const ridePortrait = method === 'GET' ? path.match(/^\/v1\/rides\/([0-9a-f-]{36})\/driver-portrait$/) : null;
+  if (!directUpload && !ridePortrait && path !== driverPath && !path.startsWith(driverPath + '/') &&
       path !== adminPath && !path.startsWith(adminPath + '/')) return false;
+
+  async function sendApprovedPortrait(driverId: string) {
+    const bytes = await photos.approvedPortrait(driverId, storage);
+    if (bytes == null) throw new VerificationPhotoError(404, 'PHOTO_NOT_FOUND', 'Foto indisponível.');
+    response.setHeader('Content-Type', 'image/jpeg');
+    response.setHeader('Content-Length', bytes.length);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.end(bytes);
+  }
 
   response.setHeader('Cache-Control', 'private, no-store');
   try {
@@ -36,16 +50,23 @@ export async function driverVerificationPhotoRoutes(input: {
       json(response, 200, await photos.status(await input.driver()));
       return true;
     }
-    if (path === driverPath + '/avatar' && method === 'GET') {
-      const bytes = await photos.approvedPortrait(await input.driver(), storage);
-      if (bytes == null) {
-        json(response, 404, { error: 'PHOTO_NOT_FOUND', message: 'Foto indisponível.' });
-      } else {
-        response.setHeader('Content-Type', 'image/jpeg');
-        response.setHeader('Content-Length', bytes.length);
-        response.setHeader('X-Content-Type-Options', 'nosniff');
-        response.end(bytes);
+    if (ridePortrait) {
+      if (!input.passenger || !input.rides) return false;
+      const passengerId = await input.passenger();
+      const ride = await input.rides.findById(ridePortrait[1]!);
+      const driverId = url.searchParams.get('driver');
+      if (!ride || ride.passengerId !== passengerId || !ride.driverId ||
+          ride.driverId !== driverId ||
+          !(visibleRideStates.has(ride.state) ||
+            (ride.state === 'AWAITING_PAYMENT' && ride.driverConsentRequired === true &&
+             ride.reservedDriverId === driverId && Date.parse(ride.driverHoldExpiresAt ?? '') > Date.now()))) {
+        throw new VerificationPhotoError(404, 'PHOTO_NOT_FOUND', 'Foto indisponível.');
       }
+      await sendApprovedPortrait(ride.driverId);
+      return true;
+    }
+    if (path === driverPath + '/avatar' && method === 'GET') {
+      await sendApprovedPortrait(await input.driver());
       return true;
     }
     if (path === adminPath && method === 'GET') {

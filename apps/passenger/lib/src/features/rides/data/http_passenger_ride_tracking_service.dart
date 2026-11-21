@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'passenger_driver_photo_source.dart';
 
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -16,6 +19,7 @@ class HttpPassengerRideTrackingService
         RamoRideChatApi,
         PassengerManualCancellationApi,
         PassengerRideTrackingService,
+        PassengerDriverPhotoSource,
         PassengerRideResumeService,
         PassengerSelectedRideResumeService,
         PassengerBoardingApi,
@@ -31,6 +35,17 @@ class HttpPassengerRideTrackingService
        _client = client ?? http.Client();
 
   final Uri _baseUrl;
+
+  @override
+  Future<Uint8List?> driverPortrait(String rideId, String driverId) =>
+      fetchPassengerDriverPortrait(
+        client: _client,
+        baseUrl: _baseUrl,
+        headers: _identityHeaders,
+        rideId: rideId,
+        driverId: driverId,
+      );
+
 
   @override
   Future<Map<String,dynamic>> occurrenceRequest(String path,{String method='GET',Map<String,dynamic>? body}) async {

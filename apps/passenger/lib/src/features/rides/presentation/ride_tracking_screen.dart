@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../../core/config/ramo_core_config.dart';
 import '../../home/presentation/widgets/ramo_live_map.dart';
 import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
@@ -17,6 +16,7 @@ import '../domain/passenger_ride_tracking_snapshot.dart';
 import '../domain/prepared_ride.dart';
 import 'passenger_ride_chat_screen.dart';
 import 'widgets/animated_ride_status.dart';
+import 'widgets/passenger_driver_avatar.dart';
 import 'tracking_map_transition_policy.dart';
 import 'passenger_cancellation_panel.dart';
 import '../data/passenger_ride_resume_service.dart';
@@ -662,7 +662,11 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
                       AnimatedRideStatus(label: _status),
                       if (driverProfile != null) ...[
                         const SizedBox(height: RamoSpacing.md),
-                        _AssignedDriverCard(driver: driverProfile),
+                        _AssignedDriverCard(
+                          driver: driverProfile,
+                          rideId: widget.rideId,
+                          photoSource: widget.trackingService,
+                        ),
                       ],
                       if ({
                         'DRIVER_ASSIGNED',
@@ -923,18 +927,17 @@ class _DriverRatingPanel extends StatelessWidget {
 }
 
 class _AssignedDriverCard extends StatelessWidget {
-  const _AssignedDriverCard({required this.driver});
+  const _AssignedDriverCard({
+    required this.driver,
+    required this.rideId,
+    required this.photoSource,
+  });
   final PassengerDriverProfile driver;
-  String? get _photoUrl {
-    final path = driver.photoPath?.trim(), base = RamoCoreConfig.baseUri;
-    return path == null || path.isEmpty || base == null
-        ? null
-        : base.resolve(path).toString();
-  }
+  final String rideId;
+  final PassengerRideTrackingService photoSource;
 
   @override
   Widget build(BuildContext context) {
-    final photo = _photoUrl;
     final vehicle = [
       driver.vehicleMake,
       driver.vehicleModel,
@@ -951,14 +954,14 @@ class _AssignedDriverCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              PassengerDriverAvatar(
+                source: photoSource,
+                rideId: rideId,
+                driverId: driver.id,
                 radius: 28,
+                iconSize: 30,
                 backgroundColor: RamoColors.brandYellow,
                 foregroundColor: RamoColors.brandBlack,
-                backgroundImage: photo == null ? null : NetworkImage(photo),
-                child: photo == null
-                    ? const Icon(Icons.person_rounded, size: 30)
-                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(

@@ -2,6 +2,9 @@ import '../domain/payment_email.dart';
 import 'saved_card_service.dart';
 import 'card_tokenization_service.dart';
 import 'dart:convert';
+import 'dart:typed_data';
+
+import '../../rides/data/passenger_driver_photo_source.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -22,6 +25,7 @@ class HttpPassengerPaymentService
     implements
         PassengerPaymentService,
         DriverConfirmationService,
+        PassengerDriverPhotoSource,
         SavedCardService,
         PixEmailPaymentService,
         AccountPaymentEmailService {
@@ -38,6 +42,17 @@ class HttpPassengerPaymentService
        _client = client ?? http.Client();
 
   final Uri _baseUrl;
+
+  @override
+  Future<Uint8List?> driverPortrait(String rideId, String driverId) =>
+      fetchPassengerDriverPortrait(
+        client: _client,
+        baseUrl: _baseUrl,
+        headers: _identityHeaders,
+        rideId: rideId,
+        driverId: driverId,
+      );
+
   final String _accessToken;
   final String _passengerId;
   final String _clientInstanceId;

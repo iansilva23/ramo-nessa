@@ -18,6 +18,7 @@ import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/data/driver_confirmation_service.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
+import '../../rides/presentation/widgets/passenger_driver_avatar.dart';
 import '../../rides/data/passenger_ride_resume_service.dart';
 import '../../map/data/route_service.dart';
 import '../data/card_tokenization_service.dart';
@@ -248,17 +249,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          CircleAvatar(
+                          PassengerDriverAvatar(
+                            source: widget.paymentService,
+                            rideId: _ride.id,
+                            driverId: driver.id,
                             radius: 32,
-                            backgroundImage: driver.photoUrl == null
-                                ? null
-                                : NetworkImage(driver.photoUrl!),
-                            onBackgroundImageError: driver.photoUrl == null
-                                ? null
-                                : (_, __) {},
-                            child: driver.photoUrl == null
-                                ? const Icon(Icons.person_rounded, size: 32)
-                                : null,
+                            iconSize: 32,
                           ),
                           const Positioned(
                             bottom: -2,
