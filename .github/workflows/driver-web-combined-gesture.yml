@@ -1,0 +1,49 @@
+name: Driver Web combined pinch and rotation
+on:
+  push:
+    branches: [fix/driver-web-combined-gesture]
+permissions:
+  contents: read
+jobs:
+  driver-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify the scope of the update
+        run: |
+          git diff --exit-code 4ee0c0e456414f9a0ef6e92e7daa15fe30394300 HEAD -- backend apps/passenger apps/admin apps/driver/android apps/driver/ios apps/driver/web apps/driver/lib/src/core/location config packages
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=driver
+      - working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          export CHROME_EXECUTABLE="$(command -v google-chrome)"
+          flutter test --platform chrome --no-pub test/driver_map_gestures_test.dart test/web_map_camera_test.dart test/driver_camera_follow_test.dart
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b \
+            --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+      - run: node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+      - name: Package only the Driver Web JavaScript
+        run: |
+          folder=artifacts/gesto-motorista
+          mkdir -p "$folder"
+          cp apps/driver/build/web/main.dart.js "$folder/"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cd "$folder"
+          sha256sum main.dart.js SOURCE_COMMIT.txt > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-gesto-motorista-web-vps
+          path: artifacts/gesto-motorista
+          if-no-files-found: error
