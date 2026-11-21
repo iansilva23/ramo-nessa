@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -15,6 +16,21 @@ class DriverPhotoApi {
   final Uri _baseUrl;
   final String _token;
   final http.Client _client;
+
+  Future<Uint8List?> approvedAvatar() async {
+    if (_token.trim().isEmpty) return null;
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/verification-photos/avatar'),
+          headers: {'authorization': 'Bearer ${_token.trim()}'},
+        )
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200 ||
+        response.headers['content-type'] != PreparedDriverPhoto.contentType) {
+      return null;
+    }
+    return response.bodyBytes;
+  }
 
   Future<DriverPhotoSnapshot?> status() async {
     final result = await _request('GET');
@@ -45,8 +61,15 @@ class DriverPhotoApi {
     await _request('DELETE', path: '/${field.field}', snapshot: snapshot);
   }
 
-  Future<void> submit(DriverPhotoSnapshot snapshot) async {
-    await _request('POST', path: '/submit', snapshot: snapshot);
+  Future<void> submit(
+    DriverPhotoSnapshot snapshot, {
+    bool portraitReplacement = false,
+  }) async {
+    await _request(
+      'POST',
+      path: portraitReplacement ? '/avatar/submit' : '/submit',
+      snapshot: snapshot,
+    );
   }
 
   Future<Map<String, dynamic>?> _request(

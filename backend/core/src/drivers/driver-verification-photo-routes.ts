@@ -20,13 +20,32 @@ export async function driverVerificationPhotoRoutes(input: {
   const { request, response, url, photos, storage, json } = input;
   const method = request.method;
   const path = url.pathname;
-  if (path !== driverPath && !path.startsWith(driverPath + '/') &&
+  const directUpload = path === '/v1/driver/me/photo' && method === 'PUT';
+  if (!directUpload && path !== driverPath && !path.startsWith(driverPath + '/') &&
       path !== adminPath && !path.startsWith(adminPath + '/')) return false;
 
   response.setHeader('Cache-Control', 'private, no-store');
   try {
+    if (directUpload) {
+      await input.driver();
+      json(response, 409, { error: 'PHOTO_REVIEW_REQUIRED',
+        message: 'Envie uma nova foto do rosto em Fotos do cadastro para análise.' });
+      return true;
+    }
     if (path === driverPath && method === 'GET') {
       json(response, 200, await photos.status(await input.driver()));
+      return true;
+    }
+    if (path === driverPath + '/avatar' && method === 'GET') {
+      const bytes = await photos.approvedPortrait(await input.driver(), storage);
+      if (bytes == null) {
+        json(response, 404, { error: 'PHOTO_NOT_FOUND', message: 'Foto indisponível.' });
+      } else {
+        response.setHeader('Content-Type', 'image/jpeg');
+        response.setHeader('Content-Length', bytes.length);
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+        response.end(bytes);
+      }
       return true;
     }
     if (path === adminPath && method === 'GET') {
@@ -86,10 +105,14 @@ export async function driverVerificationPhotoRoutes(input: {
 
     const type = verificationPhotoType(path.slice(driverPath.length + 1));
     const submit = path === driverPath + '/submit' && method === 'POST';
-    if (!submit && !(type && (method === 'PUT' || method === 'DELETE'))) return false;
+    const replacePortrait = path === driverPath + '/avatar/submit' && method === 'POST';
+    if (!submit && !replacePortrait && !(type && (method === 'PUT' || method === 'DELETE'))) return false;
     const driverId = await input.driver();
     const vehicle = url.searchParams.get('vehicle') ?? '';
     const payload = await photos.withUpload(driverId, async () => {
+      if (replacePortrait) {
+        return input.openAccount(driverId, () => photos.submitPortraitReplacement(driverId, vehicle));
+      }
       if (submit) return input.openAccount(driverId, () => photos.submit(driverId, vehicle));
       if (!type) throw new Error('Missing photo type.');
       if (method === 'DELETE') return input.openAccount(driverId, () => photos.removeDraft(driverId, type, vehicle));

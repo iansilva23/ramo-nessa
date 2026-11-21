@@ -6,10 +6,16 @@ import 'driver_photo_picker.dart';
 import 'driver_verification_photo.dart';
 
 class DriverPhotoScreen extends StatefulWidget {
-  const DriverPhotoScreen({super.key, required this.api, this.initial});
+  const DriverPhotoScreen({
+    super.key,
+    required this.api,
+    this.initial,
+    this.portraitReplacement = false,
+  });
 
   final DriverPhotoApi api;
   final DriverPhotoSnapshot? initial;
+  final bool portraitReplacement;
 
   @override
   State<DriverPhotoScreen> createState() => _DriverPhotoScreenState();
@@ -101,12 +107,18 @@ class _DriverPhotoScreenState extends State<DriverPhotoScreen> {
     final canSubmit =
         _activity == null &&
         _preview == null &&
-        count == 5 &&
-        items.values.any((photo) => photo.status == 'draft');
+        (widget.portraitReplacement
+            ? items[DriverVerificationPhoto.portrait.field]?.status == 'draft'
+            : count == 5 &&
+                  items.values.any((photo) => photo.status == 'draft'));
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Fotos do cadastro')),
+      appBar: AppBar(
+        title: Text(widget.portraitReplacement
+            ? 'Foto de perfil'
+            : 'Fotos do cadastro'),
+      ),
       bottomNavigationBar: snapshot == null
           ? null
           : SafeArea(
@@ -128,7 +140,10 @@ class _DriverPhotoScreenState extends State<DriverPhotoScreen> {
                         child: FilledButton.icon(
                           onPressed: canSubmit
                               ? () => _run('Enviando para análise…', () async {
-                                  await widget.api.submit(snapshot);
+                                  await widget.api.submit(
+                                    snapshot,
+                                    portraitReplacement: widget.portraitReplacement,
+                                  );
                                   await _refresh();
                                 })
                               : null,
@@ -152,17 +167,21 @@ class _DriverPhotoScreenState extends State<DriverPhotoScreen> {
                   const RamoBrandLockup(),
                   const SizedBox(height: RamoSpacing.xxl),
                   Text(
-                    'Confirme seu cadastro',
+                    widget.portraitReplacement
+                        ? 'Envie uma nova foto'
+                        : 'Confirme seu cadastro',
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: RamoSpacing.xs),
                   Text(
-                    'Envie uma foto do rosto e quatro do veículo para a equipe revisar.',
+                    widget.portraitReplacement
+                        ? 'Sua foto atual continua no perfil até a equipe aprovar a nova.'
+                        : 'Envie uma foto do rosto e quatro do veículo para a equipe revisar.',
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),
-                  if (snapshot != null) ...[
+                  if (snapshot != null && !widget.portraitReplacement) ...[
                     const SizedBox(height: RamoSpacing.md),
                     Text(
                       '$count de 5 fotos salvas',
@@ -210,11 +229,13 @@ class _DriverPhotoScreenState extends State<DriverPhotoScreen> {
                     Text('Seu rosto', style: theme.textTheme.titleMedium),
                     const SizedBox(height: RamoSpacing.xs),
                     _photoField(DriverVerificationPhoto.portrait, snapshot),
-                    const SizedBox(height: RamoSpacing.lg),
-                    Text('Seu veículo', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: RamoSpacing.xs),
-                    for (final field in DriverVerificationPhoto.values.skip(1))
-                      _photoField(field, snapshot),
+                    if (!widget.portraitReplacement) ...[
+                      const SizedBox(height: RamoSpacing.lg),
+                      Text('Seu veículo', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: RamoSpacing.xs),
+                      for (final field in DriverVerificationPhoto.values.skip(1))
+                        _photoField(field, snapshot),
+                    ],
                   ],
                 ],
               ),

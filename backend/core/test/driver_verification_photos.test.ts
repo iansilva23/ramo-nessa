@@ -38,6 +38,7 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
     assert.equal((await photos.upload(driver, 'portrait', revision, image, storage)).id, portrait.id);
     assert.equal((await stat(join(folder, 'driver-verification', portrait.id, 'photo.jpg'))).mode & 0o777, 0o600);
     await assert.rejects(photos.adminImage(portrait.id, storage, false), /indisponível/);
+    assert.equal(await photos.approvedPortrait(driver, storage), null);
     await assert.rejects(photos.submit(driver, revision), /cinco fotos/);
     for (const field of ['vehicle_front', 'vehicle_rear', 'vehicle_left', 'vehicle_right'] as const) {
       await photos.upload(driver, field, revision, image, storage);
@@ -51,7 +52,12 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
     assert.equal((await sharp(await photos.adminImage(portrait.id, storage, true)).metadata()).width, 256);
     assert.equal((await sharp(await photos.adminImage(portrait.id, storage, false)).metadata()).exif, undefined);
 
+    assert.equal(await photos.approvedPortrait(driver, storage), null);
     await photos.review(portrait.id, actor, true, null);
+    const avatar = await photos.approvedPortrait(driver, storage);
+    assert.ok(avatar);
+    assert.deepEqual(avatar, await photos.adminImage(portrait.id, storage, true));
+    assert.equal(await photos.approvedPortrait('another-driver', storage), null);
     const rear = queue.photos.find((photo) => photo.type === 'vehicle_rear')!;
     await photos.review(rear.id, actor, false, 'Placa precisa ficar legível.');
     assert.equal((await photos.status(driver)).photos.find((photo) => photo.id === rear.id)?.reason, 'Placa precisa ficar legível.');
@@ -71,6 +77,20 @@ test('private drafts, complete submission, per-photo review and vehicle changes'
 
     await assert.rejects(photos.upload(driver, 'vehicle_front', revision, image, storage), /mudaram/);
     await assert.rejects(photos.review(replacement.id, actor, true, null), /alterado/);
+
+    const revisedVehicle = vehicle + ':2';
+    const secondPortrait = await photos.upload(driver, 'portrait', revisedVehicle, await makeImage('#771111'), storage);
+    await photos.submitPortraitReplacement(driver, revisedVehicle);
+    assert.equal((await photos.status(driver)).photos[0]?.status, 'pending');
+    assert.deepEqual(await photos.approvedPortrait(driver, storage), avatar);
+    await photos.review(secondPortrait.id, actor, false, 'Foto fora do enquadramento.');
+    assert.deepEqual(await photos.approvedPortrait(driver, storage), avatar);
+
+    const thirdPortrait = await photos.upload(driver, 'portrait', revisedVehicle, await makeImage('#227733'), storage);
+    await photos.submitPortraitReplacement(driver, revisedVehicle);
+    await photos.review(thirdPortrait.id, actor, true, null);
+    assert.deepEqual(await photos.approvedPortrait(driver, storage), await photos.adminImage(thirdPortrait.id, storage, true));
+    assert.notDeepEqual(await photos.approvedPortrait(driver, storage), avatar);
   } finally {
     await pool.query('DELETE FROM driver_profiles WHERE driver_id=$1', [driver]);
     await pool.end();

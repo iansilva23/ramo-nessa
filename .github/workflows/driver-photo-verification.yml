@@ -70,7 +70,7 @@ jobs:
       - name: Verify photo submission and review
         run: >-
           PHOTO_TEST_DATABASE_URL="$DATABASE_URL" npx --no-install tsx --test --test-concurrency=1
-          test/driver_verification_photos.test.ts test/self_account_deletion.test.ts
+          test/driver_verification_photos.test.ts test/driver_verification_avatar_route.test.ts test/self_account_deletion.test.ts
       - name: Verify vehicle revisions
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -180,6 +180,26 @@ jobs:
             --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b \
             --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
       - run: node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Package the approved avatar update
+        run: |
+          set -euo pipefail
+          npm ci --prefix backend/core
+          npm run build --prefix backend/core
+          folder=artifacts/photo-avatar
+          mkdir -p "$folder"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cp backend/core/dist/src/drivers/driver-verification-photo{s,-routes}.js "$folder/"
+          tar -C apps/driver/build/web -czf "$folder/motorista-web.tar.gz" .
+          cd "$folder"
+          sha256sum SOURCE_COMMIT.txt *.js motorista-web.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-avatar-vps
+          path: artifacts/photo-avatar
+          if-no-files-found: error
       - name: Package Core source and the Motorista and ADM changes
         run: |
           set -euo pipefail

@@ -216,6 +216,27 @@ export class DriverVerificationPhotos {
     return this.status(driverId);
   }
 
+  async submitPortraitReplacement(driverId: string, expected: string) {
+    await this.transaction(async (client) => {
+      const vehicle = await this.vehicle(client, driverId, true);
+      this.assertVehicle(vehicle, expected);
+      const updated = await client.query(`
+        UPDATE driver_verification_photos AS replacement
+        SET status='pending', submitted_at=now()
+        WHERE replacement.driver_id=$1 AND replacement.photo_type='portrait'
+          AND replacement.is_current AND replacement.status='draft'
+          AND EXISTS (
+            SELECT 1 FROM driver_verification_photos AS previous
+            WHERE previous.driver_id=$1 AND previous.photo_type='portrait' AND previous.status='approved'
+          )`, [driverId]);
+      if (!updated.rowCount) {
+        throw new VerificationPhotoError(409, 'PHOTO_REPLACEMENT_UNAVAILABLE',
+          'O reenvio exige uma foto oficial aprovada e uma nova foto salva.');
+      }
+    });
+    return this.status(driverId);
+  }
+
   async removeDraft(driverId: string, type: VerificationPhotoType, expected: string) {
     await this.transaction(async (client) => {
       const vehicle = await this.vehicle(client, driverId, true);
@@ -257,10 +278,21 @@ export class DriverVerificationPhotos {
     return { photos: result.rows.map(photoView) };
   }
 
+  async approvedPortrait(driverId: string, storage: LocalPrivateDocumentStorage) {
+    const row = (await this.pool.query<Photo>(`SELECT * FROM driver_verification_photos
+      WHERE driver_id=$1 AND photo_type='portrait' AND status='approved'
+      ORDER BY reviewed_at DESC, id DESC LIMIT 1`, [driverId])).rows[0];
+    return row ? this.readImage(row, storage, true) : null;
+  }
+
   async adminImage(id: string, storage: LocalPrivateDocumentStorage, thumbnail: boolean) {
     const row = (await this.pool.query<Photo>(`SELECT * FROM driver_verification_photos
       WHERE id=$1 AND status <> 'draft'`, [id])).rows[0];
     if (!row) throw new VerificationPhotoError(404, 'PHOTO_NOT_FOUND', 'Foto indisponível.');
+    return this.readImage(row, storage, thumbnail);
+  }
+
+  private async readImage(row: Photo, storage: LocalPrivateDocumentStorage, thumbnail: boolean) {
     const { bytes } = await storage.read(row.storage_key);
     if (bytes.length > fields[row.photo_type].bytes ||
         createHash('sha256').update(bytes).digest('hex') !== row.content_sha256) {

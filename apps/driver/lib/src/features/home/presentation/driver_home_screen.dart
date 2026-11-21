@@ -7,12 +7,12 @@ import 'passenger_rating_sheet.dart';
 import 'boarding_code_dialog.dart';
 import 'driver_passenger_identity.dart';
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'offer_tone_player.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,6 +30,8 @@ import '../../../core/communications/social_links_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
 import '../../benefits/data/driver_benefits_api.dart';
+import '../../photo_verification/driver_photo_api.dart';
+import '../../photo_verification/driver_photo_screen.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
 import '../../profile/data/driver_privacy_service.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
@@ -166,6 +168,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DateTime? _campaignCelebrationUntil;
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
+  Uint8List? _approvedAvatar;
   DriverActivitySnapshot? _activity;
   _DriverActivityPeriod _activityPeriod = _DriverActivityPeriod.sevenDays;
   DateTimeRange? _activityCustomRange;
@@ -174,7 +177,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   List<NearbyDriverPosition> _nearbyDrivers = const [];
   bool _nearbyRequestInFlight = false;
   bool _profileLoading = false;
-  bool _profilePhotoUpdating = false;
   bool _activityLoading = false;
   bool _activityHistory = false;
   bool _boardingPromptOpen = false;
@@ -2254,107 +2256,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     try {
       final profile = await api.profile();
       if (!mounted) return;
-      setState(() {
-        _profile = profile;
-        _profileLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _profileLoading = false);
-    }
-  }
-
-  String? _profilePhotoMimeType(XFile file) {
-    final mimeType = file.mimeType?.trim().toLowerCase();
-    if (mimeType == 'image/jpeg' ||
-        mimeType == 'image/png' ||
-        mimeType == 'image/webp') {
-      return mimeType;
-    }
-
-    final path = file.path.toLowerCase();
-    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
-      return 'image/jpeg';
-    }
-    if (path.endsWith('.png')) return 'image/png';
-    if (path.endsWith('.webp')) return 'image/webp';
-    return null;
-  }
-
-  Future<void> _changeProfilePhoto() async {
-    final api = _api;
-    if (api == null || _profilePhotoUpdating) return;
-
-    XFile? selected;
-    try {
-      selected = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 82,
-        requestFullMetadata: false,
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _message =
-            'Não foi possível abrir sua galeria. Verifique a permissão de fotos.';
-      });
-      return;
-    }
-
-    if (selected == null || !mounted) return;
-
-    final mimeType = _profilePhotoMimeType(selected);
-    if (mimeType == null) {
-      setState(() {
-        _message = 'Escolha uma foto JPEG, PNG ou WebP.';
-      });
-      return;
-    }
-
-    try {
-      final bytes = await selected.readAsBytes();
-      if (bytes.length > 1500000) {
-        if (!mounted) return;
-        setState(() {
-          _message = 'A foto ficou maior que 1,5 MB. Escolha outra imagem.';
-        });
-        return;
+      setState(() => _profile = profile);
+      if (api is DriverPhotoApiProvider) {
+        final avatar = await (api as DriverPhotoApiProvider)
+            .verificationPhotos
+            .approvedAvatar();
+        if (!mounted || !identical(_profile, profile)) return;
+        setState(() => _approvedAvatar = avatar);
       }
-
-      setState(() {
-        _profilePhotoUpdating = true;
-        _message = null;
-      });
-
-      await api.updateProfilePhoto(mimeType: mimeType, bytes: bytes);
-      final profile = await api.profile();
-      if (!mounted) return;
-      setState(() {
-        _profile = profile;
-        _profilePhotoUpdating = false;
-        _message = null;
-      });
-
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Foto do perfil atualizada.')),
-        );
-    } on DriverApiException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _profilePhotoUpdating = false;
-        _message = error.message;
-      });
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _profilePhotoUpdating = false;
-        _message = 'Não conseguimos atualizar sua foto agora.';
-      });
+      // A falha de uma imagem não impede a exibição dos dados do perfil.
+    } finally {
+      if (mounted) setState(() => _profileLoading = false);
     }
+  }
+
+  Future<void> _openProfilePhotoReview(DriverPhotoApi api) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => DriverPhotoScreen(
+        api: api,
+        portraitReplacement: _approvedAvatar != null,
+      ),
+    ));
+    if (mounted) await _refreshProfile();
   }
 
   DateTime _activityStartOfDay(DateTime value) =>
@@ -3359,6 +3283,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   Widget _buildProfile(DriverSupplySnapshot supply) {
     final profile = _profile;
+    final api = _api;
+    final photoApi = api is DriverPhotoApiProvider
+        ? (api as DriverPhotoApiProvider).verificationPhotos
+        : null;
     final fallbackCategories = supply.categories
         .map(
           (category) => switch (category) {
@@ -3407,14 +3335,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               online: supply.online,
               displayName: profile?.displayName,
               phone: profile?.phoneE164,
-              photoPath: profile?.photoPath,
+              approvedAvatar: _approvedAvatar,
               ratingAverage: profile?.ratingAverage,
               ratingCount: profile?.ratingCount ?? 0,
               loading: _profileLoading && profile == null,
-              changingPhoto: _profilePhotoUpdating,
-              onChangePhoto: _api == null ? null : _changeProfilePhoto,
             ),
             const SizedBox(height: RamoSpacing.lg),
+            if (photoApi != null)
+              _ProfileOption(
+                icon: Icons.add_a_photo_outlined,
+                title: _approvedAvatar == null
+                    ? 'Fotos do cadastro'
+                    : 'Enviar nova foto de perfil',
+                subtitle: 'A equipe revisa a foto antes de exibir no perfil.',
+                onTap: () => _openProfilePhotoReview(photoApi),
+              ),
             _ProfileOption(
               icon: Icons.badge_outlined,
               title: 'Dados pessoais',
@@ -3717,6 +3652,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             onDestinationSelected: (index) {
               if (index == _selectedTab) return;
               setState(() => _selectedTab = index);
+              if (index == 3) unawaited(_refreshProfile());
               if (index == 2) {
                 unawaited(_restoreCurrentRide());
                 unawaited(_refreshActivity());
@@ -4382,31 +4318,20 @@ class _DriverProfileHero extends StatelessWidget {
     required this.online,
     this.displayName,
     this.phone,
-    this.photoPath,
+    this.approvedAvatar,
     this.ratingAverage,
     this.ratingCount = 0,
     this.loading = false,
-    this.changingPhoto = false,
-    this.onChangePhoto,
   });
 
   final String driverId;
   final bool online;
   final String? displayName;
   final String? phone;
-  final String? photoPath;
+  final Uint8List? approvedAvatar;
   final double? ratingAverage;
   final int ratingCount;
   final bool loading;
-  final bool changingPhoto;
-  final VoidCallback? onChangePhoto;
-
-  String? get _photoUrl {
-    final path = photoPath?.trim();
-    final base = DriverCoreConfig.baseUri;
-    if (path == null || path.isEmpty || base == null) return null;
-    return base.resolve(path).toString();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -4418,49 +4343,15 @@ class _DriverProfileHero extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: RamoColors.brandYellow,
-                foregroundColor: RamoColors.brandBlack,
-                backgroundImage: _photoUrl == null
-                    ? null
-                    : NetworkImage(_photoUrl!),
-                child: _photoUrl == null
-                    ? const Icon(Icons.person_rounded, size: 34)
-                    : null,
-              ),
-              Positioned(
-                right: -5,
-                bottom: -5,
-                child: Material(
-                  color: RamoColors.brandYellow,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: changingPhoto ? null : onChangePhoto,
-                    child: SizedBox.square(
-                      dimension: 30,
-                      child: changingPhoto
-                          ? const Padding(
-                              padding: EdgeInsets.all(7),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: RamoColors.brandBlack,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.camera_alt_rounded,
-                              size: 17,
-                              color: RamoColors.brandBlack,
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: RamoColors.brandYellow,
+            foregroundColor: RamoColors.brandBlack,
+            foregroundImage: approvedAvatar == null
+                ? null
+                : MemoryImage(approvedAvatar!),
+            onForegroundImageError: approvedAvatar == null ? null : (_, _) {},
+            child: const Icon(Icons.person_rounded, size: 34),
           ),
           const SizedBox(width: 16),
           Expanded(

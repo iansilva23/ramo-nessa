@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +9,31 @@ import 'package:ramo_nessa_driver/src/features/photo_verification/driver_photo_a
 import 'package:ramo_nessa_driver/src/features/photo_verification/driver_photo_screen.dart';
 
 void main() {
+  test('fetches the approved avatar using the driver session', () async {
+    final jpeg = Uint8List.fromList([0xff, 0xd8, 0xff, 0xd9]);
+    var found = false;
+    final api = DriverPhotoApi(
+      Uri.parse('https://example.invalid'),
+      'test-session',
+      MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/v1/driver/me/verification-photos/avatar');
+        expect(request.headers['authorization'], 'Bearer test-session');
+        return found
+            ? http.Response.bytes(
+                jpeg,
+                200,
+                headers: {'content-type': 'image/jpeg'},
+              )
+            : http.Response('', 404);
+      }),
+    );
+    expect(await api.approvedAvatar(), isNull);
+    found = true;
+    expect(await api.approvedAvatar(), jpeg);
+  });
+
+
   testWidgets(
     'photo step fits narrow screens and expands correction guidance',
     (tester) async {
