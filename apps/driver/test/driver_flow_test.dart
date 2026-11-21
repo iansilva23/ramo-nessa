@@ -556,6 +556,7 @@ void main() {
       expect(coletaError, isNull, reason: 'coleta 320 px');
 
       expect(find.text('Cheguei').hitTestable(), findsOneWidget);
+      expect(find.text('Cancelar corrida').hitTestable(), findsOneWidget);
       await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, -42));
       await tester.pumpAndSettle();
       expect(find.text('Passageiros'), findsOneWidget);
@@ -570,6 +571,7 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'chegada 320 px');
 
       expect(find.text('Iniciar corrida').hitTestable(), findsOneWidget);
+      expect(find.text('Cancelar corrida').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Iniciar corrida'));
       await tester.pumpAndSettle();
       expect(find.text('Passageiro a bordo?'), findsOneWidget);
@@ -580,6 +582,7 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'viagem 320 px');
 
       expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
+      expect(find.text('Cancelar corrida'), findsNothing);
       await tester.tap(find.text('Finalizar corrida'));
       await tester.pumpAndSettle();
       expect(find.text('Corrida finalizada'), findsOneWidget);

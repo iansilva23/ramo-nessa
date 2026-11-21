@@ -466,6 +466,8 @@ class _DriverActiveDesignState extends State<_DriverActiveDesign> {
         arrived ? 'Iniciar corrida' : 'Cheguei';
     final onAction = done || underway ? widget.onComplete :
         arrived ? widget.onStart : widget.onArrived;
+    final canCancel = !done && !underway;
+    final primaryAction = _RideButton(action, widget.busy ? null : onAction, primary: true);
     final address = underway ? ride.destinationDisplayName : ride.originDisplayName;
     final route = widget.route;
     final metrics = [route?.durationLabel, route?.distanceLabel].whereType<String>().join(' · ');
@@ -502,9 +504,6 @@ class _DriverActiveDesignState extends State<_DriverActiveDesign> {
             icon: const Icon(Icons.open_in_new_rounded, size: 17),
             label: const Text('Abrir no Google Maps'),
           ),
-        if (!done && !underway)
-          TextButton(onPressed: widget.busy ? null : widget.onCancel,
-            child: const Text('Cancelar corrida')),
       ],
     );
 
@@ -621,7 +620,13 @@ class _DriverActiveDesignState extends State<_DriverActiveDesign> {
                       ),
                     ),
                     const SizedBox(height: 7),
-                    _RideButton(action, widget.busy ? null : onAction, primary: true),
+                    if (canCancel)
+                      _ridePair(
+                        _RideButton('Cancelar corrida', widget.busy ? null : widget.onCancel),
+                        primaryAction,
+                      )
+                    else
+                      primaryAction,
                   ],
                 ),
               ),
