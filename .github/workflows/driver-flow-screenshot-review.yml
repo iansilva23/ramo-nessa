@@ -48,6 +48,9 @@ jobs:
               flow + '}\n'+source[source.index('\n}', b)+3:])
           Path('apps/driver/test/driver_flow_capture_test.dart').write_text(result)
           Path('artifacts/driver-flow').mkdir(parents=True, exist_ok=True)
+          # Pin the runtime's normal Android font family instead of the test font.
+          theme=Path('packages/design_system/lib/src/theme/ramo_theme.dart')
+          theme.write_text(theme.read_text().replace('      useMaterial3: true,', "      useMaterial3: true,\n      fontFamily: 'Roboto',", 1))
           # The screenshot runner has no installed device audio plugin.
           Path('apps/driver/lib/src/features/home/presentation/offer_tone_player_native.dart').write_text(
               'class OfferTonePlayer { void prepare() {} Future<void> startLoop() async {} '
