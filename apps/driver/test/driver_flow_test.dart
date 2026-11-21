@@ -314,6 +314,8 @@ void main() {
     await tester.tap(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
 
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
 
@@ -378,6 +380,8 @@ void main() {
     expect(navigation.lastLatitude, -2.7956);
     expect(navigation.lastLongitude, -40.5142);
 
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
     expect(
@@ -409,6 +413,8 @@ void main() {
     expect(find.textContaining('Saldo disponível: R\$ 110,00'), findsOneWidget);
     expect(api.completedRideId, 'ride-1');
     expect(find.text('Corrida finalizada'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Minimizar informações'));
     await tester.pumpAndSettle();
     expect(
@@ -520,7 +526,9 @@ void main() {
       await tester.tap(find.text('Aceitar corrida'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
-      await tester.tap(find.byTooltip('Minimizar informações'));
+      await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Minimizar informações'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Expandir corrida'), findsOneWidget);
       final zoom = tester.getRect(find.byTooltip('Aumentar zoom'));
@@ -592,7 +600,9 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
-      await tester.tap(find.byTooltip('Minimizar informações'));
+      await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Minimizar informações'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')),
