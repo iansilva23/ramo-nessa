@@ -414,6 +414,7 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) unawaited(_handleBack());
           });
+          WidgetsBinding.instance.ensureVisualUpdate();
         }
       },
       child: screen,

@@ -1018,6 +1018,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) unawaited(_leaveReservation());
           });
+          WidgetsBinding.instance.ensureVisualUpdate();
         }
       },
       child: Scaffold(

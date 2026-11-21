@@ -919,6 +919,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) unawaited(_handleTrackingBack());
           });
+          WidgetsBinding.instance.ensureVisualUpdate();
         }
       },
       child: screen,

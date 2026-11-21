@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ramo_live_map.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
@@ -13,6 +14,7 @@ import 'package:ramo_nessa_passenger/src/features/rides/presentation/ride_tracki
 
 void main() {
   testWidgets('Voltar na corrida em dinheiro confirma e registra o cancelamento', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
     final service = _CashCancellationTrackingService();
     var closes = 0;
     await tester.pumpWidget(MaterialApp(
@@ -38,6 +40,7 @@ void main() {
     await tester.tap(find.text('Sim, cancelar'));
     await tester.pumpAndSettle();
     expect(service.cancellations, 1);
+    await tester.pump();
     expect(closes, 1);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
