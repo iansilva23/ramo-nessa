@@ -46,7 +46,9 @@ test('Postgres cash cancellation handles pending offers, acceptance, retries and
       createdAt: requestedAt, updatedAt: requestedAt,
     });
     if (!beforePayment) {
-      await rides.save({ ...draft, state: 'PAID', paymentMethod: 'cash', paymentStatus: 'authorized' });
+      const authorized = await rides.save({ ...draft, state: 'PAID', paymentMethod: 'cash', paymentStatus: 'authorized', cashTenderedCents: 5000 });
+      assert.equal(authorized.cashTenderedCents, 5000);
+      assert.equal((await rides.save({ ...authorized, cashTenderedCents: 9500 })).cashTenderedCents, 5000);
       await pool.query("UPDATE rides SET state='SEARCHING_DRIVER', updated_at=$2 WHERE id=$1", [id, beforeDeadline]);
     }
     const offerId = randomUUID();

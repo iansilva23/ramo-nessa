@@ -56,7 +56,7 @@ class DriverMapController {
   Timer? _settleTimer;
   int _touches = 0, _generation = 0, _intent = 0;
   DateTime _automaticUntil = DateTime.fromMillisecondsSinceEpoch(0);
-  gm.CameraPosition? _queued, _lastCamera;
+  gm.CameraPosition? _queued, _lastCamera, _webPinchStart;
   domain.LatLng? _latestPoint, _gpsPoint;
   DriverFollowFrame? _frame;
   DateTime? _latestGpsTime;
@@ -111,6 +111,7 @@ class DriverMapController {
     _settleTimer?.cancel();
     _queued = null;
     _touches = 0;
+    endWebPinch();
     _gesture = false;
     _nativeController = null;
   }
@@ -145,6 +146,33 @@ class DriverMapController {
     if (_touches > 0) _touches--;
     if (_touches == 0) _scheduleSettle();
   }
+
+  bool beginWebPinch() {
+    if (!kIsWeb || !ready || !_visible || _lastCamera == null) return false;
+    _webPinchStart = _lastCamera;
+    return true;
+  }
+
+  Future<void> updateWebPinch(double zoomDelta, double bearingDelta) async {
+    final start = _webPinchStart;
+    final controller = _nativeController;
+    if (!kIsWeb || !ready || !_visible || start == null || controller == null) {
+      return;
+    }
+    final camera = gm.CameraPosition(
+      target: start.target,
+      zoom: (start.zoom + zoomDelta).clamp(4.0, 19.0).toDouble(),
+      tilt: start.tilt,
+      bearing: (start.bearing + bearingDelta) % 360,
+    );
+    try {
+      await controller.moveCamera(gm.CameraUpdate.newCameraPosition(camera));
+    } catch (error) {
+      debugPrint('Gesto de zoom e rotação indisponível: $error');
+    }
+  }
+
+  void endWebPinch() => _webPinchStart = null;
 
   void onMapWheel() {
     _pause();
@@ -471,6 +499,13 @@ class _DriverLiveMapState extends State<DriverLiveMap>
         move: () => widget.controller.onMapPointerMove(),
         up: () => widget.controller.onMapPointerUp(),
         wheel: () => widget.controller.onMapWheel(),
+        beginPinch: () => widget.controller.beginWebPinch(),
+        pinch: DriverWebHeadingConfig.hasVectorMap
+            ? (zoom, bearing) =>
+                unawaited(widget.controller.updateWebPinch(zoom, bearing))
+            : null,
+        endPinch: () => widget.controller.endWebPinch(),
+
       );
     }
     final supply = widget.supply;

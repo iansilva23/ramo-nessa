@@ -10,9 +10,12 @@ export class InvalidPaymentRequestError extends Error {
   }
 }
 
+export const maxCashTenderedCents = 9_999_999;
+
 export interface CreatePaymentRequest {
   method: EnabledPaymentMethod | 'cash';
   payerEmail?: string;
+  cashTenderedCents?: number;
   savedCardId?: string;
   cardToken?: string;
   paymentMethodId?: string;
@@ -38,6 +41,14 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
     throw new InvalidPaymentRequestError(
       'method deve ser pix, card, wallet ou cash.',
     );
+  }
+
+  const cashTenderedCents = record.cashTenderedCents;
+  if (cashTenderedCents != null &&
+      (method !== 'cash' || typeof cashTenderedCents !== 'number' ||
+        !Number.isSafeInteger(cashTenderedCents) ||
+        cashTenderedCents < 1 || cashTenderedCents > maxCashTenderedCents)) {
+    throw new InvalidPaymentRequestError('Informe um valor válido em dinheiro para calcular o troco.');
   }
 
   const rawEmail = record.payerEmail;
@@ -133,6 +144,7 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
 
   return {
     method,
+    ...(cashTenderedCents == null ? {} : { cashTenderedCents }),
     ...(payerEmail == null ? {} : { payerEmail }),
     ...(record.savedCardId == null ? {} : { savedCardId: record.savedCardId as string }),
     ...(cardToken == null ? {} : { cardToken }),

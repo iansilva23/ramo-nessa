@@ -568,7 +568,7 @@ class _DriverOfferDesign extends StatelessWidget {
           _DriverNoticeStrip(
             icon: Icons.payments_outlined,
             text: offer.isCash && offer.cashCollectionAmountCents != null
-                ? 'Pagamento em dinheiro · cobrar ${formatCents(offer.cashCollectionAmountCents!)}'
+                ? 'Pagamento em dinheiro · cobrar ${formatCents(offer.cashCollectionAmountCents!)}${cashChangeNotice(offer.cashTenderedCents, offer.cashCollectionAmountCents)}'
                 : 'Pagamento: ${_ridePayment(offer.paymentMethod)}',
           ),
         ],
@@ -758,7 +758,7 @@ class _DriverActiveDesign extends StatelessWidget {
             _DriverNoticeStrip(
               icon: Icons.payments_outlined,
               text: ride.isCash && ride.cashCollectionAmountCents != null
-                  ? 'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}'
+                  ? 'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}${cashChangeNotice(ride.cashTenderedCents, ride.cashCollectionAmountCents)}'
                   : 'SEU GANHO · ${formatCents(ride.driverEarningsCents)}',
             ),
             if (canNavigate)

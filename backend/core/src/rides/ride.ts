@@ -31,6 +31,7 @@ export interface RideRecord {
   occurrenceTerms?: {enabled:boolean;bonusEnabled:boolean;bonusCents:number;revision?:number;continuation?:boolean};
   occurrenceBonus?: import('./occurrence-bonus.js').OccurrenceBonus;
   paymentMethod?: RidePaymentMethod;
+  cashTenderedCents?: number;
   driverId?: string;
   driverConsentRequired?: boolean;
   reservedDriverId?: string;

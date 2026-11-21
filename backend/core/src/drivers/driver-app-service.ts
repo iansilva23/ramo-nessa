@@ -275,6 +275,7 @@ export function driverOfferView(offer: {
     pickupCompensationCents: ride.quote.pickupCompensationCents,
     awaitingPassengerPayment: ride.state === 'AWAITING_PAYMENT',
     paymentMethod: ride.paymentMethod ?? null,
+    cashTenderedCents: ride.paymentMethod === 'cash' ? (ride.cashTenderedCents ?? null) : null,
     cashCollectionAmountCents:
       ride.paymentMethod === 'cash'
         ? ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0)
@@ -427,6 +428,7 @@ export async function acceptOfferFromDriverApp(input: {
       pickupCompensationCents:
         result.ride.quote.pickupCompensationCents,
       paymentMethod: result.ride.paymentMethod ?? null,
+      cashTenderedCents: result.ride.paymentMethod === 'cash' ? (result.ride.cashTenderedCents ?? null) : null,
       cashCollectionAmountCents:
         result.ride.paymentMethod === 'cash'
           ? result.ride.quote.totalAmountCents+(result.ride.occurrenceBonus?.amountCents??0)

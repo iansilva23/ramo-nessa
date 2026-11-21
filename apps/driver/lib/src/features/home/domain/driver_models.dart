@@ -110,6 +110,7 @@ class DriverOffer {
     required this.pickupCompensationCents,
     this.paymentMethod,
     this.cashCollectionAmountCents,
+    this.cashTenderedCents,
     this.cashCommissionCents,
     this.occurrenceBonusCents=0,
   });
@@ -145,6 +146,7 @@ class DriverOffer {
       paymentMethod: json['paymentMethod'] as String?,
       cashCollectionAmountCents: (json['cashCollectionAmountCents'] as num?)
           ?.toInt(),
+      cashTenderedCents: (json['cashTenderedCents'] as num?)?.toInt(),
       cashCommissionCents: (json['cashCommissionCents'] as num?)?.toInt(),
     );
   }
@@ -172,6 +174,7 @@ class DriverOffer {
   final int pickupCompensationCents;
   final String? paymentMethod;
   final int? cashCollectionAmountCents;
+  final int? cashTenderedCents;
   final int? cashCommissionCents;
   final int occurrenceBonusCents;
 
@@ -205,6 +208,7 @@ class AcceptedDriverRide {
     this.totalAmountCents,
     this.driverHoldExpiresAt,
     this.cashCollectionAmountCents,
+    this.cashTenderedCents,
     this.cashCommissionCents,
     this.pickupLabel,
     this.dropoffLabel,
@@ -241,6 +245,7 @@ class AcceptedDriverRide {
       ),
       cashCollectionAmountCents: (json['cashCollectionAmountCents'] as num?)
           ?.toInt(),
+      cashTenderedCents: (json['cashTenderedCents'] as num?)?.toInt(),
       cashCommissionCents: (json['cashCommissionCents'] as num?)?.toInt(),
       pickupLabel: json['pickupLabel'] as String?,
       dropoffLabel: json['dropoffLabel'] as String?,
@@ -268,6 +273,7 @@ class AcceptedDriverRide {
   final int? totalAmountCents;
   final DateTime? driverHoldExpiresAt;
   final int? cashCollectionAmountCents;
+  final int? cashTenderedCents;
   final int? cashCommissionCents;
   final String? pickupLabel, dropoffLabel;
   String get originDisplayName => _ridePointLabel(pickupLabel, pickupInstructions, origin.displayName);
@@ -280,6 +286,11 @@ class AcceptedDriverRide {
   final double? dropoffLongitude;
 
   bool get isCash => paymentMethod == 'cash';
+}
+
+String cashChangeNotice(int? tendered, int? fare) {
+  if (tendered == null || fare == null || tendered <= fare) return '';
+  return '\nPassageiro paga com ${formatCents(tendered)} · Troco de ${formatCents(tendered - fare)}';
 }
 
 String formatCents(int cents) {

@@ -5640,7 +5640,7 @@ class _ActiveRideCard extends StatelessWidget {
               _DriverNoticeStrip(
                 icon: Icons.payments_outlined,
                 text:
-                    'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}',
+                    'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}${cashChangeNotice(ride.cashTenderedCents, ride.cashCollectionAmountCents)}',
               ),
             ],
             if (route?.nextManeuverFor(currentPosition) != null &&

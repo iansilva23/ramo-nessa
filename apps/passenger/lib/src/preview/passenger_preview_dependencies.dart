@@ -433,6 +433,7 @@ final class _PreviewPaymentService implements PassengerPaymentService {
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) async {
     return const CashRideAuthorizationResult(
       rideState: 'AWAITING_PAYMENT',

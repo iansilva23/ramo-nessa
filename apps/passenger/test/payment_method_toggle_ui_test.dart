@@ -171,6 +171,7 @@ class _PolicyOnlyPaymentService extends _CouponAwarePaymentService {
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) =>
       throw UnimplementedError();
 

@@ -607,12 +607,16 @@ class HttpPassengerPaymentService
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
           headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
-          body: jsonEncode({'method': 'cash'}),
+          body: jsonEncode({
+            'method': 'cash',
+            if (cashTenderedCents != null) 'cashTenderedCents': cashTenderedCents,
+          }),
         )
         .timeout(RamoCoreConfig.requestTimeout);
 

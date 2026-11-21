@@ -74,6 +74,35 @@ void main() {
     await controller.fitCoordinates( const [LatLng(-2.7956, -40.5142), LatLng(-2.8986, -40.4506)]);
     expect(sdk.moves.length + sdk.animations.length, kIsWeb ? 1 : 2);
   });
+
+  test('Web pinch keeps the target and tilt and sends zoom and bearing together', () async {
+    if (!kIsWeb) return;
+    final sdk = RecordingMap();
+    final controller = DriverMapController()
+      ..attach(sdk)
+      ..updateCamera(const gm.CameraPosition(
+        target: gm.LatLng(-2.8, -40.5),
+        zoom: 17,
+        tilt: 32,
+        bearing: 20,
+      ));
+    expect(controller.beginWebPinch(), isTrue);
+    await controller.updateWebPinch(1, -35);
+    final update = sdk.moves.single as List;
+    expect(update[0], 'newCameraPosition');
+    expect(update[1], {
+      'target': [-2.8, -40.5],
+      'zoom': 18.0,
+      'tilt': 32.0,
+      'bearing': 345.0,
+    });
+    expect(sdk.animations, isEmpty);
+    controller.endWebPinch();
+    await controller.updateWebPinch(3, 45);
+    expect(sdk.moves, hasLength(1));
+    controller.dispose();
+  });
+
   test('Web camera waits for a usable viewport', () async {
     if (!kIsWeb) return;
     final sdk = RecordingMap();

@@ -3,6 +3,7 @@ import '../../home/presentation/widgets/shared_transfer_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'card_checkout_screen.dart';
+import 'cash_change_dialog.dart';
 import 'pix_exit_dialog.dart';
 import '../data/saved_card_service.dart';
 import 'dart:async';
@@ -842,6 +843,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       return;
     }
 
+    final tendered = await showDialog<int>(
+      context: context,
+      builder: (_) => CashChangeDialog(totalCents: _ride.payableAmountCents),
+    );
+    if (!mounted || tendered == null || _remaining == Duration.zero) return;
+
     setState(() {
       _authorizingCash = true;
       _cashMessage = null;
@@ -851,6 +858,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       final result = await service.authorizeCashRide(
         rideId: _ride.id,
         idempotencyKey: _cashIdempotencyKey,
+        cashTenderedCents: tendered == 0 ? null : tendered,
       );
 
       if (!mounted) return;

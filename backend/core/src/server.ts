@@ -8916,6 +8916,7 @@ const server = createServer(async (request, response) => {
           finance: financeRepository,
           rideId: ride.id,
           passengerId,
+          ...(body.cashTenderedCents == null ? {} : {cashTenderedCents: body.cashTenderedCents}),
         });
 
         let currentRide = result.ride;

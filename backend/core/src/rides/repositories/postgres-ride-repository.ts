@@ -32,6 +32,7 @@ interface RideRow {
   cancellation_state?: string | null;
   occurrence_terms?: RideRecord['occurrenceTerms'];
   occurrence_bonus?: RideRecord['occurrenceBonus'] | null;
+  cash_tendered_cents: number | null;
   payment_method: RideRecord['paymentMethod'] | null;
   driver_id: string | null;
   driver_consent_required: boolean;
@@ -83,6 +84,7 @@ function mapRow(row: RideRow): RideRecord {
     paymentStatus: row.payment_status,
     ...(row.manual_refund ? { manualRefund: true } : {}),
     ...(row.driver_consent_required ? { driverConsentRequired: true } : {}),
+    ...(row.cash_tendered_cents == null ? {} : {cashTenderedCents: row.cash_tendered_cents}),
     ...(row.payment_method != null
       ? { paymentMethod: row.payment_method }
       : {}),
@@ -160,7 +162,7 @@ function mapRow(row: RideRow): RideRecord {
 }
 
 const RETURNING = `
-  id, passenger_id, state, payment_status, payment_method, driver_id, manual_refund, cancellation_state, occurrence_bonus, occurrence_terms,
+  id, passenger_id, state, payment_status, payment_method, cash_tendered_cents, driver_id, manual_refund, cancellation_state, occurrence_bonus, occurrence_terms,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
   pickup_label, dropoff_label, pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
@@ -229,10 +231,10 @@ export class PostgresRideRepository implements RideRepository {
         pricing_catalog_version_id, pricing_catalog_version_number,
         base_amount_cents, pickup_compensation_cents,
         total_amount_cents, platform_commission_cents, driver_net_cents,
-        promotion_snapshot, created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at, pickup_label, dropoff_label
+        promotion_snapshot, created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at, pickup_label, dropoff_label, cash_tendered_cents
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42
       )
       RETURNING ${RETURNING}
       `,
@@ -278,6 +280,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.paymentExpiresAt ?? null,
         ride.pickupLabel ?? null,
         ride.dropoffLabel ?? null,
+        ride.cashTenderedCents ?? null,
       ],
     );
 
@@ -770,7 +773,12 @@ export class PostgresRideRepository implements RideRepository {
         driver_net_cents = $18,
         promotion_snapshot = $19,
         updated_at = $20,
-        payment_expires_at = $21
+        payment_expires_at = $21,
+        cash_tendered_cents = CASE
+          WHEN $4 IS DISTINCT FROM 'cash' THEN NULL
+          WHEN payment_method = 'cash' THEN cash_tendered_cents
+          ELSE $22
+        END
       WHERE id = $1
       RETURNING ${RETURNING}
       `,
@@ -796,6 +804,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.promotion ?? null,
         ride.updatedAt,
         ride.paymentExpiresAt ?? null,
+        ride.cashTenderedCents ?? null,
       ],
     );
 

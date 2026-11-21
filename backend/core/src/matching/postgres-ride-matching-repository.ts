@@ -35,6 +35,7 @@ interface RideRow {
   passenger_id: string;
   state: RideRecord['state'];
   payment_status: RideRecord['paymentStatus'];
+  cash_tendered_cents: number | null;
   payment_method: RideRecord['paymentMethod'] | null;
   occurrence_terms?: RideRecord['occurrenceTerms'];
   occurrence_bonus?: RideRecord['occurrenceBonus'];
@@ -73,7 +74,7 @@ interface RideRow {
 }
 
 const RIDE_COLUMNS = `
-  id, passenger_id, state, payment_status, payment_method, driver_id, occurrence_terms, occurrence_bonus,
+  id, passenger_id, state, payment_status, payment_method, cash_tendered_cents, driver_id, occurrence_terms, occurrence_bonus,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
   pickup_label, dropoff_label, pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
@@ -117,6 +118,7 @@ function mapRide(row: RideRow): RideRecord {
     ...(row.occurrence_bonus ? {occurrenceBonus:row.occurrence_bonus} : {}),
     paymentStatus: row.payment_status,
     ...(row.driver_consent_required ? { driverConsentRequired: true } : {}),
+    ...(row.cash_tendered_cents == null ? {} : {cashTenderedCents: row.cash_tendered_cents}),
     ...(row.payment_method != null
       ? { paymentMethod: row.payment_method }
       : {}),

@@ -455,6 +455,7 @@ class _CouponPaymentService implements PassengerPaymentService, DriverConfirmati
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) =>
       throw UnimplementedError();
 

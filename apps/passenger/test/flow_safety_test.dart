@@ -225,7 +225,21 @@ void main() {
       await tester.tap(find.text('Dinheiro'));
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Precisa de troco?'));
+      await tester.pumpAndSettle();
+      final amount = find.byKey(const Key('cash-change-amount'));
+      final confirm = find.widgetWithText(FilledButton, 'Confirmar dinheiro');
+      await tester.enterText(amount, '40,00');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+      await tester.enterText(amount, '50,50');
+      await tester.pump();
+      expect(find.text(r'Seu troco · R$ 5,50'), findsOneWidget);
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+
       expect(service.cashAuthorizations, 1);
+      expect(service.tendered, 5050);
       expect(find.text('Pagamento em dinheiro'), findsOneWidget);
       expect(
         find.textContaining('Pague R\$ 45,00 diretamente ao motorista'),
@@ -632,6 +646,7 @@ class _FakePassengerPaymentService extends _CouponAwarePaymentService {
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
   }
@@ -694,6 +709,7 @@ class _FakePassengerPaymentService extends _CouponAwarePaymentService {
 class _FakeCashPassengerPaymentService
     extends _CouponAwarePaymentService {
   int cashAuthorizations = 0;
+  int? tendered;
 
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {
@@ -732,8 +748,10 @@ class _FakeCashPassengerPaymentService
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) async {
     cashAuthorizations++;
+    tendered = cashTenderedCents;
     return const CashRideAuthorizationResult(
       rideState: 'SEARCHING_DRIVER',
       amountCents: 4500,
@@ -845,6 +863,7 @@ class _FakeRefundedPassengerPaymentService
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
   }
@@ -954,6 +973,7 @@ class _FakePixPassengerPaymentService
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
     required String idempotencyKey,
+    int? cashTenderedCents,
   }) async {
     throw StateError('Cash não faz parte deste teste Pix.');
   }

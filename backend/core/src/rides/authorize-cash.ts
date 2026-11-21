@@ -8,6 +8,8 @@ import {
   isRidePaymentWindowExpired,
   isRidePreparedForPayment,
 } from './ride.js';
+import { passengerPayableCents } from '../promotions/promotion-service.js';
+import { InvalidPaymentRequestError, maxCashTenderedCents } from '../payments/validation.js';
 import { markRidePaid } from './ride-state.js';
 
 const CASH_CONFIRMED_STATES: ReadonlySet<RideRecord['state']> =
@@ -29,6 +31,7 @@ export async function authorizeCashRide(input: {
   rideId: string;
   passengerId: string;
   now?: Date;
+  cashTenderedCents?: number;
 }) {
   const now = input.now ?? new Date();
   const ride = await input.rides.findById(input.rideId);
@@ -82,6 +85,16 @@ export async function authorizeCashRide(input: {
     );
   }
 
+  const cashTenderedCents = input.cashTenderedCents;
+  if (cashTenderedCents != null &&
+      (!Number.isSafeInteger(cashTenderedCents) ||
+        cashTenderedCents <= passengerPayableCents(ride) ||
+        cashTenderedCents > maxCashTenderedCents)) {
+    throw new InvalidPaymentRequestError(
+      'Para pedir troco, informe um valor maior que o total da corrida.',
+    );
+  }
+
   const driverId = ride.reservedDriverId!;
   const cashPolicy = await assertDriverCashCapacity({
     settings: input.settings,
@@ -100,6 +113,7 @@ export async function authorizeCashRide(input: {
     state,
     paymentStatus: 'authorized',
     paymentMethod: 'cash',
+    ...(cashTenderedCents == null ? {} : {cashTenderedCents}),
     updatedAt: now.toISOString(),
   });
 

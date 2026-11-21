@@ -34,6 +34,7 @@ export function driverRideView(ride: RideRecord) {
     driverEarningsCents: ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
     pickupCompensationCents: ride.quote.pickupCompensationCents,
     paymentMethod: ride.paymentMethod ?? null,
+    cashTenderedCents: ride.paymentMethod === 'cash' ? (ride.cashTenderedCents ?? null) : null,
     cashCollectionAmountCents:
       ride.paymentMethod === 'cash'
         ? ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0)

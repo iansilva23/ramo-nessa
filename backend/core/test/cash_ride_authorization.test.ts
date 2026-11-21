@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { DriverCashPolicyError } from '../src/payments/cash-policy.js';
+import { parseCreatePaymentRequest, InvalidPaymentRequestError } from '../src/payments/validation.js';
+import { driverRideView } from '../src/drivers/driver-ride-service.js';
 import { PaymentDomainError } from '../src/payments/payment.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { InMemoryPaymentPolicySettingsRepository } from '../src/payments/repositories/in-memory-payment-policy-settings-repository.js';
@@ -199,4 +201,30 @@ test('cash rejeita corrida com cupom mesmo quando cash está ativo', async () =>
   const stored = await rides.findById(ride.id);
   assert.equal(stored?.state, 'AWAITING_PAYMENT');
   assert.equal(stored?.paymentMethod, undefined);
+});
+
+test('cash validates optional tender, preserves the fare and exposes it to the driver', async () => {
+  for (const invalid of [0, -1, 12000.5, '12000', 10_000_000]) {
+    assert.throws(() => parseCreatePaymentRequest({method:'cash', cashTenderedCents:invalid}), InvalidPaymentRequestError);
+  }
+  assert.throws(() => parseCreatePaymentRequest({method:'pix', cashTenderedCents:15000}), InvalidPaymentRequestError);
+  assert.deepEqual(parseCreatePaymentRequest({method:'cash'}), {method:'cash'});
+  const request = parseCreatePaymentRequest({method:'cash', cashTenderedCents:15000});
+
+  const rides = new InMemoryRideRepository();
+  const settings = new InMemoryPaymentPolicySettingsRepository();
+  const finance = new InMemoryFinanceRepository();
+  const ride = preparedRide();
+  await rides.create(ride);
+  await settings.setCashEnabled(true, now.toISOString());
+  const input = {rides, settings, finance, rideId:ride.id, passengerId:ride.passengerId, now};
+  await assert.rejects(authorizeCashRide({...input, cashTenderedCents:12000}), InvalidPaymentRequestError);
+  assert.equal((await rides.findById(ride.id))?.state, 'AWAITING_PAYMENT');
+  const authorized = await authorizeCashRide({...input, cashTenderedCents:request.cashTenderedCents!});
+  const driver = driverRideView(authorized.ride);
+  assert.equal(driver.cashTenderedCents, 15000);
+  assert.equal(driver.cashCollectionAmountCents, 12000);
+  assert.equal(driver.cashCommissionCents, 1200);
+  const retry = await authorizeCashRide({...input, cashTenderedCents:20000});
+  assert.equal(retry.ride.cashTenderedCents, 15000);
 });
