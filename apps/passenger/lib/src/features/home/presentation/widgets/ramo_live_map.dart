@@ -50,6 +50,7 @@ class RamoMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
   int _cameraRequestId = 0;
+  final Set<int> _mapPointers = <int>{};
   Size _viewport = Size.zero;
   EdgeInsets _viewportPadding = EdgeInsets.zero;
 
@@ -60,6 +61,13 @@ class RamoMapController {
 
   bool get ready => !_disposed && _nativeController != null;
 
+  void beginMapGesture(int pointer) {
+    if (_mapPointers.add(pointer)) _cameraRequestId++;
+  }
+
+  void endMapGesture(int pointer) => _mapPointers.remove(pointer);
+
+
   void attach(gm.GoogleMapController controller) {
     if (_disposed) return;
     _cameraRequestId++;
@@ -69,11 +77,12 @@ class RamoMapController {
   void detach() {
     _cameraRequestId++;
     _nativeController = null;
+    _mapPointers.clear();
   }
 
   Future<void> move(domain.LatLng point, double zoom) async {
     final controller = _nativeController;
-    if (!ready || controller == null) return;
+    if (!ready || controller == null || _mapPointers.isNotEmpty) return;
     _cameraRequestId++;
 
     await controller.animateCamera(
@@ -90,7 +99,8 @@ class RamoMapController {
     double maxZoom = 17,
   }) async {
     final controller = _nativeController;
-    if (!ready || controller == null || coordinates.isEmpty) return;
+    if (!ready || controller == null || coordinates.isEmpty ||
+        _mapPointers.isNotEmpty) return;
 
     if (kIsWeb) {
       final fit = RamoMapCameraFit.calculate(
@@ -608,7 +618,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
 
     return LayoutBuilder(builder: (context, constraints) {
       widget.controller.updateViewport(constraints.biggest, widget.cameraPadding);
-      return gm.GoogleMap(
+      final map = gm.GoogleMap(
           // Full-screen app maps must accept the first one-finger drag.
           // Leaving this automatic can select cooperative (two-finger) mode.
           webGestureHandling: kIsWeb ? gm.WebGestureHandling.greedy : null,
@@ -635,11 +645,18 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       mapToolbarEnabled: false,
       myLocationEnabled: false,
       myLocationButtonEnabled: false,
+      zoomGesturesEnabled: true,
       rotateGesturesEnabled: true,
       tiltGesturesEnabled: false,
       buildingsEnabled: true,
       indoorViewEnabled: false,
       trafficEnabled: false,
+      );
+      return Listener(
+        onPointerDown: (event) => widget.controller.beginMapGesture(event.pointer),
+        onPointerUp: (event) => widget.controller.endMapGesture(event.pointer),
+        onPointerCancel: (event) => widget.controller.endMapGesture(event.pointer),
+        child: map,
       );
     });
   }

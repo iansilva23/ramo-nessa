@@ -88,6 +88,39 @@ class _SavedTokenizer extends _Tokenizer
 }
 
 void main() {
+  testWidgets('Voltar no cartão confirma e registra a desistência sem pagar', (tester) async {
+    final tokenizer = _Tokenizer();
+    int cancellations = 0;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) {
+      return TextButton(onPressed: () {
+        Navigator.of(context).push<CardCheckoutSelection>(MaterialPageRoute(
+          builder: (_) => CardCheckoutScreen(
+            tokenizer: tokenizer,
+            amountLabel: r'R$ 40,00',
+            holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+            onCancelRide: () async { cancellations++; },
+          ),
+        ));
+      }, child: const Text('Abrir cartão'));
+    })));
+    await tester.tap(find.text('Abrir cartão'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Deseja cancelar a corrida?'), findsOneWidget);
+    await tester.tap(find.text('Continuar na corrida'));
+    await tester.pumpAndSettle();
+    expect(cancellations, 0);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sim, cancelar'));
+    await tester.pumpAndSettle();
+    expect(cancellations, 1);
+    expect(tokenizer.calls, 0);
+    expect(find.text('Abrir cartão'), findsOneWidget);
+  });
+
+
   testWidgets('account email avoids typing and still requires explicit payment confirmation', (tester) async {
     final tokenizer = _Tokenizer();
     CardCheckoutSelection? result;

@@ -1,3 +1,4 @@
+import '../../rides/presentation/ride_cancel_confirmation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -19,10 +20,12 @@ class CardCheckoutScreen extends StatefulWidget {
     required this.amountLabel,
     required this.holdExpiresAt,
     this.cards,
+    this.onCancelRide,
     this.initialEmail = '',
   });
   final CardTokenizationService tokenizer;
   final SavedCardService? cards;
+  final Future<void> Function()? onCancelRide;
   final String initialEmail;
   final String amountLabel;
   final DateTime holdExpiresAt;
@@ -38,6 +41,7 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
   CardTokenizationResult? _newCard;
   bool _busy = false, _save = false, _loading = true;
   String? _error;
+  bool _closing = false;
   Timer? _timer;
   bool get _expired => !DateTime.now().isBefore(widget.holdExpiresAt);
   @override
@@ -194,6 +198,29 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
     }
   }
 
+  Future<void> _handleBack() async {
+    final cancelRide = widget.onCancelRide;
+    if (cancelRide == null || _closing || _busy) return;
+    setState(() => _closing = true);
+    try {
+      final confirmed = await confirmRideCancellation(
+        context,
+        description: 'A tentativa será encerrada e ficará registrada em Atividades.',
+      );
+      if (!mounted || !confirmed) return;
+      setState(() => _busy = true);
+      await cancelRide();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Não foi possível cancelar a corrida. Tente novamente.');
+      }
+    } finally {
+      if (mounted) setState(() { _closing = false; _busy = false; });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final remaining = widget.holdExpiresAt
@@ -201,8 +228,13 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
         .inSeconds
         .clamp(0, 9999);
     final card = _newCard;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Seu cartão')),
+    final screen = Scaffold(
+      appBar: AppBar(
+        title: const Text('Seu cartão'),
+        leading: widget.onCancelRide == null
+            ? null
+            : BackButton(onPressed: _handleBack),
+      ),
       body: SafeArea(
         child: Form(
           key: _form,
@@ -374,6 +406,17 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
           ),
         ),
       ),
+    );
+    return PopScope<CardCheckoutSelection>(
+      canPop: widget.onCancelRide == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_handleBack());
+          });
+        }
+      },
+      child: screen,
     );
   }
 }

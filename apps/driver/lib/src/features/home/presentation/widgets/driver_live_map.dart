@@ -919,6 +919,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
             mapToolbarEnabled: false,
             myLocationEnabled: false,
             myLocationButtonEnabled: false,
+            zoomGesturesEnabled: true,
             rotateGesturesEnabled: true,
             tiltGesturesEnabled: true,
             buildingsEnabled: true,

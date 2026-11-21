@@ -18,6 +18,7 @@ import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/data/driver_confirmation_service.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
+import '../../rides/presentation/ride_cancel_confirmation.dart';
 import '../../rides/presentation/widgets/passenger_driver_avatar.dart';
 import '../../rides/data/passenger_ride_resume_service.dart';
 import '../../map/data/route_service.dart';
@@ -65,6 +66,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool _confirmationRequestInFlight = false;
   bool _paymentOptionsOpen = false;
   bool _leaving = false;
+  bool _confirmingBackCancellation = false;
   DriverConfirmation? _confirmation;
   String? _driverMessage;
   bool get _canPay =>
@@ -176,26 +178,47 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     }
   }
 
+  bool get _offerCashCancellationOnBack =>
+      !_leaving && _cashAvailable && _confirmationService != null;
+
   Future<void> _leaveReservation() async {
-    if (_leaving) return;
+    if (_leaving || _confirmingBackCancellation || _creatingPix ||
+        _creatingCard || _authorizingCash || _payingWallet || _confirmingPromotion) {
+      return;
+    }
+    _confirmingBackCancellation = true;
     try {
+      if (_offerCashCancellationOnBack) {
+        final confirmed = await confirmRideCancellation(
+          context,
+          description: 'A tentativa será encerrada e ficará registrada em Atividades.',
+        );
+        if (!mounted || !confirmed) return;
+      }
       await _confirmationService?.releaseDriverReservation(_ride.id);
       if (!mounted) return;
-      setState(() => _leaving = true);
-      _confirmationTimer?.cancel();
-      if (widget.onRecoveryClose != null) {
-        widget.onRecoveryClose!();
-      } else {
-        Navigator.of(context).pop();
-      }
+      await _closeCheckoutAfterCancellation();
     } catch (error) {
-      if (mounted) {
-        setState(
-          () => _driverMessage = error is PassengerPaymentException
-              ? error.message
-              : 'Não conseguimos cancelar agora. Tente novamente.',
-        );
-      }
+      if (!mounted) return;
+      final message = error is PassengerPaymentException
+          ? error.message
+          : 'Não conseguimos cancelar agora. Tente novamente.';
+      setState(() => _driverMessage = message);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      _confirmingBackCancellation = false;
+    }
+  }
+
+  Future<void> _closeCheckoutAfterCancellation() async {
+    _confirmationTimer?.cancel();
+    setState(() => _leaving = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    if (widget.onRecoveryClose != null) {
+      widget.onRecoveryClose!();
+    } else {
+      Navigator.of(context).pop();
     }
   }
 
@@ -684,6 +707,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             amountCents: _cardTotalAmountCents,
             mercadoPagoPublicKey: _paymentPolicy?.mercadoPagoPublicKey,
           );
+      final cancellation = _confirmationService;
+      var cancelledFromCard = false;
       final selection = await Navigator.of(context).push<CardCheckoutSelection>(
         MaterialPageRoute(
           builder: (_) => CardCheckoutScreen(
@@ -691,12 +716,20 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             amountLabel: PreparedRide.formatCents(_cardTotalAmountCents),
             initialEmail: accountEmail ?? '',
             holdExpiresAt: _ride.holdExpiresAt,
+            onCancelRide: cancellation == null ? null : () async {
+              await cancellation.releaseDriverReservation(_ride.id);
+              cancelledFromCard = true;
+            },
             cards: service is SavedCardService
                 ? service as SavedCardService
                 : null,
           ),
         ),
       );
+      if (cancelledFromCard && mounted) {
+        await _closeCheckoutAfterCancellation();
+        return;
+      }
       if (selection == null || !mounted) {
         if (mounted) setState(() => _creatingCard = false);
         return;
@@ -802,7 +835,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         return;
       }
 
-      if (result.dispatchStatus == 'NO_DRIVER_FOUND') {
+      if (result.dispatchStatus == 'NO_DRIVER_FOUND' && widget.rideTrackingService == null) {
         setState(() {
           _authorizingCash = false;
           _cashMessage =
@@ -978,9 +1011,14 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           };
 
     return PopScope(
-      canPop: widget.onRecoveryClose != null || !_ride.driverConsentRequired || _leaving,
+      canPop: !_offerCashCancellationOnBack &&
+          (widget.onRecoveryClose != null || !_ride.driverConsentRequired || _leaving),
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _leaveReservation();
+        if (!didPop) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_leaveReservation());
+          });
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -992,13 +1030,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             maxLines: 2,
             softWrap: true,
           ),
-          leading: widget.onRecoveryClose != null
+          leading: _offerCashCancellationOnBack
+              ? BackButton(onPressed: _leaveReservation)
+              : widget.onRecoveryClose != null
               ? BackButton(onPressed: widget.onRecoveryClose)
               : _ride.driverConsentRequired
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: _leaveReservation,
-                )
+              ? BackButton(onPressed: _leaveReservation)
               : null,
         ),
         body: SafeArea(

@@ -12,6 +12,38 @@ import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tr
 import 'package:ramo_nessa_passenger/src/features/rides/presentation/ride_tracking_screen.dart';
 
 void main() {
+  testWidgets('Voltar na corrida em dinheiro confirma e registra o cancelamento', (tester) async {
+    final service = _CashCancellationTrackingService();
+    var closes = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: RideTrackingScreen(
+        rideId: 'ride-1',
+        remainingWalletCents: null,
+        trackingService: service,
+        paymentMethod: 'cash',
+        onRecoveryClose: () { closes++; },
+        networkTilesEnabled: false,
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Deseja cancelar a corrida?'), findsOneWidget);
+    await tester.tap(find.text('Continuar na corrida'));
+    await tester.pumpAndSettle();
+    expect(service.cancellations, 0);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sim, cancelar'));
+    await tester.pumpAndSettle();
+    expect(service.cancellations, 1);
+    expect(closes, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+
   testWidgets('tracking aplica atualização realtime sem esperar polling',
       (tester) async {
     final realtime = _FakeRealtimeService();
@@ -470,4 +502,36 @@ class _FakeRealtimeService implements PassengerRideRealtimeService {
   @override
   Stream<PassengerRideTrackingSnapshot> watch(String rideId) =>
       _controller.stream;
+}
+
+
+class _CashCancellationTrackingService extends _FakeTrackingService
+    implements PassengerManualCancellationApi {
+  int cancellations = 0;
+
+  @override
+  Future<PassengerRideTrackingSnapshot> tracking(String rideId) async =>
+      PassengerRideTrackingSnapshot(
+        rideId: rideId,
+        state: 'DRIVER_ASSIGNED',
+        category: 'car',
+      );
+
+  @override
+  Future<Map<String, dynamic>> cancellationRequest(
+    String rideId, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+    bool pix = false,
+  }) async {
+    if (method == 'POST') cancellations++;
+    return {
+      'canCancel': true,
+      'terms': {
+        'systemEnabled': true,
+        'serverTime': '2026-11-20T14:00:00.000Z',
+        'cancelUntil': '2026-11-20T14:00:40.000Z',
+      },
+    };
+  }
 }
