@@ -42,8 +42,8 @@ jobs:
               flow = flow.replace(anchor, capture(stage)+anchor, 1)
           a_main = source.index('void main() {')
           # Include all helpers from the real suite, including declarations before the fake API.
-          result = ("import 'ride_identity_visual_review.dart' show fonts;\n"+source[:a_main]+
-              'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUpAll(fonts);\n'+
+          result = ("import 'package:flutter/services.dart';\nimport 'ride_identity_visual_review.dart' show fonts;\n"+source[:a_main]+
+              'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUpAll(fonts);\n setUp(() { TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel("br.com.ramonessa.driver/screen-lock"), (_) async => null); });\n'+
               flow + '}\n'+source[source.index('\n}', b)+3:])
           Path('apps/driver/test/driver_flow_capture_test.dart').write_text(result)
           Path('artifacts/driver-flow').mkdir(parents=True, exist_ok=True)
@@ -54,7 +54,7 @@ jobs:
           flutter test --no-pub --update-goldens test/driver_flow_capture_test.dart
       - name: Assemble the five real screenshots
         run: |
-          python3 -m pip install --quiet pillow
+          python3 -m pip install --quiet --break-system-packages pillow
           python3 - <<'PY'
           from pathlib import Path
           from PIL import Image, ImageDraw, ImageFont
