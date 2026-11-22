@@ -4,10 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Ramo Nessa — O próximo destino é seu",
   description: "Conheça o Ramo Nessa: corridas e entregas para Jericoacoara, Jijoca e Preá. Android via APK, acesso web para iPhone e Android e pré-cadastro de motoristas.",
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-  },
+  icons: { icon: { url: "/ramo-nessa-favicon.png", type: "image/png", sizes: "64x64" } },
 };
 
 export default function RootLayout({

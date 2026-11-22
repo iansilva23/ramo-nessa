@@ -15,8 +15,12 @@ const categories = [
   { id: "buggy", name: "Táxi Buggy", short: "Tem a cara de Jeri.", icon: CarFront, title: "O ritmo da Vila.", text: "Uma opção com a cara de Jericoacoara para seus trajetos na Vila.", number: "04" },
   { id: "entrega", name: "Entregas", short: "Você manda. A gente leva.", icon: Package, title: "Seu próximo envio.", text: "Peça uma entrega pelo app e siga com o seu dia.", number: "05" },
 ];
-function Brand({ footer = false, icon = "/app-icon.webp" }: { footer?: boolean; icon?: string }) {
-  return <a className={`brand ${footer ? "footer-brand" : ""}`} href="#inicio" aria-label="Ramo Nessa, início"><img src={icon} alt="" width="44" height="44" /><span>RAMO<span>NESSA</span></span></a>;
+function Brand({ footer = false }: { footer?: boolean }) {
+  return (
+    <a className={footer ? "brand footer-brand" : "brand"} href="#inicio" aria-label="Ramo Nessa, início">
+      <img src="/ramo-nessa-logo.webp" alt="" width="264" height="177" />
+    </a>
+  );
 }
 function Choice({ label, value, onChange, options, id }: { label: string; value: string; onChange: (v: string) => void; options: string[]; id: string }) {
   return <div className="field"><label htmlFor={id}>{label}</label><Select value={value} onValueChange={onChange}><SelectTrigger id={id} className="form-select" aria-label={label}><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select></div>;
@@ -95,8 +99,9 @@ export default function Home({initialContent=defaultContent}: {initialContent?: 
   return <>
     <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
     <a href="#conteudo" className="skip-link">Pular para o conteúdo</a>
-    <header className="site-header"><div className="header-inner"><Brand icon={content.appIcon}/><nav id="main-nav" className={mobileOpen ? "nav open" : "nav"} aria-label="Principal">
+    <header className="site-header"><div className="header-inner"><Brand /><nav id="main-nav" className={mobileOpen ? "nav open" : "nav"} aria-label="Principal">
       {[["#inicio", "O app"], ["#como-funciona", "Como funciona"], ["#baixar", "Acesse o app"]].map(([href, name]) => <a key={href} href={href} onClick={() => setMobileOpen(false)}>{name}</a>)}
+      {content.footer.enabled && <a href="#contato" onClick={() => setMobileOpen(false)}>Contato</a>}
       <a href="#motoristas" className="nav-driver" onClick={() => setMobileOpen(false)}>Quero ser motorista</a>
     </nav><button className="menu-button" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={mobileOpen} aria-controls="main-nav">{mobileOpen ? <X  aria-hidden="true" /> : <Menu  aria-hidden="true" />}</button></div></header>
     <main id="conteudo">
@@ -190,7 +195,25 @@ export default function Home({initialContent=defaultContent}: {initialContent?: 
         </Tabs>
       </section>
     </main>
-    <footer className="site-footer"><div className="footer-top"><Brand footer icon={content.appIcon}/><div className="footer-links"><a href="#inicio">O app</a><a href="#motoristas">Motoristas</a><button onClick={()=>setPrivacyOpen(true)}>Uso dos dados</button></div><span className="footer-copyright">© {new Date().getFullYear()} Ramo Nessa.</span></div>{content.footer.enabled && <p className="photo-credit">{content.footer.companyName} · CNPJ {content.footer.cnpj}<br />Atendimento: <a href={`mailto:${content.footer.email}`}>{content.footer.email}</a></p>}{content.photoCredit && <p className="photo-credit">Foto: {content.photoCreditUrl ? <a href={content.photoCreditUrl} target="_blank" rel="noreferrer">{content.photoCredit}</a> : content.photoCredit}</p>}</footer>
+    <footer className="site-footer">
+      <div className="footer-top">
+        <Brand footer />
+        <div className="footer-links">
+          <a href="#inicio">O app</a>
+          <a href="#motoristas">Motoristas</a>
+          <button onClick={() => setPrivacyOpen(true)}>Uso dos dados</button>
+        </div>
+        {content.footer.enabled && (
+          <section className="footer-contact" id="contato" aria-labelledby="footer-contact-title">
+            <h2 id="footer-contact-title">Contato e suporte</h2>
+            <a href={`mailto:${content.footer.email}`}>{content.footer.email}</a>
+            <p>{content.footer.companyName} · CNPJ {content.footer.cnpj}</p>
+          </section>
+        )}
+      </div>
+      <p className="footer-copyright">© {new Date().getFullYear()} Ramo Nessa.</p>
+      {content.photoCredit && <p className="photo-credit">Foto: {content.photoCreditUrl ? <a href={content.photoCreditUrl} target="_blank" rel="noreferrer">{content.photoCredit}</a> : content.photoCredit}</p>}
+    </footer>
     <Dialog open={privacyOpen} onOpenChange={setPrivacyOpen}><DialogContent className="privacy-dialog"><DialogTitle>Uso dos dados do pré-cadastro</DialogTitle><DialogDescription>O formulário registra seu interesse em atuar como motorista ou entregador no Ramo Nessa.</DialogDescription><p>Guardamos seu nome, WhatsApp, região e categoria de interesse para que a equipe possa conversar com você sobre o cadastro. Os dados ficam no registro de interessados deste site, sem exposição pública.</p><p>Este é um pré-cadastro de interesse. A ativação da conta acontece em uma etapa posterior.</p><p>Se quiser retirar seu interesse ou pedir a exclusão dos dados, informe a equipe quando ela entrar em contato pelo número que você cadastrou.</p></DialogContent></Dialog>
   </>;
 }
