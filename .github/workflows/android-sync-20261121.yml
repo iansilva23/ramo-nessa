@@ -58,6 +58,17 @@ jobs:
           else
             flutter test --no-pub test/auth_flow_test.dart test/driver_password_flow_test.dart
           fi
+      - name: Resolve Kotlin dependencies from Maven Central
+        run: |
+          python3 - <<'PYCODE'
+          import os
+          from pathlib import Path
+          settings = Path(os.environ['FLUTTER_ROOT']) / 'packages/flutter_tools/gradle/settings.gradle.kts'
+          original = settings.read_text()
+          if 'pluginManagement {' not in original:
+              repositories = 'pluginManagement { repositories { mavenCentral(); gradlePluginPortal(); google() } }'
+              settings.write_text(repositories + chr(10) + original)
+          PYCODE
       - name: Build connected Android APK with stable test signature
         working-directory: apps/${{ matrix.app }}
         run: |
