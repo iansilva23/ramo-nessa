@@ -1,0 +1,179 @@
+name: Ramo Nessa V5 - Platform Compilation
+on:
+  push:
+    branches: [feature/v5-seven-fixes-20261016, fix/pricing-route-eligibility-20261018, integration/pricing-v5-finance-safe-20261019]
+    # ADM-only changes should not cancel or restart long Android/iOS builds.
+    paths:
+      - 'apps/passenger/**'
+      - 'apps/driver/**'
+      - 'packages/**'
+      - 'tooling/**'
+      - '.github/workflows/v5-platform-compile.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ramo-v5-platforms-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-web:
+    name: Compile ${{ matrix.app }} ${{ matrix.platform }} - no deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+        platform: [android, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java for Android
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Locked dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Compile Android debug without production credentials
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build apk --debug --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify debug APK
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
+      - name: Preserve Android compilation artifact for review only
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-${{ matrix.app }}-android-DEBUG-NOT-CONFIGURED
+          path: apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Compile browser Web
+        if: matrix.platform == 'web'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build web --release --no-web-resources-cdn --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify Web bundle
+        if: matrix.platform == 'web'
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          test -s build/web/index.html
+          test -s build/web/main.dart.js
+      - name: Confirm source and lockfile unchanged
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
+
+  ios-simulator:
+    name: Compile iOS simulator ${{ matrix.app }} - unsigned
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Locked dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Compile iOS without code signing or production credentials
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build ios --simulator --debug --no-pub --no-codesign
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify simulator binary
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Record iOS simulator compile evidence (not a signed IPA)
+        run: |
+          mkdir -p artifacts/ios
+          printf 'Source: %s\\nRole: %s\\nPlatform: iOS simulator only\\nAPI: example.invalid\\nSigning: none\\n' "${{ github.sha }}" "${{ matrix.app }}" > artifacts/ios/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v5-${{ matrix.app }}-ios-SIMULATOR-EVIDENCE
+          path: artifacts/ios/README.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Confirm source and lockfile unchanged
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
+
+  configured-web-homologation:
+    # This job can access a production-configured Maps key. The Pricing V5
+    # branch must compile ONLY with inert configuration and no provider secrets.
+    if: github.ref != 'refs/heads/integration/pricing-v5-finance-safe-20261019'
+    name: Compile configured Passenger + Driver Web bundles (no deploy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Generate approved PWA icons
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Prepare and compile both configured Web apps
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            if [ "$role" = passenger ]; then route=passageiro; else route=motorista; fi
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            (
+              cd "apps/$role"
+              flutter pub get --enforce-lockfile
+              flutter build web --release --no-web-resources-cdn --no-pub \
+                --base-href="/$route/" \
+                --dart-define=RAMO_CORE_BASE_URL= \
+                --dart-define=RAMO_PREVIEW_MODE=false
+            )
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Validate both bundles for homologation, without contacting providers
+        run: |
+          node scripts/web/write_homologation_manifest.mjs \
+            --passenger=apps/passenger/build/web \
+            --driver=apps/driver/build/web \
+            --commit="${{ github.sha }}" \
+            --output=web-release-manifest.json
+          git diff --exit-code -- 'apps/*/lib/**' 'apps/*/pubspec.yaml' 'packages/**'
+      - name: Package approved source-matched bundles
+        run: |
+          mkdir -p artifacts/v5-web
+          cp -a apps/passenger/build/web artifacts/v5-web/passenger
+          cp -a apps/driver/build/web artifacts/v5-web/driver
+          cp web-release-manifest.json artifacts/v5-web/release.json
+          printf '%s\\n' "${{ github.sha }}" > artifacts/v5-web/source-commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-v5-web-homologation
+          path: artifacts/v5-web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

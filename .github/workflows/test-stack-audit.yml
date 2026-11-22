@@ -1,0 +1,96 @@
+name: Test Stack Audit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/admin/**"
+      - "deploy/test/**"
+      - "backend/core/Dockerfile"
+      - "backend/core/package.json"
+      - "backend/core/package-lock.json"
+      - "backend/core/src/admin/**"
+      - "backend/core/src/server.ts"
+      - "backend/core/migrations/**"
+      - ".github/workflows/test-stack-audit.yml"
+      - ".github/workflows/preflight.yml"
+
+concurrency:
+  group: test-stack-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Wait for matching Preflight
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${REPOSITORY}/actions/runs?head_sha=${HEAD_SHA}&event=pull_request&per_page=20"
+
+          for attempt in $(seq 1 120); do
+            payload="$(curl --fail --silent --show-error               -H "Accept: application/vnd.github+json"               -H "Authorization: Bearer ${GH_TOKEN}"               -H "X-GitHub-Api-Version: 2022-11-28"               "${api}")"
+
+            run="$(printf '%s' "${payload}" | jq -c '
+              .workflow_runs
+              | map(select(.name == "Preflight"))
+              | sort_by(.created_at)
+              | last // empty
+            ')"
+
+            if [ -z "${run}" ]; then
+              echo "Preflight ainda não apareceu para ${HEAD_SHA}; aguardando."
+              sleep 5
+              continue
+            fi
+
+            status="$(printf '%s' "${run}" | jq -r '.status')"
+            conclusion="$(printf '%s' "${run}" | jq -r '.conclusion // ""')"
+            run_url="$(printf '%s' "${run}" | jq -r '.html_url')"
+
+            echo "Preflight: status=${status} conclusion=${conclusion}"
+
+            if [ "${status}" = "completed" ]; then
+              if [ "${conclusion}" = "success" ]; then
+                echo "Preflight verde: ${run_url}"
+                exit 0
+              fi
+
+              echo "::error::Preflight terminou com ${conclusion}. Test Stack Audit não executará Docker."
+              echo "Preflight: ${run_url}"
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "::error::Timeout aguardando o Preflight do mesmo SHA."
+          exit 1
+
+      - name: Checkout tested SHA
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Verify Docker Compose
+        run: docker compose version
+
+      - name: Run same-origin Admin smoke
+        run: node deploy/test/smoke.mjs

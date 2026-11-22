@@ -1,0 +1,283 @@
+<section id="view-benefits" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">MOTORISTAS</span>
+      <h1>Ranking &amp; Benefícios</h1>
+      <p>
+        Crie campanhas de reconhecimento por categoria e região, com pontos,
+        missões, classificação e prêmios definidos por você.
+      </p>
+    </div>
+    <button id="benefits-refresh" class="button button--ghost-dark" type="button">
+      Atualizar
+    </button>
+  </div>
+
+  <div id="benefits-message" class="global-message" aria-live="polite" hidden></div>
+
+  <article class="benefits-hero">
+    <div>
+      <span class="benefits-hero__eyebrow">CONTROLE GLOBAL</span>
+      <h2>Você decide quando o programa aparece para os motoristas.</h2>
+      <p>
+        O módulo nasce desligado. Mesmo com campanhas prontas, nada é mostrado
+        no app enquanto o controle global estiver desativado.
+      </p>
+    </div>
+    <div class="benefits-hero__control">
+      <span id="benefits-global-status" class="pill">Desativado</span>
+      <button id="benefits-global-toggle" class="button button--primary" type="button">
+        Ativar módulo
+      </button>
+    </div>
+  </article>
+
+  <div class="notice-box benefits-finance-note">
+    <strong>Premiação manual.</strong>
+    Este módulo não movimenta Carteira, Financeiro, Pix, repasses ou saldo.
+    O ADM apenas registra e exibe a descrição do prêmio; o pagamento ao vencedor
+    é feito manualmente por você.
+  </div>
+
+  <div class="benefits-layout">
+    <article class="panel-card benefits-form-card">
+      <div class="panel-card__header">
+        <div>
+          <span class="eyebrow eyebrow--dark">CAMPANHA</span>
+          <h2 id="benefit-form-title">Nova campanha</h2>
+          <p class="muted-copy">
+            Toda nova campanha nasce em rascunho e precisa ser ativada ou agendada depois.
+          </p>
+        </div>
+        <button id="benefit-form-reset" class="button button--ghost-dark" type="button">
+          Limpar
+        </button>
+      </div>
+
+      <form id="benefit-campaign-form" class="stack-form">
+        <input id="benefit-campaign-id" type="hidden">
+        <p id="benefit-rules-lock-note" class="notice-box" hidden>
+          A campanha já iniciou. Pontuação, período e participação estão protegidos.
+          Você pode ajustar o nome e as descrições dos prêmios. Para novas regras, crie outra campanha.
+        </p>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Nome da campanha</span>
+            <input id="benefit-name" required minlength="3" maxlength="100"
+              placeholder="Destaques Mototáxi Preá — Outubro">
+          </label>
+
+          <label class="field">
+            <span>Categoria</span>
+            <select id="benefit-category" required>
+              <option value="moto">Mototáxi</option>
+              <option value="car">Carro</option>
+              <option value="delivery">Entrega</option>
+              <option value="comfort_black">Comfort / 4x4</option>
+              <option value="buggy">Buggy</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Início</span>
+            <input id="benefit-starts-at" type="datetime-local" required>
+          </label>
+
+          <label class="field">
+            <span>Fim</span>
+            <input id="benefit-ends-at" type="datetime-local" required>
+          </label>
+
+          <label class="field">
+            <span>Regra territorial</span>
+            <select id="benefit-region-mode">
+              <option value="ride">Local da corrida</option>
+              <option value="driver_base">Base do motorista</option>
+              <option value="both">Base + local da corrida</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Participantes</span>
+            <select id="benefit-participant-mode">
+              <option value="eligible">Todos os elegíveis</option>
+              <option value="selected">Somente motoristas selecionados</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Top premiado</span>
+            <input id="benefit-top-count" type="number" min="1" max="50" value="3" required>
+          </label>
+
+          <label class="field">
+            <span>Mínimo de participantes</span>
+            <input id="benefit-min-participants" type="number" min="1" max="10000" value="5" required>
+          </label>
+        </div>
+
+        <fieldset class="benefits-fieldset">
+          <legend>Regiões participantes</legend>
+          <p class="muted-copy">
+            Deixe sem seleção para toda a operação. As localidades publicadas em
+            Operação e Tarifas são carregadas automaticamente quando disponíveis.
+          </p>
+          <select id="benefit-regions" class="benefits-multiselect" multiple size="7"></select>
+        </fieldset>
+
+        <div id="benefit-selected-drivers-field" class="benefits-two-columns">
+          <label id="benefit-selected-driver-ids-field" class="field" hidden>
+            <span>IDs dos motoristas participantes</span>
+            <textarea id="benefit-participant-driver-ids" rows="5"
+              placeholder="Um ID por linha"></textarea>
+          </label>
+          <label class="field">
+            <span>Excluir motoristas específicos</span>
+            <textarea id="benefit-excluded-driver-ids" rows="5"
+              placeholder="Um ID por linha"></textarea>
+          </label>
+        </div>
+
+        <fieldset class="benefits-fieldset">
+          <legend>Pontuação</legend>
+          <div class="form-grid">
+            <label class="field">
+              <span>Pontos por corrida concluída</span>
+              <input id="benefit-ride-points" type="number" min="0" max="100000" value="20" required>
+            </label>
+            <label class="field">
+              <span>Bônus por avaliação 5★</span>
+              <input id="benefit-five-star-points" type="number" min="0" max="100000" value="5" required>
+            </label>
+            <label class="field">
+              <span>Bônus por avaliação 4★</span>
+              <input id="benefit-four-star-points" type="number" min="0" max="100000" value="2" required>
+            </label>
+            <label class="field">
+              <span>Máx. cancelamentos para bônus (%)</span>
+              <input id="benefit-cancel-max-percent" type="number" min="0" max="100" step="0.01" value="5" required>
+            </label>
+            <label class="field">
+              <span>Bônus por baixo cancelamento</span>
+              <input id="benefit-cancel-bonus" type="number" min="0" max="100000" value="100" required>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="benefits-fieldset">
+          <legend>Missões</legend>
+          <p class="muted-copy">
+            Uma por linha: <strong>corridas|meta|pontos|título</strong> ou
+            <strong>5estrelas|meta|pontos|título</strong>.
+          </p>
+          <textarea id="benefit-missions" rows="4"
+            placeholder="corridas|50|200|Complete 50 corridas&#10;5estrelas|10|80|Receba 10 avaliações 5 estrelas"></textarea>
+        </fieldset>
+
+        <fieldset class="benefits-fieldset">
+          <legend>Prêmios</legend>
+          <p class="muted-copy">
+            Uma posição por linha: <strong>posição|descrição</strong>.
+            Ex.: 1|R$ 500 via Pix. A descrição não gera pagamento automático.
+          </p>
+          <textarea id="benefit-prizes" rows="4"
+            placeholder="1|R$ 500 via Pix&#10;2|R$ 300 via Pix&#10;3|Kit Ramo Nessa"></textarea>
+        </fieldset>
+
+        <button id="benefit-save" class="button button--primary" type="submit">
+          Criar campanha em rascunho
+        </button>
+      </form>
+    </article>
+
+    <aside class="benefits-side-stack">
+      <article class="panel-card">
+        <div class="panel-card__header">
+          <div>
+            <span class="eyebrow eyebrow--dark">BASE TERRITORIAL</span>
+            <h2>Base do motorista</h2>
+          </div>
+        </div>
+        <p class="muted-copy">
+          Use quando uma campanha precisar considerar “motoristas de Preá”,
+          “motoristas de Jijoca” ou outra base cadastrada.
+        </p>
+        <form id="benefit-base-form" class="stack-form">
+          <label class="field">
+            <span>ID do motorista</span>
+            <input id="benefit-base-driver-id" required maxlength="120">
+          </label>
+          <label class="field">
+            <span>Zona</span>
+            <input id="benefit-base-zone" required maxlength="80" placeholder="prea">
+          </label>
+          <label class="field">
+            <span>Localidade (opcional)</span>
+            <input id="benefit-base-locality" maxlength="120">
+          </label>
+          <div class="benefits-action-row">
+            <button class="button button--dark" type="submit">Salvar base</button>
+            <button id="benefit-base-clear" class="button button--ghost-dark" type="button">
+              Limpar base
+            </button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel-card">
+        <span class="eyebrow eyebrow--dark">REGRAS DE SEGURANÇA</span>
+        <h2>Como a classificação é formada</h2>
+        <ul class="benefits-rules">
+          <li>Somente corridas concluídas e elegíveis geram pontos de corrida.</li>
+          <li>Avaliações contam somente em corridas concluídas da campanha.</li>
+          <li>Cancelamentos do motorista entram apenas no indicador de qualidade.</li>
+          <li>Categoria e região são verificadas antes de pontuar.</li>
+          <li>Motoristas excluídos ou fora da seleção não aparecem no ranking.</li>
+        </ul>
+      </article>
+    </aside>
+  </div>
+
+  <article class="panel-card">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">CAMPANHAS</span>
+        <h2>Campanhas cadastradas</h2>
+      </div>
+      <span id="benefits-campaign-count" class="pill">0 campanhas</span>
+    </div>
+    <div id="benefits-campaign-list" class="benefits-campaign-list"></div>
+    <div id="benefits-campaign-empty" class="empty-state">
+      Nenhuma campanha cadastrada.
+    </div>
+  </article>
+
+  <article id="benefits-leaderboard-card" class="panel-card" hidden>
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">CLASSIFICAÇÃO</span>
+        <h2 id="benefits-leaderboard-title">Ranking</h2>
+        <p id="benefits-leaderboard-meta" class="muted-copy"></p>
+      </div>
+      <button id="benefits-leaderboard-close" class="button button--ghost-dark" type="button">
+        Fechar
+      </button>
+    </div>
+    <div id="benefits-podium" class="benefits-podium"></div>
+    <div class="table-wrap">
+      <table class="directory-table">
+        <thead>
+          <tr>
+            <th>Posição</th>
+            <th>Motorista</th>
+            <th>Pontos</th>
+            <th>Corridas</th>
+            <th>Avaliação</th>
+          </tr>
+        </thead>
+        <tbody id="benefits-leaderboard-body"></tbody>
+      </table>
+    </div>
+  </article>
+</section>

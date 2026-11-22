@@ -1,0 +1,329 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/data/http_passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
+
+void main() {
+  test('política de pagamentos controla disponibilidade de dinheiro', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'cashEnabled': false,
+          'paymentRequiredBeforeDispatch': true,
+          'passengerWalletEnabled': true,
+          'pixPriceAdjustmentBps': 99,
+          'cardPriceAdjustmentBps': 498,
+          'mercadoPagoPublicKey':
+              'APP_USR-public-key-dynamic-1234567890',
+          'allowedMethods': ['pix', 'card', 'wallet'],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-policy-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final policy = await service.paymentPolicy();
+
+    expect(captured.method, 'GET');
+    expect(captured.url.path, '/v1/payments/policy');
+    expect(captured.url.toString().contains('passenger-policy-token'), isFalse);
+    expect(
+      captured.headers['authorization'],
+      'Bearer passenger-policy-token-abcdefghijklmnopqrstuvwxyz',
+    );
+    expect(policy.cashEnabled, isFalse);
+    expect(policy.cashAvailable, isFalse);
+    expect(policy.pixPriceAdjustmentBps, 99);
+    expect(policy.pixTotalAmountCents(15000), 15150);
+    expect(policy.pixAdjustmentCents(15000), 150);
+    expect(policy.cardPriceAdjustmentBps, 498);
+    expect(policy.cardTotalAmountCents(15000), 15787);
+    expect(policy.cardAdjustmentCents(15000), 787);
+    expect(
+      policy.mercadoPagoPublicKey,
+      'APP_USR-public-key-dynamic-1234567890',
+    );
+    expect(policy.allowedMethods, containsAll(['pix', 'card', 'wallet']));
+    expect(policy.allowedMethods, isNot(contains('cash')));
+  });
+
+  test('política ignora Public Key inválida e preserva fallback seguro', () {
+    final policy = PassengerPaymentPolicy.fromJson({
+      'cashEnabled': false,
+      'paymentRequiredBeforeDispatch': true,
+      'passengerWalletEnabled': false,
+      'allowedMethods': ['pix', 'card'],
+      'mercadoPagoPublicKey': 'Access Token com espaços',
+    });
+
+    expect(policy.mercadoPagoPublicKey, isNull);
+    expect(policy.cardAvailable, isTrue);
+  });
+
+  test('autorização cash usa a rota de pagamentos e body cash', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'authorization': {
+            'method': 'cash',
+            'status': 'authorized',
+            'amountCents': 4500,
+          },
+          'ride': {
+            'id': 'ride-cash-http',
+            'state': 'SEARCHING_DRIVER',
+          },
+          'dispatchStatus': 'SEARCHING_DRIVER',
+          'duplicateAuthorization': false,
+          'cashPolicy': {
+            'effectiveDebtLimitCents': 12000,
+            'currentDebtCents': 0,
+            'projectedDebtCents': 450,
+          },
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-cash-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.authorizeCashRide(
+      rideId: 'ride-cash-http',
+      idempotencyKey: 'cash-http-idempotency-key',
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/v1/rides/ride-cash-http/payments');
+    expect(captured.url.toString().contains('passenger-cash-token'), isFalse);
+    expect(
+      captured.headers['authorization'],
+      'Bearer passenger-cash-token-abcdefghijklmnopqrstuvwxyz',
+    );
+    expect(
+      captured.headers['idempotency-key'],
+      'cash-http-idempotency-key',
+    );
+    expect(jsonDecode(captured.body), {'method': 'cash'});
+    expect(result.authorized, isTrue);
+    expect(result.amountCents, 4500);
+    expect(result.dispatchStatus, 'SEARCHING_DRIVER');
+    expect(result.duplicateAuthorization, isFalse);
+  });
+
+  test('criação Pix usa Orders pelo Core e retorna QR/copia e cola', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'payment': {
+            'id': 'payment-pix-http',
+            'status': 'pending',
+          },
+          'pix': {
+            'orderId': 'ORD01PIXHTTP123456789',
+            'paymentId': 'PAY01PIXHTTP123456789',
+            'status': 'created',
+            'statusDetail': 'waiting_payment',
+            'ticketUrl': 'https://example.test/pix',
+            'qrCode': '000201010212-test-pix',
+            'qrCodeBase64': '',
+          },
+          'simulated': false,
+          'actionable': true,
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-pix-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.createPixRidePayment(
+      rideId: 'ride-pix-http',
+      idempotencyKey: 'pix-http-idempotency-key',
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/v1/rides/ride-pix-http/payments');
+    expect(
+      captured.headers['authorization'],
+      'Bearer passenger-pix-token-abcdefghijklmnopqrstuvwxyz',
+    );
+    expect(
+      captured.headers['idempotency-key'],
+      'pix-http-idempotency-key',
+    );
+    expect(jsonDecode(captured.body), {
+      'method': 'pix',
+    });
+    expect(result.internalPaymentStatus, 'pending');
+    expect(result.orderId, 'ORD01PIXHTTP123456789');
+    expect(result.qrCode, '000201010212-test-pix');
+  });
+
+  test('cartão envia somente token PCI e metadados necessários ao Core', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'payment': {
+            'id': 'payment-card-http',
+            'status': 'pending',
+          },
+          'card': {
+            'orderId': 'ORD01CARDHTTP123456789',
+            'paymentId': 'PAY01CARDHTTP123456789',
+            'status': 'action_required',
+            'statusDetail': 'pending_challenge',
+            'challengeUrl': 'https://secure.example.test/challenge',
+          },
+          'ride': {
+            'id': 'ride-card-http',
+            'state': 'AWAITING_PAYMENT',
+          },
+          'paymentConfirmed': false,
+          'simulated': false,
+          'actionable': true,
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-card-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.createCardRidePayment(
+      rideId: 'ride-card-http',
+      idempotencyKey: 'card-http-idempotency-key',
+      cardToken: 'secure-token-NaN',
+      paymentMethodId: 'master',
+      paymentMethodType: 'credit_card',
+    );
+
+    final body = jsonDecode(captured.body) as Map<String, dynamic>;
+    expect(captured.url.path, '/v1/rides/ride-card-http/payments');
+    expect(body['method'], 'card');
+    expect(body['paymentMethodId'], 'master');
+    expect(body['paymentMethodType'], 'credit_card');
+    expect(body['installments'], 1);
+    expect(body.containsKey('payerEmail'), isFalse);
+    expect(body.containsKey('cardNumber'), isFalse);
+    expect(body.containsKey('cvv'), isFalse);
+    expect(result.status, 'action_required');
+    expect(result.challengeUrl, 'https://secure.example.test/challenge');
+  });
+
+  test('recarga da carteira usa somente Pix e envia e-mail no pagamento', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'topup': {
+            'id': '11111111-2222-4333-8444-555555555555',
+            'status': 'pending',
+            'amountCents': 5000,
+            'createdAt': '2026-09-28T12:00:00.000Z',
+            'updatedAt': '2026-09-28T12:00:00.000Z',
+          },
+          'actionable': true,
+          'action': {
+            'kind': 'pix',
+            'orderId': 'ORD01WALLETTOPUP123456',
+            'ticketUrl': 'https://example.test/wallet-pix',
+            'qrCode': '000201010212-wallet-topup',
+            'qrCodeBase64': '',
+          },
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-wallet-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.createPixWalletTopup(
+      amountCents: 5000,
+      idempotencyKey: 'wallet-pix-http-idempotency',
+      payerEmail: 'passageiro@example.com',
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/v1/wallet/topups');
+    expect(captured.headers['idempotency-key'], 'wallet-pix-http-idempotency');
+    expect(jsonDecode(captured.body), {
+      'method': 'pix',
+      'amountCents': 5000,
+      'payerEmail': 'passageiro@example.com',
+    });
+    expect(result.topup.amountCents, 5000);
+    expect(result.topup.status, 'pending');
+    expect(result.orderId, 'ORD01WALLETTOPUP123456');
+    expect(result.qrCode, '000201010212-wallet-topup');
+  });
+
+  test('histórico de recargas da carteira é carregado pelo Core', () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'topups': [
+            {
+              'id': 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+              'status': 'paid',
+              'amountCents': 7500,
+              'createdAt': '2026-09-28T12:00:00.000Z',
+              'updatedAt': '2026-09-28T12:01:00.000Z',
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-wallet-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final history = await service.walletTopups(limit: 30);
+
+    expect(history, hasLength(1));
+    expect(history.single.status, 'paid');
+    expect(history.single.amountCents, 7500);
+  });
+
+}
