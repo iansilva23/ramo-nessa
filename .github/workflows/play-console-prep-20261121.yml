@@ -37,6 +37,8 @@ jobs:
           - app: driver
             upper: DRIVER
     env:
+      # Increment for each new Play release. Both app IDs have independent counters.
+      PLAY_VERSION_CODE: '1'
       RAMO_PREVIEW_SIGNING: 'false'
       RAMO_PRODUCTION_SIGNING: 'false'
       RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
@@ -86,7 +88,7 @@ jobs:
       - name: Build unsigned AAB for verification only
         working-directory: apps/${{ matrix.app }}
         run: |
-          flutter build appbundle --release --no-pub --build-number="$(date +%s)" \
+          flutter build appbundle --release --no-pub --build-number="$PLAY_VERSION_CODE" \
             --dart-define=RAMO_PREVIEW_MODE=false \
             --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
             --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
@@ -105,14 +107,14 @@ jobs:
             exit 1
           fi
           mkdir -p artifacts/play
-          name="RamoNessa-${{ matrix.app }}-Play-VERIFICACAO-SEM-ASSINATURA.aab"
+          name="RamoNessa-${{ matrix.app }}-Play-v${PLAY_VERSION_CODE}-SEM-ASSINATURA.aab"
           cp "$file" "artifacts/play/$name"
           git rev-parse HEAD > artifacts/play/SOURCE.txt
           cd artifacts/play
           sha256sum "$name" > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: android-${{ matrix.app }}-unsigned-release-preparation
+          name: android-${{ matrix.app }}-play-v1-unsigned
           path: apps/${{ matrix.app }}/artifacts/play/
           if-no-files-found: error
           retention-days: 7
