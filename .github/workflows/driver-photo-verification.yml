@@ -1,0 +1,316 @@
+name: Driver photo verification
+on:
+  push:
+    branches: [feat/driver-photo-verification]
+    paths:
+      - 'apps/driver/**'
+      - 'backend/core/**'
+      - 'apps/admin/**'
+      - 'deploy/test/driver-photos/**'
+      - '.github/workflows/driver-photo-verification.yml'
+permissions:
+  contents: read
+jobs:
+  compression:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/driver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: >-
+          flutter analyze lib/src/features/photo_verification test/driver_verification_photo_test.dart
+          lib/src/features/home/data/http_driver_api.dart
+          lib/src/features/profile/presentation/driver_documents_screen.dart
+          lib/src/features/registration/driver_registration_gate.dart
+      - run: flutter build web --no-pub
+      - run: flutter test --no-pub test/driver_verification_photo_test.dart test/driver_photo_screen_test.dart
+      - run: flutter test --no-pub --platform chrome test/driver_photo_browser_test.dart
+      - name: Build same-origin web preview for local homologation
+        run: flutter build web --debug --no-pub --base-href=/motorista/ --dart-define=RAMO_PREVIEW_MODE=false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-web-preview
+          path: apps/driver/build/web
+          if-no-files-found: error
+  database:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend/core
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramo
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: ramo_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ramo -d ramo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramo:ci-test-only@localhost:5432/ramo_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run db:migrate
+      - name: Verify photo submission and review
+        run: >-
+          PHOTO_TEST_DATABASE_URL="$DATABASE_URL" npx --no-install tsx --test --test-concurrency=1
+          test/driver_verification_photos.test.ts test/driver_verification_avatar_route.test.ts test/self_account_deletion.test.ts
+      - name: Verify vehicle revisions
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO driver_profiles (driver_id, full_name, status, created_at, updated_at)
+          VALUES ('photo-ci', 'Motorista de Teste', 'pending', now(), now());
+          INSERT INTO driver_vehicles (
+            id, driver_id, plate_normalized, make, model, model_year, color, categories,
+            seat_capacity, status, created_at, updated_at
+          ) VALUES (
+            'af1b446c-ed48-4af4-b604-3c4fd0b7ca23', 'photo-ci', 'ABC1D23', 'Marca',
+            'Modelo', 2024, 'Branco', ARRAY['car'], 4, 'pending', now(), now()
+          );
+          UPDATE driver_vehicles SET status = 'approved' WHERE driver_id = 'photo-ci';
+          DO $$ BEGIN
+            IF (SELECT photo_verification_revision FROM driver_vehicles WHERE driver_id = 'photo-ci') <> 1 THEN
+              RAISE EXCEPTION 'Approval changed the vehicle photo revision';
+            END IF;
+          END $$;
+          UPDATE driver_vehicles SET plate_normalized = 'DEF4G56' WHERE driver_id = 'photo-ci';
+          DO $$ BEGIN
+            IF (SELECT photo_verification_revision FROM driver_vehicles WHERE driver_id = 'photo-ci') <> 2 THEN
+              RAISE EXCEPTION 'Vehicle change did not advance the photo revision';
+            END IF;
+          END $$;
+          ROLLBACK;
+          SQL
+  admin:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check src/driver-photo-review.js
+      - run: npm run check
+      - run: npm test
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/driver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build Android preview connected to the isolated gateway
+        env:
+          RAMO_PHOTO_HOMOLOGATION: 'true'
+        run: >-
+          flutter build apk --debug --no-pub --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=http://127.0.0.1:18765
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-android-preview
+          path: apps/driver/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+  android-connected:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="Motorista Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="Motorista Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - name: Analyze and test Android application
+        working-directory: apps/driver
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/driver
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/signature.txt"
+          fingerprint=$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]+)$/\1/p' "$RUNNER_TEMP/signature.txt")
+          test "$fingerprint" = 21867b7cf8beb84b4c55d648e7be3aa18f0ca78a5c57d18c1557fb503cd9efc9
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.driver.preview'\"))throw Error('Unexpected APK application ID')"
+          version=$(sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p" "$RUNNER_TEMP/package.txt")
+          test "$version" -gt 1795104000
+          mkdir -p artifacts/android
+          printf '%s\n' "$fingerprint" > artifacts/android/CERTIFICATE-SHA256.txt
+          cp "$apk" artifacts/android/RamoNessa-Motorista-Android-Foto-Oficial-Homologacao.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          git rev-parse HEAD > artifacts/android/SOURCE.txt
+          cd artifacts/android
+          sha256sum RamoNessa-Motorista-Android-Foto-Oficial-Homologacao.apk > SHA256SUMS
+          printf '%s\n' 'Motorista Android conectado a https://app.ramonessa.com.br. Fonte registrada em SOURCE.txt. RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.driver.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-driver-android-foto-oficial-homologacao
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+  homologation:
+    runs-on: ubuntu-24.04
+    needs: [compression]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-photo-web-preview
+          path: apps/driver/build/web
+      - run: node deploy/test/driver-photos/stack.mjs up
+      - run: node deploy/test/driver-photos/smoke.mjs
+      - if: always()
+        run: node deploy/test/driver-photos/stack.mjs down
+  vps-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=driver
+      - working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b \
+            --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+      - run: node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Package the approved avatar update
+        run: |
+          set -euo pipefail
+          npm ci --prefix backend/core
+          npm run build --prefix backend/core
+          folder=artifacts/photo-avatar
+          mkdir -p "$folder"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cp backend/core/dist/src/drivers/driver-verification-photo{s,-routes}.js "$folder/"
+          tar -C apps/driver/build/web -czf "$folder/motorista-web.tar.gz" .
+          cd "$folder"
+          sha256sum SOURCE_COMMIT.txt *.js motorista-web.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-avatar-vps
+          path: artifacts/photo-avatar
+          if-no-files-found: error
+      - name: Package Core source and the Motorista and ADM changes
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/photo-vps
+          git rev-parse HEAD > artifacts/photo-vps/SOURCE_COMMIT.txt
+          git archive HEAD backend/core | gzip -n > artifacts/photo-vps/core-source.tar.gz
+          git archive HEAD apps/admin/pages/drivers.html apps/admin/src/api.js apps/admin/src/app.js \
+            apps/admin/src/driver-photo-review.js | gzip -n > artifacts/photo-vps/adm-overlay.tar.gz
+          tar -C apps/driver/build/web -czf artifacts/photo-vps/motorista-web.tar.gz .
+          cd artifacts/photo-vps
+          sha256sum SOURCE_COMMIT.txt ./*.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-vps-candidate
+          path: artifacts/photo-vps
+          if-no-files-found: error
+  adm-photo-dossier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix backend/core
+      - run: npm run build --prefix backend/core
+      - run: npm test --prefix apps/admin
+      - name: Package the dossier routes for the active Core
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/photo-dossier
+          cp backend/core/dist/src/drivers/driver-verification-photo-routes.js backend/core/dist/src/drivers/driver-verification-photos.js artifacts/photo-dossier/
+          cp deploy/driver-photos/adm-fotos.patch artifacts/photo-dossier/
+          cd artifacts/photo-dossier
+          printf '%s\n' "$GITHUB_SHA" > SOURCE_COMMIT.txt
+          sha256sum ./* > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-photo-driver-dossier
+          path: artifacts/photo-dossier
+          if-no-files-found: error

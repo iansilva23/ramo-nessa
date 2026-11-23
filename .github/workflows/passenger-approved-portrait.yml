@@ -1,0 +1,127 @@
+name: Passenger approved driver portrait
+on:
+  push:
+    branches: [feat/driver-photo-verification]
+    paths:
+      - 'apps/passenger/**'
+      - 'backend/core/src/drivers/driver-verification-photo-routes.ts'
+      - '.github/workflows/passenger-approved-portrait.yml'
+      - 'deploy/driver-photos/publicar-retrato-passageiro.py'
+permissions:
+  contents: read
+jobs:
+  passenger-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=passenger
+      - working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - name: Verify access to the portrait and package the update
+        run: |
+          set -euo pipefail
+          npm ci --prefix backend/core
+          npm run build --prefix backend/core
+          cd backend/core
+          node --import tsx --test test/driver_verification_avatar_route.test.ts
+          cd ../..
+          folder=artifacts/passenger-driver-portrait
+          mkdir -p "$folder"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cp backend/core/dist/src/drivers/driver-verification-photo-routes.js "$folder/"
+          tar -C apps/passenger/build/web -czf "$folder/passageiro-web.tar.gz" .
+          cd "$folder"
+          sha256sum SOURCE_COMMIT.txt *.js passageiro-web.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-retrato-passageiro-vps
+          path: artifacts/passenger-driver-portrait
+          if-no-files-found: error
+  android-connected:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_CORE_BASE_URL: https://app.ramonessa.com.br
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_PREVIEW_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Validate Android browser-independent Maps and Firebase configuration
+        run: |
+          node tooling/validate-google-maps-key.mjs --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY --surface="Passageiro Android connected"
+          node tooling/validate-firebase-mobile-config.mjs --platform=android --surface="Passageiro Android connected"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/passenger
+      - name: Analyze and test Android application
+        working-directory: apps/passenger
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build connected Android APK with stable test signature
+        working-directory: apps/passenger
+        run: |
+          flutter build apk --release --no-pub \
+            --build-number="$(date +%s)" \
+            --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_CORE_BASE_URL="$RAMO_CORE_BASE_URL" \
+            --dart-define=RAMO_FIREBASE_API_KEY="$RAMO_FIREBASE_API_KEY" \
+            --dart-define=RAMO_FIREBASE_APP_ID="$RAMO_FIREBASE_APP_ID" \
+            --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID="$RAMO_FIREBASE_MESSAGING_SENDER_ID" \
+            --dart-define=RAMO_FIREBASE_PROJECT_ID="$RAMO_FIREBASE_PROJECT_ID" \
+            --dart-define=RAMO_FIREBASE_STORAGE_BUCKET="$RAMO_FIREBASE_STORAGE_BUCKET"
+      - name: Verify signature and package application identity
+        run: |
+          apk=apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/signature.txt"
+          fingerprint=$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]+)$/\1/p' "$RUNNER_TEMP/signature.txt")
+          test "$fingerprint" = 21867b7cf8beb84b4c55d648e7be3aa18f0ca78a5c57d18c1557fb503cd9efc9
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/package.txt"
+          node -e "if(!require('fs').readFileSync(process.env.RUNNER_TEMP+'/package.txt','utf8').includes(\"name='br.com.ramonessa.passenger.preview'\"))throw Error('Unexpected APK application ID')"
+          version=$(sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p" "$RUNNER_TEMP/package.txt")
+          test "$version" -gt 1795104000
+          mkdir -p artifacts/android
+          printf '%s\n' "$fingerprint" > artifacts/android/CERTIFICATE-SHA256.txt
+          cp "$apk" artifacts/android/RamoNessa-Passageiro-Android-Foto-Oficial-Homologacao.apk
+          cp "$RUNNER_TEMP/package.txt" artifacts/android/package.txt
+          git rev-parse HEAD > artifacts/android/SOURCE.txt
+          cd artifacts/android
+          sha256sum RamoNessa-Passageiro-Android-Foto-Oficial-Homologacao.apk > SHA256SUMS
+          printf '%s\n' 'Passageiro Android conectado a https://app.ramonessa.com.br. Fonte registrada em SOURCE.txt. RAMO_PREVIEW_MODE=false; assinatura de homologacao e pacote br.com.ramonessa.passenger.preview. Nao destinado a publicacao nas lojas. GPS, login e push exigem aceite no aparelho. Nenhuma configuração do servidor é alterada.' > LEIA-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-passenger-android-foto-oficial-homologacao
+          path: artifacts/android/
+          if-no-files-found: error
+          retention-days: 14

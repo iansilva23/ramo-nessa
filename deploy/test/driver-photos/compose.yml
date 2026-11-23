@@ -1,0 +1,39 @@
+services:
+  migrate:
+    image: ramo-nessa-core:photo-homologation
+  google-maps-mock:
+    image: ramo-nessa-core:photo-homologation
+    environment:
+      PORT: "8091"
+  storage-init:
+    image: alpine:3.22
+    volumes:
+      - photo_documents:/private-documents
+    command: ["sh", "-ec", "chown 1000:1000 /private-documents && chmod 700 /private-documents"]
+    restart: "no"
+  core:
+    image: ramo-nessa-core:photo-homologation
+    environment:
+      DOCUMENT_STORAGE_BASE_URL: ""
+      DOCUMENT_STORAGE_LOCAL_DIR: /private-documents
+      DRIVER_PHOTO_VERIFICATION_PREVIEW: "true"
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      google-maps-mock:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    volumes:
+      - photo_documents:/private-documents
+  gateway:
+    image: ramo-nessa-admin-gateway:photo-homologation
+    ports: !override
+      - "127.0.0.1:${TEST_HTTP_PORT}:8080"
+    volumes:
+      - ./driver-photos/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${PHOTO_WEB_DIRECTORY}:/srv/driver:ro
+volumes:
+  photo_documents:

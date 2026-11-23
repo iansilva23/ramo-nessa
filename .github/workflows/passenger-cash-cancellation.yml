@@ -1,0 +1,120 @@
+name: Driver panels, cash checkout and alert
+on:
+  push:
+    branches: [fix/passenger-cash-cancel-window]
+permissions:
+  contents: read
+jobs:
+  passenger-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramo
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: ramo_test
+        ports: ['5432:5432']
+        options: --health-cmd="pg_isready -U ramo -d ramo_test" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgres://ramo:ci-test-only@localhost:5432/ramo_test
+      RAMO_CANCELLATION_TEST_POSTGRES: 'true'
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - run: node --test scripts/web/driver_offer_tone_test.mjs scripts/web/push_worker_test.mjs
+      - name: Verify cash payments and cancellation against Postgres
+        working-directory: backend/core
+        run: |
+          npm ci
+          npm run db:migrate
+          npx tsx --test --test-concurrency=1 test/manual_cancellation_policy.test.ts test/postgres_manual_cancellations.test.ts test/postgres_cash_cancellation.test.ts test/cash_ride_authorization.test.ts test/payment_validation.test.ts test/prepayment_driver_confirmation.test.ts test/web_push_preferences.test.ts
+          npm run build
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=passenger
+      - working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub test/card_checkout_test.dart test/realtime_tracking_test.dart test/pix_back_reservation_test.dart test/flow_safety_test.dart test/manual_cancellation_panel_test.dart test/payment_policy_http_test.dart test/payment_method_toggle_ui_test.dart
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - run: node scripts/web/prepare_configured_web.mjs --role=driver
+      - working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          export CHROME_EXECUTABLE="$(command -v google-chrome)"
+          flutter test --platform chrome --no-pub test/driver_map_gestures_test.dart test/web_map_camera_test.dart test/driver_camera_follow_test.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          audio=Path('lib/src/features/home/presentation/offer_tone_player_native.dart')
+          audio.with_suffix('.dart.saved').write_bytes(audio.read_bytes())
+          audio.write_text('class OfferTonePlayer { void prepare() {} Future<void> startLoop() async {} Future<void> stop() async {} Future<void> dispose() async {} }')
+          for name in ('driver_flow_test.dart', 'realtime_offer_test.dart'):
+              p=Path('test')/name
+              source=p.read_text()
+              p.write_text("import 'package:flutter/services.dart';\n"+source.replace('void main() {', 'void main() {\n TestWidgetsFlutterBinding.ensureInitialized();\n setUp(() { TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel("br.com.ramonessa.driver/screen-lock"), (_) async => null); });', 1))
+          PY
+          flutter test --no-pub --reporter expanded test/driver_flow_test.dart test/realtime_offer_test.dart
+          mv lib/src/features/home/presentation/offer_tone_player_native.dart.saved lib/src/features/home/presentation/offer_tone_player_native.dart
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/motorista/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=de20bf289d6db3ad15fdb14b \
+            --dart-define=RAMO_WEB_CINEMATIC_TILT_ENABLED=true
+      - run: node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+      - name: Package both web apps and the cash payment modules
+        run: |
+          folder=artifacts/cancelamento-e-troco
+          mkdir -p "$folder"
+          cp apps/passenger/build/web/main.dart.js "$folder/passageiro.js"
+          cp apps/driver/build/web/main.dart.js "$folder/motorista.js"
+          cp apps/driver/build/web/{ramo_offer_tone,ramo_web_push,ramo_push_worker}.js "$folder/"
+          cp apps/driver/build/web/assets/assets/audio/nova_corrida.mp3 "$folder/"
+          cp backend/core/dist/src/rides/manual-cancellation-{policy,routes,store}.js "$folder/"
+          core=backend/core/dist/src
+          cp "$core"/rides/{authorize-cash,prepayment-driver-confirmation}.js "$core/payments/validation.js" "$folder/"
+          cp "$core/notifications/push-delivery-provider.js" "$folder/"
+          cp "$core"/drivers/driver-{app,ride}-service.js "$folder/"
+          cp "$core/matching/postgres-ride-matching-repository.js" "$core/rides/repositories/postgres-ride-repository.js" "$folder/"
+          cp backend/core/migrations/{109_cash_cancellation_window,110_cash_tendered_amount}.sql "$folder/"
+          cp deploy/driver-photos/publicar-cancelamento-dinheiro.py "$folder/"
+          cp deploy/driver-photos/publicar.py "$folder/"
+          curl -fsSL --max-time 60 'https://raw.githubusercontent.com/iansilva23/ramo-nessa/437d951ff1327fbd45cf305f41e90c686846181c/deploy/second-update/prepare.py' -o "$folder/prepare-guard.py"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cd "$folder"
+          sha256sum SOURCE_COMMIT.txt *.js *.sql *.py *.mp3 > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-paineis-troco-alerta-vps
+          path: artifacts/cancelamento-e-troco
+          if-no-files-found: error
+  android-alert:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - working-directory: apps/driver
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-pub lib/src/features/home/presentation/offer_tone_player_native.dart
+          flutter build apk --debug --no-pub

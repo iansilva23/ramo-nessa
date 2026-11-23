@@ -1,0 +1,79 @@
+<section id="view-pricing-publications" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">CONTROLE DE ALTERAÇÕES</span>
+      <h1>Rascunhos e publicações</h1>
+      <p>Um lugar só para conferir, aprovar e publicar alterações de preços e localidades. Nada entra em vigor ao salvar.</p>
+    </div>
+    <div class="dashboard-refresh">
+      <button id="publication-refresh" type="button" class="button button--ghost-dark">Atualizar</button>
+    </div>
+  </div>
+
+  <div id="publication-message" class="global-message" role="status" aria-live="polite" hidden></div>
+  <div class="pricing-publication-grid">
+    <article class="metric-card metric-card--signal">
+      <span class="metric-label">Versão em vigor</span>
+      <strong id="publication-active">Carregando…</strong>
+      <small>Os aplicativos usam somente a versão vigente</small>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Rascunhos aguardando revisão</span>
+      <strong id="publication-count">—</strong>
+      <small>Salvar não altera a tabela publicada</small>
+    </article>
+  </div>
+
+  <div class="publication-steps" aria-label="Etapas para atualizar tarifas">
+    <div><strong>1. Editar</strong><span>Faça mudanças em Operação e Tarifas ou Localidades</span></div>
+    <div><strong>2. Conferir</strong><span>Revise o rascunho nesta página</span></div>
+    <div><strong>3. Publicar</strong><span>Somente com permissão e confirmação explícita</span></div>
+  </div>
+
+  <div class="publication-layout">
+    <article class="panel-card">
+      <div class="panel-card__header"><div>
+        <span class="eyebrow eyebrow--dark">NÃO PUBLICADO</span>
+        <h2>Seus rascunhos</h2>
+        <p>Selecione o que deseja revisar. Rascunhos não afetam corridas.</p>
+      </div></div>
+      <div id="publication-drafts" class="publication-list" aria-live="polite"></div>
+      <div class="publication-links">
+        <a class="button button--ghost-dark" href="/administrodo/operacao-tarifas" data-view="pricing">Editar preços</a>
+        <a class="button button--ghost-dark" href="/administrodo/nova-localidade" data-view="localities">Editar localidades</a>
+      </div>
+    </article>
+
+    <article class="panel-card publication-review">
+      <div class="panel-card__header"><div>
+        <span class="eyebrow eyebrow--dark">REVISÃO ANTES DE PUBLICAR</span>
+        <h2 id="publication-selected-title">Selecione um rascunho</h2>
+        <p id="publication-selected-meta">O resumo não é uma autorização automática.</p>
+      </div></div>
+      <div id="publication-diff" class="publication-diff" aria-live="polite">
+        Escolha um rascunho para comparar com o catálogo atual.
+      </div>
+      <div id="publication-actions" hidden>
+        <p class="pricing-policy-help">Confira preços diurnos, noturnos, categorias, limites e localidades. A comparação é informativa: valores precisam de autorização comercial e homologação.</p>
+        <label class="publication-check">
+          <input id="publication-confirm-review" type="checkbox">
+          <span>Conferi as mudanças e tenho autorização para publicá-las neste ambiente.</span>
+        </label>
+        <div class="publication-action-buttons">
+          <button id="publication-publish" class="button button--primary" type="button" disabled>Publicar agora</button>
+          <button id="publication-discard" class="button button--ghost-dark" type="button">Excluir rascunho</button>
+        </div>
+        <p id="publication-permission" class="pricing-policy-help"></p>
+      </div>
+    </article>
+  </div>
+
+  <article class="panel-card">
+    <div class="panel-card__header"><div>
+      <span class="eyebrow eyebrow--dark">SOMENTE CONSULTA</span>
+      <h2>Histórico de versões publicadas</h2>
+      <p>O histórico não é editável. Para mudar uma tarifa, crie um novo rascunho.</p>
+    </div></div>
+    <div id="publication-history" class="publication-list"></div>
+  </article>
+</section>

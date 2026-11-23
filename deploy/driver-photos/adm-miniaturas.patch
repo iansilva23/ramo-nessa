@@ -1,0 +1,170 @@
+diff --git a/src/app.js b/src/app.js
+index 5a9987a..abc9bfb 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -550,9 +550,13 @@ function loadDriverPhotoReview(driverId) {
+   const target = byId('driver-photo-review-result');
+   if (!card || !target || !state.token || !hasScope('drivers:documents:read')) return;
+   card.hidden = false;
+-  driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
+-    canWrite: () => hasScope('drivers:documents:write') });
+-  void driverPhotoReview.load();
++  try {
++    driverPhotoReview = createDriverPhotoReview({ api, token: state.token, target, driverId,
++      canWrite: () => hasScope('drivers:documents:write') });
++    void driverPhotoReview.load();
++  } catch {
++    target.textContent = 'Não foi possível abrir a revisão das fotos. Reabra a ficha para tentar novamente.';
++  }
+ }
+ 
+ function closeDriverDocumentInspection() {
+@@ -2252,7 +2256,6 @@ function renderDriverDocumentsUnavailable(
+ ) {
+   closeDriverDocumentInspection();
+   state.currentDriverDocuments = null;
+-  clearDriverPhotoReview();
+   renderDriverDocumentComplianceUnavailable();
+   const target = byId('driver-documents-result');
+   target.replaceChildren();
+@@ -2285,7 +2288,6 @@ async function loadDriverDocuments(driverId) {
+     return;
+   }
+ 
+-  loadDriverPhotoReview(driverId);
+   try {
+     const [payload, compliance] = await Promise.all([
+       api.getDriverDocuments(token, driverId),
+@@ -8056,6 +8058,7 @@ async function lookupDriver(driverId) {
+   const version = ++driverLookupSequence;
+   const current = () => driverLookupSequence === version && state.token === token
+     && byId('driver-documents-result') != null;
++  clearDriverPhotoReview();
+   state.currentDriver = null;
+   state.currentDriverRegistry = null;
+   state.currentDriverDocuments = null;
+@@ -8075,6 +8078,7 @@ async function lookupDriver(driverId) {
+     state.currentDriver = driver;
+     state.currentDriverRegistry = null;
+     renderDriver(driver);
++    loadDriverPhotoReview(driverId);
+     await loadDriverRegistry(driverId);
+     if (!current()) return;
+     await loadDriverDocuments(driverId);
+diff --git a/src/driver-photo-review.js b/src/driver-photo-review.js
+index df494d3..e3109ad 100644
+--- a/src/driver-photo-review.js
++++ b/src/driver-photo-review.js
+@@ -30,6 +30,27 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
+   let objectUrl = null;
+   let selected = null;
+   let active = true;
++  const thumbnails = new Set();
++
++  function releaseThumbnails() {
++    for (const url of thumbnails) URL.revokeObjectURL(url);
++    thumbnails.clear();
++  }
++
++  async function showThumbnail(photo, tile, version) {
++    try {
++      const response = await api.driverVerificationImage(token, photo.id, false);
++      if (version !== queueVersion || !active || !target.isConnected) return;
++      const image = element('img');
++      image.alt = photoLabel(photo);
++      const url = URL.createObjectURL(new Blob([response.bytes], { type: 'image/jpeg' }));
++      thumbnails.add(url);
++      image.src = url;
++      tile.replaceChildren(image);
++    } catch (_) {
++      if (version === queueVersion && active) tile.textContent = 'Prévia indisponível';
++    }
++  }
+ 
+   const root = element('div', '', 'driver-photo-workspace');
+   const list = element('div', '', 'driver-photo-groups');
+@@ -200,7 +221,7 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
+     preview.append(form);
+   }
+ 
+-  function renderPhotos(photos) {
++  function renderPhotos(photos, version) {
+     const byType = new Map(photos.map((photo) => [photo.type, photo]));
+     const statuses = { pending: 'Aguardando análise', approved: 'Aprovada', rejected: 'Reenvio solicitado' };
+     for (const [type, label] of Object.entries(labels)) {
+@@ -212,26 +233,29 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
+       if (photo?.status === 'rejected' && photo.reason) {
+         identity.append(element('p', photo.reason, 'muted-copy'));
+       }
+-      row.append(identity);
++      const thumbnail = element('div', photo ? 'Carregando prévia…' : 'Sem foto', 'driver-photo-thumbnail');
++      row.append(thumbnail, identity);
+       if (photo) {
+         const control = button(photo.status === 'pending' ? 'Revisar foto' : 'Ver foto',
+           () => open(photo, control), 'button button--ghost-dark');
+         row.append(control);
+       }
+       list.append(row);
++      if (photo) void showThumbnail(photo, thumbnail, version);
+     }
+   }
+ 
+   async function load(confirmation = '') {
+     const version = ++queueVersion;
+     resetPreview();
++    releaseThumbnails();
+     list.replaceChildren();
+     feedback('Carregando fotos…');
+     try {
+       const data = await api.driverVerificationPhotos(token, driverId);
+       if (version !== queueVersion || !active || !target.isConnected) return;
+       if (!data.photos.length) resetPreview('Nenhuma foto enviada por este motorista.');
+-      renderPhotos(data.photos);
++      renderPhotos(data.photos, version);
+       feedback(confirmation, confirmation ? 'success' : 'neutral');
+     } catch (error) {
+       if (version === queueVersion && active) feedback(queueError(error), 'danger');
+@@ -248,5 +272,5 @@ export function createDriverPhotoReview({ api, token, canWrite, target, driverId
+   target.replaceChildren(root);
+   feedback();
+   void loadPolicy();
+-  return { load, destroy() { active = false; releaseImage(); target.replaceChildren(); } };
++  return { load, destroy() { active = false; releaseImage(); releaseThumbnails(); target.replaceChildren(); } };
+ }
+diff --git a/styles.css b/styles.css
+index fbfbe59..3f1e2df 100644
+--- a/styles.css
++++ b/styles.css
+@@ -1886,6 +1886,32 @@ td strong {
+   padding: 12px;
+ }
+ 
++.driver-photo-thumbnail {
++  display: grid;
++  place-items: center;
++  flex: 0 0 52px;
++  width: 52px;
++  height: 52px;
++  overflow: hidden;
++  border-radius: 8px;
++  background: var(--surface);
++  color: var(--ink-soft);
++  font-size: 9px;
++  text-align: center;
++}
++
++.driver-photo-thumbnail img {
++  display: block;
++  width: 100%;
++  height: 100%;
++  object-fit: contain;
++}
++
++.driver-photo-group__identity {
++  flex: 1;
++  min-width: 0;
++}
++
+ .driver-photo-group + .driver-photo-group {
+   border-top: 1px solid var(--border);
+ }

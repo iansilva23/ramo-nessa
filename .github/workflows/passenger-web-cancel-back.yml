@@ -1,0 +1,45 @@
+name: Passenger Web Back cancellation
+on:
+  push:
+    branches: [fix/passenger-web-cancel-back]
+permissions:
+  contents: read
+jobs:
+  passenger-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify that deployment is limited to the Passenger checkout
+        run: |
+          git diff --exit-code 4ee0c0e456414f9a0ef6e92e7daa15fe30394300 HEAD -- backend apps/driver apps/admin apps/passenger/android apps/passenger/ios apps/passenger/web apps/passenger/lib/src/features/home config packages
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: node scripts/web/prepare_configured_web.mjs --role=passenger
+      - working-directory: apps/passenger
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub test/card_checkout_test.dart test/realtime_tracking_test.dart test/pix_back_reservation_test.dart test/flow_safety_test.dart test/manual_cancellation_panel_test.dart
+          flutter build web --release --no-pub --no-web-resources-cdn --base-href=/passageiro/ \
+            --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false
+      - run: node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - name: Package only the Passenger Web JavaScript
+        run: |
+          folder=artifacts/cancelamento-passageiro
+          mkdir -p "$folder"
+          cp apps/passenger/build/web/main.dart.js "$folder/"
+          printf '%s\n' "$GITHUB_SHA" > "$folder/SOURCE_COMMIT.txt"
+          cd "$folder"
+          sha256sum main.dart.js SOURCE_COMMIT.txt > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-cancelamento-passageiro-web-vps
+          path: artifacts/cancelamento-passageiro
+          if-no-files-found: error
