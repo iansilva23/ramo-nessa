@@ -1,31 +1,33 @@
 # Ramo Nessa
 
-Plataforma de mobilidade local em Flutter, com foco inicial em **Carro, Moto e Entrega**.
+Plataforma de mobilidade local para **Jericoacoara, Preá e Jijoca de Jericoacoara**, com aplicativos Flutter para Passageiro e Motorista, painel administrativo e API própria.
 
-## Estrutura
+> **Software proprietário. Copyright © 2026 Ian Silva. Todos os direitos reservados.**
+> A licença e o aviso de titularidade estão na [revisão de referência](https://github.com/iansilva23/ramo-nessa/blob/build/android-sync-20261121/LICENSE).
 
-- `apps/passenger` — aplicativo do passageiro
-- `apps/driver` — aplicativo do motorista
-- `apps/admin` — painel administrativo
-- `backend/core` — API e regras de negócio
-- `packages/design_system` — componentes, tema, motion e identidade
-- `packages/shared` — modelos e utilitários compartilhados
-- `docs` — arquitetura, decisões, auditoria e roadmap
+## Estado do projeto
 
-## Estado atual
+| Área | Situação em 23/11/2026 |
+| --- | --- |
+| Plataforma | O Core implementa autenticação, cotação, busca de motoristas, atualização da corrida e pagamentos. O painel administrativo gerencia a operação e as regras comerciais. |
+| Web | O Passageiro está disponível no navegador. A versão web já recebeu a atualização da tela de pagamento em dinheiro com opção de troco. |
+| Android | Passageiro e Motorista têm builds de homologação. Os pacotes AAB preparados em 23/11 estão sem assinatura de upload. |
+| iOS | O projeto tem suporte a builds nativos em Flutter. A validação em iPhone físico e a preparação para distribuição pela App Store seguem pendentes. |
 
-O app Passageiro já possui base Flutter Android/iOS, Design System, GPS em primeiro plano, mapa, busca explícita de destino, rota, distância e ETA em ambiente de desenvolvimento.
+O catálogo do projeto contempla Carro, Mototáxi, Entrega, Buggy e Comfort/Black. A disponibilidade por categoria depende da configuração da operação.
 
-O matching com motoristas, backend, autenticação, preço real, pagamentos e operação comercial **ainda não estão implementados**. Valores de preço existentes são provisórios.
+## Código e documentação
 
-Consulte `docs/RELEASE_BLOCKERS.md` antes de tratar um build como pronto para distribuição.
+A branch padrão `main` contém a base inicial do projeto. A [branch usada na preparação do Android em 21/11](https://github.com/iansilva23/ramo-nessa/tree/build/android-sync-20261121) é uma referência para o código mais recente dos apps e do Core. A versão publicada na web tem seu próprio histórico de releases.
 
-## Princípios
+| Diretório | Componente |
+| --- | --- |
+| `apps/passenger` | Aplicativo do Passageiro |
+| `apps/driver` | Aplicativo do Motorista |
+| `apps/admin` | Painel administrativo |
+| `backend/core` | API e regras de negócio em Node.js e TypeScript |
+| `packages/design_system` | Tema e componentes compartilhados |
+| `packages/shared` | Modelos e utilitários compartilhados |
+| `docs` | Arquitetura, decisões e documentação de publicação |
 
-- Flutter moderno para Android e iOS
-- UX premium e fluida
-- segurança e regras críticas no backend
-- componentes reutilizáveis e arquitetura modular
-- rastreamento em tempo real
-- suporte a Carro, Moto e Entrega
-- localização e pagamentos adaptados ao Brasil
+Consulte o [checklist de publicação](docs/RELEASE_BLOCKERS.md) para acompanhar as pendências de distribuição e homologação.
