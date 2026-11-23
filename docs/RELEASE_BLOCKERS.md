@@ -1,59 +1,23 @@
-# Bloqueios atuais de publicação
+# Checklist de publicação
 
-Este arquivo separa **compilação técnica** de **prontidão comercial**.
+Última revisão em 23/11/2026. O Passageiro Web já recebeu a atualização do pagamento em dinheiro com opção de troco. Os aplicativos de Passageiro e Motorista para as lojas seguem em preparação.
 
-O Ramo Nessa ainda não deve ser publicado como produto final.
+## Android e Google Play
 
-## Bloqueios obrigatórios
+- [ ] Assinar os dois AABs com a chave de upload correspondente a cada app e verificar os pacotes finais.
+- [ ] Conferir os identificadores, a API de destino e a compatibilidade com páginas de memória de 16 KB nos artefatos finais.
+- [ ] Instalar os apps por uma faixa de testes do Google Play e validar localização, mapas, notificações e o fluxo de corrida em aparelhos físicos.
+- [ ] No Passageiro, conferir a seleção de categoria, a cotação, o pagamento e a recuperação do fluxo ao voltar ou reabrir o app.
 
-1. **Backend/Core ainda não existe**
-   - matching;
-   - autoridade da corrida;
-   - pricing;
-   - autenticação/autorização;
-   - notificações;
-   - pagamentos;
-   - auditoria.
+## iOS e App Store
 
-2. **Matching real está desabilitado**
-   - o protótipo de "motorista encontrado" permanece apenas como referência visual;
-   - o fluxo normal não entra nele.
+- [ ] Confirmar a configuração de assinatura e distribuição de Passageiro e Motorista.
+- [ ] Validar os builds nativos em iPhone físico antes de finalizar o envio à loja.
+- [ ] No Passageiro Web, conferir no Safari do iPhone a tela de troco com o teclado aberto e a confirmação do pagamento em dinheiro.
 
-3. **Preços ainda são provisórios**
-   - valores exibidos no Passageiro não são preço de produção.
+## Conta e documentação legal
 
-4. **Android release usa assinatura de debug para auditoria de compilação**
-   - serve somente para provar que o release compila;
-   - não é assinatura válida para distribuição na Play Store;
-   - uma keystore de produção deverá ser criada e mantida fora do Git.
+- [ ] Validar a exclusão de conta ponta a ponta para Passageiro e Motorista.
+- [ ] Conferir o acesso aos Termos de Uso e à Política de Privacidade nos builds finais e a consistência com as declarações das lojas.
 
-5. **iOS foi validado em Simulator**
-   - falta Apple Developer Team;
-   - falta assinatura de distribuição;
-   - falta build/teste em aparelho físico.
-
-6. **Mapas/rotas usam infraestrutura pública de desenvolvimento**
-   - OpenStreetMap tiles;
-   - Nominatim;
-   - OSRM demo server;
-   - antes do lançamento é necessário provedor/infraestrutura adequado ao uso comercial.
-
-7. **Autenticação, privacidade e LGPD ainda não foram implementadas**
-   - conta do usuário;
-   - consentimentos;
-   - política de privacidade;
-   - termos;
-   - retenção e exclusão de dados.
-
-8. **Testes reais ainda faltam**
-   - Android físico;
-   - iPhone físico;
-   - GPS real;
-   - internet ruim;
-   - fechamento/reabertura;
-   - troca de rede;
-   - dois aparelhos simultâneos passageiro/motorista.
-
-## Regra do projeto
-
-Nenhum item acima deve ser considerado concluído apenas porque o app compila.
+Registre as validações por plataforma e versão do build antes de liberar a distribuição.
