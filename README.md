@@ -3,7 +3,7 @@
 Plataforma de mobilidade local para **Jericoacoara, Preá e Jijoca de Jericoacoara**, com aplicativos Flutter para Passageiro e Motorista, painel administrativo e API própria.
 
 > **Software proprietário. Copyright © 2026 Ian Silva. Todos os direitos reservados.**
-> A licença e o aviso de titularidade estão na [revisão de referência](https://github.com/iansilva23/ramo-nessa/blob/build/android-sync-20261121/LICENSE).
+> Consulte a [licença](https://github.com/iansilva23/ramo-nessa/blob/build/android-sync-20261121/LICENSE) e o [aviso de titularidade](https://github.com/iansilva23/ramo-nessa/blob/build/android-sync-20261121/NOTICE.md).
 
 ## Estado do projeto
 
