@@ -31,6 +31,38 @@ export function prepareGatewayConfig(config,activeImage,candidateImage) {
   return candidate;
 }
 
+// Docker gateway recreation can close an existing HTTPS keep-alive socket.
+// Retry only transient transport failures and temporary reverse-proxy 502/503/504.
+// Unexpected application/auth statuses remain hard failures and still trigger rollback.
+const transientFetchCodes=new Set(['UND_ERR_SOCKET','ECONNRESET','EPIPE','ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','EAI_AGAIN']);
+export function isTransientFetchError(error) {
+  return transientFetchCodes.has(error?.cause?.code??error?.code) || error?.name==='TimeoutError';
+}
+export async function fetchChecked(url,expectedStatus,{request=fetch,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),attempts=4}={}) {
+  if(!Number.isInteger(attempts)||attempts<1||attempts>6)throw new Error('Número de tentativas inválido.');
+  for(let attempt=1;attempt<=attempts;attempt++) {
+    let response;
+    try {
+      response=await request(url,{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});
+    } catch(error) {
+      const code=error?.cause?.code??error?.code??error?.name??'UNKNOWN';
+      if(!isTransientFetchError(error)||attempt===attempts)throw new Error('Falha de rede ao verificar '+url+' (tentativa '+attempt+'/'+attempts+', '+code+').',{cause:error});
+      console.warn('Verificação HTTPS temporariamente indisponível:',url,code,'tentativa',attempt+'/'+attempts);
+      await pause(Math.min(1600,300*2**(attempt-1)));
+      continue;
+    }
+    if(response.status===expectedStatus)return response;
+    if([502,503,504].includes(response.status)&&attempt<attempts) {
+      await response.body?.cancel?.().catch(()=>{});
+      console.warn('Proxy ainda indisponível:',url,'HTTP',response.status,'tentativa',attempt+'/'+attempts);
+      await pause(Math.min(1600,300*2**(attempt-1)));
+      continue;
+    }
+    throw new Error('Falha na verificação de '+url+': HTTP '+response.status+' (esperado '+expectedStatus+').');
+  }
+  throw new Error('Tentativas de verificação esgotadas: '+url);
+}
+
 async function main() {
   const repo='/opt/ramo-nessa',revision=process.argv[2];
   if(process.getuid?.()!==0||!/^[a-f0-9]{40}$/.test(revision??''))throw new Error('Execute com sudo e informe o SHA completo.');
@@ -90,7 +122,7 @@ async function main() {
   gatewayCompose(candidateComposePath,['config','--quiet']);
   for(const [key,name]of Object.entries(names))if(inspect(name).Id!==before[key].Id)throw new Error('Um serviço mudou durante a preparação.');
   if(readFileSync(join(repo,file),'utf8')!==currentSource||readFileSync(join(repo,'deploy/staging/Caddyfile'),'utf8')!==activeCaddy||!readFileSync(composeFile).equals(activeComposeBytes))throw new Error('Os arquivos locais mudaram durante a preparação.');
-  const fetchChecked=async(url,status)=>{const response=await fetch(url,{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});if(response.status!==status)throw new Error('Falha na verificação de '+url);return response;};
+
   const contentBefore=await(await fetchChecked('https://ramonessa.com.br/api/site-content',200)).json();
   run('docker',['exec',names.site,'node','ops/backup.mjs'],{stdio:'inherit'});
   for(const [key,tag]of [['site','ramo-nessa-site:rollback-training-'],['gateway','ramo-nessa-admin-gateway:rollback-training-']])run('docker',['image','tag',before[key].Image,tag+short]);
