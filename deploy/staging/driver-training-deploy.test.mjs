@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertKnownEditor, assertGatewayImage, assertTrainingEnvironment, prepareGatewayConfig } from './publish-driver-training.mjs';
+import { assertKnownEditor, assertGatewayImage, assertTrainingEnvironment, prepareGatewayConfig, fetchChecked, isTransientFetchError } from './publish-driver-training.mjs';
 const live='e9eb5d1904f0e5c90867004da96438e0d07d3315935a04c6706769e61675dc8b';
 const gateway='sha256:b305f39894ae35a548baeadc81cc03236fa150f821d56fdcf2b6e19247f8e991';
 test('accepts the two reviewed editors but rejects local/container drift and unknown code',()=>{
@@ -27,4 +27,52 @@ test('accepts live VPS configuration and exact documented defaults for omitted o
 test('defaults never authorize foreign/empty origins or a missing/disabled Core proxy',()=>{
   for(const env of [{},{TRUST_PROXY:'false'},{TRUST_PROXY:''}])assert.throws(()=>assertTrainingEnvironment(env,{}));
   for(const site of [{PUBLIC_SITE_ORIGIN:''},{ADMIN_SITE_ORIGIN:''},{PUBLIC_SITE_ORIGIN:'https://foreign.test'},{ADMIN_SITE_ORIGIN:'https://foreign.test'},{PUBLIC_SITE_ORIGIN:'https://ramonessa.com.br/'}])assert.throws(()=>assertTrainingEnvironment({TRUST_PROXY:'true'},site));
+});
+
+test('retries socket resets after gateway restart without relaxing success status',async()=>{
+  let calls=0;
+  const delays=[];
+  const transient=Object.assign(new Error('connection closed'),{cause:{code:'UND_ERR_SOCKET'}});
+  assert.equal(isTransientFetchError(transient),true);
+  const result=await fetchChecked('https://ramonessa.com.br/motoristas',200,{
+    request:async()=>{calls++;if(calls===1)throw transient;return new Response('ok',{status:200});},
+    pause:async ms=>{delays.push(ms);},
+    attempts:3
+  });
+  assert.equal(result.status,200);assert.equal(calls,2);assert.deepEqual(delays,[300]);
+});
+
+test('brief proxy 503 can settle to the exact expected authenticated status',async()=>{
+  let calls=0;
+  const result=await fetchChecked('https://app.ramonessa.com.br/site-management/training',401,{
+    request:async()=>{calls++;return new Response('',{status:calls===1?503:401});},
+    pause:async()=>{},
+    attempts:2
+  });
+  assert.equal(result.status,401);assert.equal(calls,2);
+});
+
+test('wrong authorization status and unsafe TLS failures do not retry',async()=>{
+  let calls=0;
+  await assert.rejects(
+    fetchChecked('https://app.ramonessa.com.br/site-management/training',401,{
+      request:async()=>{calls++;return new Response('',{status:200});},
+      pause:async()=>{},
+      attempts:4
+    }),
+    /HTTP 200 \(esperado 401\)/
+  );
+  assert.equal(calls,1);
+  calls=0;
+  const tls=Object.assign(new Error('fetch failed'),{cause:{code:'ERR_TLS_CERT_ALTNAME_INVALID'}});
+  assert.equal(isTransientFetchError(tls),false);
+  await assert.rejects(
+    fetchChecked('https://app.ramonessa.com.br/ready',200,{
+      request:async()=>{calls++;throw tls;},
+      pause:async()=>{},
+      attempts:4
+    }),
+    /ERR_TLS_CERT_ALTNAME_INVALID/
+  );
+  assert.equal(calls,1);
 });
