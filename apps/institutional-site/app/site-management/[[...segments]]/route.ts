@@ -1,3 +1,4 @@
+import { trainingSchema } from '@/lib/driver-training';
 import { z } from 'zod';
 import { authorizeSite, SITE_SCOPES } from '@/lib/site-auth';
 import { contentSchema, leadSchema, SiteError } from '@/lib/site-content';
@@ -21,14 +22,24 @@ async function handle(request:Request){
       return reply(store.leads(status,q,page));
     }
     if(request.method==='GET'&&path==='content')return reply({...store.state(),releases:store.releases(),audit:store.audit()});
+    if(request.method==='GET'&&path==='training')return reply({...store.trainingState(),releases:store.trainingReleases()});
     if(request.method==='POST'&&(path==='uploads/image'||path==='uploads/apk')){
       const asset=await receiveAsset(request,path.endsWith('apk')?'apk':'image');store.registerAsset(asset.id,asset.extension,asset.mime,asset.size,actor.id);return reply(asset,201);
     }
     if(!['PUT','POST'].includes(request.method))return reply({message:'Endereço não encontrado.'},404);
     if(request.headers.get('content-type')?.split(';')[0]!=='application/json')throw new SiteError(415,'Formato inválido.');
-    const body=await readInterestBody(request, 32768);
+    const body=await readInterestBody(request, path.startsWith('training/')?524288:32768);
     if(request.method==='PUT'&&/^leads\/[0-9a-f-]{36}$/.test(path)){
       const data=leadSchema.parse(body);store.review(path.slice(6),data.status,data.notes,data.expectedRevision,actor.id);return reply({ok:true});
+    }
+    if(path==='training/draft'&&request.method==='PUT'){
+      const data=z.object({content:trainingSchema,expectedRevision:z.number().int().nonnegative()}).strict().parse(body);return reply(store.saveTraining(data.content,data.expectedRevision,actor.id));
+    }
+    if(path==='training/publish'&&request.method==='POST'){
+      const data=z.object({expectedRevision:z.number().int().nonnegative()}).strict().parse(body);return reply(store.publishTraining(data.expectedRevision,actor.id));
+    }
+    if(path==='training/restore'&&request.method==='POST'){
+      const data=z.object({id:z.number().int().positive(),expectedRevision:z.number().int().nonnegative()}).strict().parse(body);return reply(store.restoreTraining(data.id,data.expectedRevision,actor.id));
     }
     if(path==='draft'&&request.method==='PUT'){
       const data=z.object({content:contentSchema,expectedRevision:z.number().int().nonnegative()}).strict().parse(body);return reply(store.saveDraft(data.content,data.expectedRevision,actor.id));

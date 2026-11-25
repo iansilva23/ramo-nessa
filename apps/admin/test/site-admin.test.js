@@ -38,3 +38,35 @@ test('footer editor saves hidden edited contact as draft before explicit publica
  nodes=flat(targets['#site-workspace']);nodes.find(n=>n.tag==='button'&&n.textContent==='Publicar rascunho').listeners.click();await new Promise(r=>setTimeout(r,20));assert.ok(calls.some(c=>c.path.endsWith('/publish')&&c.options.method==='POST'));module.destroy();
  }finally{Object.assign(globalThis,previous);}
 });
+
+test('training editor saves YouTube lessons separately, guards publication and respects read-only scopes',async()=>{
+ const previous={document:globalThis.document,window:globalThis.window,fetch:globalThis.fetch};
+ const flat=n=>[n,...n.children.flatMap(c=>typeof c==='object'?flat(c):[])];
+ const wait=()=>new Promise(r=>setTimeout(r,20));
+ globalThis.document={createElement:tag=>new Element(tag)};globalThis.window={addEventListener(){},confirm:()=>true};
+ let model={revision:0,draft:{title:'Central',description:'Aprenda aqui',noticeTitle:'',notice:'',modules:[{id:'start',title:'Primeiros passos'}],lessons:[]},published:{},releases:[]};const calls=[];
+ globalThis.fetch=async(path,options)=>{
+  calls.push({path,options});
+  if(path==='/site-management/training/draft'){model={...model,draft:JSON.parse(options.body).content,revision:model.revision+1};}
+  return Response.json(path==='/site-management/content'?{revision:0,draft:{heroTitle:'Site',apps:[],footer:{enabled:false,companyName:'RN',cnpj:'69495337000113',email:'a@example.com'}},releases:[],audit:[]}:model);
+ };
+ let instance;
+ try{
+  for(const writable of [true,false]){
+   const targets=Object.fromEntries(['#site-workspace','#site-status','#site-tabs'].map(k=>[k,new Element()]));
+   instance=createSiteAdmin({root:{querySelector:k=>targets[k],setAttribute(){},removeAttribute(){}},getToken:()=> 'session',hasScope:s=>s==='communications:read'||(writable&&s==='communications:write')});await wait();
+   flat(targets['#site-tabs']).find(n=>n.tag==='button'&&n.textContent==='Central do Motorista').listeners.click();await wait();
+   let nodes=flat(targets['#site-workspace']);const add=nodes.find(n=>n.tag==='button'&&n.textContent==='Adicionar aula');assert.equal(add.disabled,!writable);
+   if(writable){
+    add.listeners.click();await wait();nodes=flat(targets['#site-workspace']);
+    const url=nodes.find(n=>n.tag==='input'&&n.type==='url');url.value='https://youtu.be/M7lc1UVf-VE';url.listeners.input();
+    nodes.find(n=>n.tag==='button'&&n.textContent==='Publicar Central').listeners.click();await wait();assert.ok(!calls.some(c=>c.path==='/site-management/training/publish'));
+    nodes.find(n=>n.tag==='button'&&n.textContent==='Salvar rascunho das aulas').listeners.click();await wait();
+    const saved=calls.find(c=>c.path==='/site-management/training/draft');assert.equal(JSON.parse(saved.options.body).content.lessons[0].youtubeUrl,url.value);
+    nodes=flat(targets['#site-workspace']);nodes.find(n=>n.tag==='button'&&n.textContent==='Publicar Central').listeners.click();await wait();assert.ok(calls.some(c=>c.path==='/site-management/training/publish'));
+    assert.ok(!calls.some(c=>c.path==='/site-management/publish'));assert.ok(!calls.some(c=>c.path==='/site-management/draft'));
+   }else{assert.ok(nodes.filter(n=>['input','select','textarea'].includes(n.tag)).every(n=>n.disabled));}
+   instance.destroy();instance=null;
+  }
+ }finally{instance?.destroy();Object.assign(globalThis,previous);}
+});

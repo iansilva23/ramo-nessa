@@ -153,6 +153,7 @@ export default function Home({initialContent=defaultContent}: {initialContent?: 
           <p>{content.driverDescription}</p>
           <div className="signup-small"><Navigation size={23} aria-hidden="true" /><span>Pré-cadastro aberto.</span></div>
           <a className="driver-access-link" href="#baixar">Já é motorista? Veja as opções de acesso.</a>
+          <a className="driver-access-link" href="/motoristas">Videoaulas e orientações na Central do Motorista →</a>
         </div>
         <div className="signup-card" id="cadastro" data-reveal>{formState==="success" ?
           <div className="signup-success" role="status"><CircleCheck size={52} aria-hidden="true" /><span className="eyebrow">PRIMEIRO PASSO DADO</span><h3>Ramo nessa<br />com você.</h3><p>Interesse registrado! A equipe poderá entrar em contato pelo WhatsApp informado.</p><p className="success-note">Pré-cadastro de interesse. Sua conta ainda não está ativa.</p></div> :
@@ -201,6 +202,7 @@ export default function Home({initialContent=defaultContent}: {initialContent?: 
         <div className="footer-links">
           <a href="#inicio">O app</a>
           <a href="#motoristas">Motoristas</a>
+          <a href="/motoristas">Central do Motorista</a>
           <button onClick={() => setPrivacyOpen(true)}>Uso dos dados</button>
         </div>
         {content.footer.enabled && (
