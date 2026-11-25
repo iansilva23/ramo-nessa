@@ -1,3 +1,4 @@
+import { siteManagement } from '../db/site-management.ts';
 import { SiteError } from './site-content.ts';
 export const TRAINING_COOKIE = '__Host-rn_training';
 const tokenPattern = /^[A-Za-z0-9_-]{20,4096}$/;
@@ -35,4 +36,11 @@ export function trainingError(error:unknown) {
   if(error instanceof SiteError)return trainingReply({message:error.message},error.status);
   if(error instanceof RangeError)return trainingReply({message:'Conteúdo maior que o permitido.'},413);
   return trainingReply({message:'Não foi possível concluir. Tente novamente.'},503);
+}
+
+export async function authorizeCentral(request:Request) {
+  const store=siteManagement(),access=store.trainingAccess();
+  if(access.mode==='public')return {id:null,mode:access.mode};
+  if(access.mode==='shared') { if(!store.validTrainingSession(trainingToken(request)))throw new SiteError(401,'Entre com o acesso compartilhado da Central.');return {id:null,mode:access.mode}; }
+  return {...await authorizeTraining(request),mode:access.mode};
 }

@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const knownEditorDigests = new Set([
+  'c1c8cdc98e82ceebda1902bff0851acb64a0728b4b983adb0cdcfe00333df7f9', // Published Central on 25/11, before access controls.
   '6f8a10f6449c784610c524d67632c85632a05bff147ca1d302969c67555ea013',
   // Live editor verified on 25/11; exactly the editor on the Android branch.
   'e9eb5d1904f0e5c90867004da96438e0d07d3315935a04c6706769e61675dc8b',
@@ -14,7 +15,8 @@ const observedGatewayImage='sha256:b305f39894ae35a548baeadc81cc03236fa150f821d56
 export function assertKnownEditor(localDigest,liveDigest) {
   if(localDigest!==liveDigest||!knownEditorDigests.has(localDigest))throw new Error('O editor do site mudou. Reconcilie as alterações antes de publicar.');
 }
-export function assertGatewayImage(image) {
+export function assertGatewayImage(image,reviewedTrainingImage) {
+  if(/^sha256:[a-f0-9]{64}$/.test(reviewedTrainingImage??'')&&image===reviewedTrainingImage)return;
   if(!['ramo-nessa-admin-gateway:staging',observedGatewayImage].includes(image))throw new Error('Gateway diferente das versões verificadas.');
 }
 export function assertTrainingEnvironment(coreEnv,siteEnv) {
@@ -87,7 +89,8 @@ async function main() {
   const before=Object.fromEntries(Object.entries(names).map(([k,name])=>[k,inspect(name)]));
   for(const service of Object.values(before))if(service.State.Health?.Status!=='healthy')throw new Error('Todos os serviços precisam estar saudáveis.');
   if(before.site.Config.Image!=='ramo-nessa-site:refinado')throw new Error('Imagem do site diferente do esperado.');
-  assertGatewayImage(before.gateway.Config.Image);
+  const reviewedTrainingImage=JSON.parse(run('docker',['image','inspect','ramo-nessa-admin-gateway:training-96c8b3e98c93']))[0].Id;
+  assertGatewayImage(before.gateway.Config.Image,reviewedTrainingImage);
   if(before.gateway.Mounts.some(m=>m.Destination==='/srv/admin'||m.Destination.startsWith('/srv/admin/')))throw new Error('ADM com montagem própria. Confira a instalação antes de publicar.');
   const labels=before.gateway.Config.Labels??{},project=labels['com.docker.compose.project'];
   const composeFile=labels['com.docker.compose.project.config_files'],projectDir=labels['com.docker.compose.project.working_dir'];
@@ -142,13 +145,13 @@ async function main() {
     run('docker',['image','tag',siteCandidate,'ramo-nessa-site:refinado']);siteChanged=true;siteCompose([...up,'institutional-site']);
     gatewayChanged=true;gatewayCompose(candidateComposePath,[...up,'gateway']);
     writeFileSync(join(repo,file),readFileSync(join(release,file)));
-    for(const [url,status]of [['https://ramonessa.com.br/motoristas',200],['https://ramonessa.com.br/api/driver-training',401],['https://ramonessa.com.br/api/driver-training/session',401],['https://app.ramonessa.com.br/site-management/training',401],['https://app.ramonessa.com.br/ready',200]])await fetchChecked(url,status);
-    const editor=await(await fetchChecked('https://app.ramonessa.com.br/administrodo/src/site-admin.js',200)).text();if(!editor.includes('training/publish'))throw new Error('Editor das aulas indisponível.');
+    for(const [url,status]of [['https://ramonessa.com.br/motoristas',200],['https://ramonessa.com.br/api/driver-training',401],['https://ramonessa.com.br/api/driver-training/session',200],['https://app.ramonessa.com.br/site-management/training',401],['https://app.ramonessa.com.br/ready',200]])await fetchChecked(url,status);
+    const editor=await(await fetchChecked('https://app.ramonessa.com.br/administrodo/src/site-admin.js',200)).text();if(!editor.includes('training/publish')||!editor.includes('training/access'))throw new Error('Editor das aulas indisponível.');
     const contentAfter=await(await fetchChecked('https://ramonessa.com.br/api/site-content',200)).json();if(JSON.stringify(contentAfter)!==JSON.stringify(contentBefore))throw new Error('O conteúdo do site mudou.');
     if(inspect(names.core).Id!==before.core.Id||inspect(names.postgres).Id!==before.postgres.Id)throw new Error('Core ou Postgres alterado.');
     if(inspect(names.gateway).Image!==candidateId)throw new Error('O gateway não está usando a imagem preparada.');
     if(readFileSync(join(repo,'deploy/staging/Caddyfile'),'utf8')!==activeCaddy||!readFileSync(composeFile).equals(activeComposeBytes))throw new Error('Configuração original alterada.');
-    writeFileSync(backup+'/activated.json',JSON.stringify({revision,activatedAt:new Date().toISOString()}),{mode:0o600});console.log('CENTRAL PUBLICADA: https://ramonessa.com.br/motoristas');
+    writeFileSync(backup+'/activated.json',JSON.stringify({revision,activatedAt:new Date().toISOString()}),{mode:0o600});console.log('ACESSO DA CENTRAL ATUALIZADO: https://ramonessa.com.br/motoristas');
   }catch(error){
     console.error('Falha na ativação. Restaurando as imagens anteriores.');
     try{

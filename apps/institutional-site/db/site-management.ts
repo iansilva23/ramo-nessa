@@ -1,3 +1,4 @@
+import { accessSchema, hashPassword, verifyPassword, tokenHash, newToken } from '../lib/training-access.ts';
 import { trainingSchema, defaultTraining, visibleTraining } from '../lib/driver-training.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
@@ -9,6 +10,10 @@ export function openSiteManagement(filename: string) {
   const db = new DatabaseSync(filename);
   if (filename !== ':memory:') chmodSync(filename, 0o600);
   db.exec(`PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;
+    CREATE TABLE IF NOT EXISTS training_access (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, mode TEXT NOT NULL, username TEXT NOT NULL, password_hash TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS training_sessions (hash TEXT PRIMARY KEY, revision INTEGER NOT NULL, expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS training_login_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires INTEGER NOT NULL);
+    INSERT OR IGNORE INTO training_access VALUES(1,0,'individual','','');
     CREATE TABLE IF NOT EXISTS driver_training_state (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, draft TEXT NOT NULL, published TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS driver_training_releases (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, actor TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS driver_training_progress (driver_id TEXT NOT NULL, lesson_id TEXT NOT NULL, completed_at INTEGER NOT NULL, PRIMARY KEY(driver_id,lesson_id));
@@ -35,6 +40,32 @@ export function openSiteManagement(filename: string) {
   function trainingRevision(revision:number) { if(trainingState().revision!==revision)throw new SiteError(409,'As aulas foram alteradas por outra pessoa. Recarregue antes de salvar.'); }
   return {
     state, trainingState,
+    trainingAccess() { const row=db.prepare('SELECT revision,mode,username,password_hash FROM training_access WHERE id=1').get()!;return {revision:Number(row.revision),mode:String(row.mode) as 'individual'|'shared'|'public',username:String(row.username),hasPassword:!!row.password_hash}; },
+    saveTrainingAccess(input:unknown,actor:string) { return transaction(()=>{
+      const data=accessSchema.parse(input);const row=db.prepare('SELECT * FROM training_access WHERE id=1').get()!;
+      if(Number(row.revision)!==data.expectedRevision)throw new SiteError(409,'O acesso foi alterado. Recarregue antes de salvar.');
+      if(data.password&&data.password.length<10)throw new SiteError(400,'Use uma senha com pelo menos 10 caracteres.');
+      const passwordHash=data.password?hashPassword(data.password):String(row.password_hash);
+      if(data.mode==='shared'&&(!data.username||!passwordHash))throw new SiteError(400,'Defina o usuário e a senha do acesso compartilhado.');
+      db.prepare('UPDATE training_access SET revision=revision+1,mode=?,username=?,password_hash=? WHERE id=1').run(data.mode,data.username,passwordHash);
+      db.prepare('DELETE FROM training_sessions').run();audit(actor,'training.access.updated',data.mode);
+      const updated=db.prepare('SELECT revision,mode,username FROM training_access WHERE id=1').get()!;return {...updated,hasPassword:!!passwordHash};
+    }); },
+    sharedTrainingLogin(username:string,password:string,ip:string,now=Date.now()) { return transaction(()=>{
+      db.prepare('DELETE FROM training_login_limits WHERE expires<=?').run(now);
+      const keys=['global', 'ip:'+tokenHash(ip)];
+      for(const key of keys){const row=db.prepare('SELECT count FROM training_login_limits WHERE key=?').get(key);if(Number(row?.count??0)>=(key==='global'?200:20))return {limited:true as const};}
+      for(const key of keys)db.prepare('INSERT INTO training_login_limits VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1').run(key,now+600000);
+      const row=db.prepare('SELECT * FROM training_access WHERE id=1').get()!;
+      // Perform the password check even for an unknown username.
+      const valid=verifyPassword(password,String(row.password_hash));
+      if(row.mode!=='shared'||username!==row.username||!valid)return {denied:true as const};
+      db.prepare('DELETE FROM training_sessions WHERE expires<=?').run(now);
+      const count=db.prepare('SELECT count(*) AS n FROM training_sessions').get()!;if(Number(count.n)>=10000)return {limited:true as const};
+      const token=newToken(),expires=now+86400000;db.prepare('INSERT INTO training_sessions VALUES(?,?,?)').run(tokenHash(token),row.revision,expires);return {token,expiresAt:new Date(expires).toISOString()};
+    }); },
+    validTrainingSession(token:string,now=Date.now()) { return !!db.prepare("SELECT 1 FROM training_sessions s JOIN training_access a ON a.id=1 AND a.revision=s.revision WHERE a.mode='shared' AND s.hash=? AND s.expires>?").get(tokenHash(token),now); },
+    deleteTrainingSession(token:string) { db.prepare('DELETE FROM training_sessions WHERE hash=?').run(tokenHash(token)); },
     trainingReleases() { return db.prepare('SELECT id,actor,created_at FROM driver_training_releases ORDER BY id DESC LIMIT 30').all(); },
     publicTraining() { return visibleTraining(trainingState().published); },
     saveTraining(content:unknown, revision:number, actor:string) { return transaction(()=>{

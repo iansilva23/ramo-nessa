@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtempSync,rmSync,mkdirSync } from 'node:fs';
+import { mkdtempSync,rmSync,mkdirSync,readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const dir=mkdtempSync(join(tmpdir(),'rn-training-http-')),origin='http://127.0.0.1:4401';
@@ -30,7 +30,7 @@ try{
  let ready=false;for(let i=0;i<120;i++){try{if((await fetch(origin+'/api/health')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,logs);
  const request=(path,{method='GET',body,token,cookie,foreign=false,headers={}}={})=>fetch(origin+path,{method,headers:{origin:foreign?'https://evil.test':origin,...(token?{authorization:'Bearer '+token}:{}),...(cookie?{cookie}:{}),...(body?{'content-type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});
  const admin=(path,options={})=>request('/site-management/'+path,{...options,token:owner});
- assert.equal((await request('/api/driver-training')).status,401);assert.equal((await request('/api/driver-training/session')).status,401);
+ assert.equal((await request('/api/driver-training')).status,401);assert.equal((await request('/api/driver-training/session')).status,200);
  const shell=await(await request('/motoristas')).text();assert.ok(!shell.includes(tokens.alice));
  assert.equal((await request('/api/driver-training/session',{method:'POST',foreign:true,body:{identifier:'alice',password:'test-password'}})).status,403);assert.equal(loginCalls.length,0);
  assert.equal((await request('/api/driver-training/session',{method:'POST',body:{identifier:'wrong',password:'wrong'}})).status,401);
@@ -79,5 +79,55 @@ try{
   assert.deepEqual(errors,[]);await context.close();console.log('Navegador: login, progresso, player, busca, filtros, menu móvel e logout aprovados.');
  }
  const logout=await request('/api/driver-training/session',{method:'DELETE',cookie:alice});assert.equal(logout.status,200);assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);
+
+ const initialSite=await(await request('/api/site-content')).json();
+ const accessBody={mode:'shared',username:'motoristas',password:'SenhaDoGrupo123!',expectedRevision:0};
+ assert.equal((await request('/site-management/training/access',{method:'PUT',body:accessBody})).status,401);
+ assert.equal((await admin('training/access',{method:'PUT',body:accessBody,foreign:true})).status,403);
+ assert.equal((await admin('training/access',{method:'PUT',body:accessBody})).status,200);
+ assert.equal((await admin('training/access',{method:'PUT',body:accessBody})).status,409);
+ assert.equal((await request('/api/driver-training',{cookie:alice})).status,401);
+ const coreCalls=loginCalls.length;
+ assert.equal((await request('/api/driver-training/session',{method:'POST',body:{identifier:'motoristas',password:'errada'}})).status,401);
+ const sharedLogin=await request('/api/driver-training/session',{method:'POST',body:{identifier:'motoristas',password:'SenhaDoGrupo123!'}});assert.equal(sharedLogin.status,200);
+ const shared=sharedLogin.headers.get('set-cookie').split(';')[0];
+ assert.equal(loginCalls.length,coreCalls);
+ let publicCatalog=await(await request('/api/driver-training',{cookie:shared})).json();assert.equal(publicCatalog.accessMode,'shared');assert.deepEqual(publicCatalog.completed,[]);
+ assert.equal((await complete(shared,'lesson-0')).status,403);
+ const privateAccess=await(await admin('training')).json();assert.equal(privateAccess.access.hasPassword,true);assert.ok(!JSON.stringify(privateAccess).includes('SenhaDoGrupo123!'));assert.ok(!JSON.stringify(privateAccess).includes('password_hash'));
+ assert.equal((await admin('training/access',{method:'PUT',body:{...accessBody,mode:'public',password:'',expectedRevision:1}})).status,200);
+ publicCatalog=await(await request('/api/driver-training')).json();assert.equal(publicCatalog.accessMode,'public');assert.equal(publicCatalog.content.lessons.length,3);assert.deepEqual(publicCatalog.completed,[]);
+ assert.ok(!JSON.stringify(publicCatalog).includes('motoristas'));assert.equal((await complete(null,'lesson-0')).status,403);
+ assert.equal((await admin('training/access',{method:'PUT',body:{...accessBody,password:'NovaSenhaGrupo456!',expectedRevision:2}})).status,200);
+ assert.equal((await request('/api/driver-training',{cookie:shared})).status,401);
+ assert.equal((await request('/api/driver-training/session',{method:'POST',body:{identifier:'motoristas',password:'SenhaDoGrupo123!'}})).status,401);
+ const fresh=await request('/api/driver-training/session',{method:'POST',body:{identifier:'motoristas',password:'NovaSenhaGrupo456!'}});const freshCookie=fresh.headers.get('set-cookie').split(';')[0];
+ assert.equal((await request('/api/driver-training/session',{method:'DELETE',cookie:freshCookie})).status,200);assert.equal((await request('/api/driver-training',{cookie:freshCookie})).status,401);
+ assert.equal((await admin('training/access',{method:'PUT',body:{...accessBody,mode:'individual',password:'',expectedRevision:3}})).status,200);
+ assert.deepEqual((await(await request('/api/driver-training',{cookie:alice})).json()).completed,browser?['lesson-0','lesson-1']:['lesson-0']);
+ assert.deepEqual(await(await request('/api/site-content')).json(),initialSite);
+
+ if(browser){
+  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();
+  await page.route('**/access-admin.js',route=>route.fulfill({contentType:'text/javascript',body:readFileSync('../admin/src/site-admin.js','utf8')}));
+  await page.route('**/api.js',route=>route.fulfill({contentType:'text/javascript',body:'export class AdminApiError extends Error { constructor(message,options){super(message);Object.assign(this,options);} }'}));
+  await page.goto(origin+'/motoristas');
+  await page.evaluate(async(token)=>{document.body.innerHTML='<div id="admin-test"><div id="site-tabs"></div><p id="site-status"></p><div id="site-workspace"></div></div>';const {createSiteAdmin}=await import('/access-admin.js');createSiteAdmin({root:document.querySelector('#admin-test'),getToken:()=>token,hasScope:scope=>scope.startsWith('communications:'),onError:()=>{}});},owner);
+  await page.getByRole('button',{name:'Central do Motorista',exact:true}).click();await page.getByRole('heading',{name:'Acesso à Central',exact:true}).waitFor();
+  await page.getByLabel('Modo de acesso').selectOption('public');await page.getByRole('button',{name:'Salvar acesso à Central',exact:true}).click();await page.getByText('Acesso atualizado. A mudança já está valendo.',{exact:true}).waitFor();
+  assert.equal((await(await request('/api/driver-training/session')).json()).accessMode,'public');
+  const visitor=await browser.newContext({viewport:{width:390,height:844}}),visitorPage=await visitor.newPage();await visitorPage.goto(origin+'/motoristas');await visitorPage.getByRole('heading',{name:'Aprenda. Pratique. Ramo nessa.'}).waitFor();
+  assert.equal(await visitorPage.getByRole('button',{name:'Entrar na Central'}).count(),0);
+  await visitorPage.getByRole('button',{name:'Assistir à primeira aula',exact:true}).click();await visitorPage.getByRole('button',{name:'Concluir aula',exact:true}).click();await visitorPage.getByRole('button',{name:'Marcar como não concluída'}).waitFor();await visitorPage.reload();await visitorPage.getByText('1 de 3 aulas concluídas',{exact:true}).waitFor();
+  const other=await browser.newContext(),otherPage=await other.newPage();await otherPage.goto(origin+'/motoristas');await otherPage.getByText('0 de 3 aulas concluídas',{exact:true}).waitFor();await other.close();
+  await page.getByLabel('Modo de acesso').selectOption('shared');await page.getByLabel('Usuário compartilhado').fill('equipe');await page.getByLabel('Nova senha (vazio mantém a atual)').fill('SenhaNovaEquipe123!');
+  await page.getByRole('button',{name:'Adicionar módulo',exact:true}).click();assert.equal(await page.getByLabel('Usuário compartilhado').inputValue(),'equipe');assert.equal(await page.getByLabel('Nova senha (vazio mantém a atual)').inputValue(),'SenhaNovaEquipe123!');
+  await page.getByRole('button',{name:'Salvar acesso à Central',exact:true}).click();await page.getByText('Acesso atualizado. A mudança já está valendo.',{exact:true}).waitFor();assert.equal(await page.getByLabel('Nova senha (vazio mantém a atual)').inputValue(),'');
+  await visitorPage.reload();await visitorPage.getByRole('button',{name:'Entrar na Central'}).waitFor();await visitorPage.getByLabel('Usuário ou e-mail').fill('equipe');await visitorPage.getByLabel('Senha',{exact:true}).fill('SenhaNovaEquipe123!');await visitorPage.getByRole('button',{name:'Entrar na Central'}).click();await visitorPage.getByRole('heading',{name:'Aprenda. Pratique. Ramo nessa.'}).waitFor();
+  await visitorPage.getByRole('button',{name:'Abrir menu',exact:true}).click();await visitorPage.getByRole('button',{name:'Sair da Central'}).click();await visitorPage.getByRole('button',{name:'Entrar na Central'}).waitFor();
+  await visitor.close();await context.close();
+  console.log('Navegador: controles do ADM, acesso livre, progresso por navegador e login compartilhado aprovados.');
+ }
+ console.log('HTTP: login compartilhado, acesso livre, rotação de senha, logout, proteção do ADM e retorno ao individual aprovados.');
  console.log('HTTP: autenticação, publicação, isolamento por motorista, CSRF, sessão revogada e logout aprovados.');
 }finally{await browser?.close();child.kill('SIGTERM');await exit;core.close();await once(core,'close');rmSync(dir,{recursive:true,force:true});}

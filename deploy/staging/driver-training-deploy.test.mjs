@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { assertKnownEditor, assertGatewayImage, assertComposeLocation, assertTrainingEnvironment, prepareGatewayConfig, fetchChecked, isTransientFetchError } from './publish-driver-training.mjs';
 const live='e9eb5d1904f0e5c90867004da96438e0d07d3315935a04c6706769e61675dc8b';
 const gateway='sha256:b305f39894ae35a548baeadc81cc03236fa150f821d56fdcf2b6e19247f8e991';
-test('accepts the two reviewed editors but rejects local/container drift and unknown code',()=>{
+test('accepts the reviewed editors but rejects local/container drift and unknown code',()=>{
   assert.doesNotThrow(()=>assertKnownEditor(live,live));
+  const published='c1c8cdc98e82ceebda1902bff0851acb64a0728b4b983adb0cdcfe00333df7f9';assert.doesNotThrow(()=>assertKnownEditor(published,published));
   const original='6f8a10f6449c784610c524d67632c85632a05bff147ca1d302969c67555ea013';
   assert.doesNotThrow(()=>assertKnownEditor(original,original));
   assert.throws(()=>assertKnownEditor(original,live));assert.throws(()=>assertKnownEditor('a'.repeat(64),'a'.repeat(64)));
@@ -88,4 +89,9 @@ test('recovery path support never permits traversal, unrelated paths, other proj
   assert.throws(()=>assertComposeLocation({...base,projectDir:'/tmp/work'},()=>true));
   assert.throws(()=>assertComposeLocation(base,p=>p!==base.composeFile),/Arquivo Compose ativo não encontrado/);
   assert.throws(()=>assertComposeLocation(base,p=>p!==base.projectDir),/Diretório de trabalho do Compose não encontrado/);
+});
+
+test('accepts the published training gateway only when its local image ID matches exactly',()=>{
+ const reviewed='sha256:'+'d'.repeat(64);assert.doesNotThrow(()=>assertGatewayImage(reviewed,reviewed));
+ assert.throws(()=>assertGatewayImage('sha256:'+'e'.repeat(64),reviewed));assert.throws(()=>assertGatewayImage('mutable:tag','mutable:tag'));
 });

@@ -22,7 +22,7 @@ async function handle(request:Request){
       return reply(store.leads(status,q,page));
     }
     if(request.method==='GET'&&path==='content')return reply({...store.state(),releases:store.releases(),audit:store.audit()});
-    if(request.method==='GET'&&path==='training')return reply({...store.trainingState(),releases:store.trainingReleases()});
+    if(request.method==='GET'&&path==='training')return reply({...store.trainingState(),releases:store.trainingReleases(),access:store.trainingAccess()});
     if(request.method==='POST'&&(path==='uploads/image'||path==='uploads/apk')){
       const asset=await receiveAsset(request,path.endsWith('apk')?'apk':'image');store.registerAsset(asset.id,asset.extension,asset.mime,asset.size,actor.id);return reply(asset,201);
     }
@@ -32,6 +32,7 @@ async function handle(request:Request){
     if(request.method==='PUT'&&/^leads\/[0-9a-f-]{36}$/.test(path)){
       const data=leadSchema.parse(body);store.review(path.slice(6),data.status,data.notes,data.expectedRevision,actor.id);return reply({ok:true});
     }
+    if(path==='training/access'&&request.method==='PUT')return reply(store.saveTrainingAccess(body,actor.id));
     if(path==='training/draft'&&request.method==='PUT'){
       const data=z.object({content:trainingSchema,expectedRevision:z.number().int().nonnegative()}).strict().parse(body);return reply(store.saveTraining(data.content,data.expectedRevision,actor.id));
     }

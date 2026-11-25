@@ -1,6 +1,6 @@
 import { AdminApiError } from './api.js';
 export function createSiteAdmin({root,getToken,hasScope,onError}) {
-  const abort=new AbortController(), urls=new Set();let stopped=false,busy=false,model=null,dirty=false,page=1,tab='leads',training=null;
+  const abort=new AbortController(), urls=new Set();let stopped=false,busy=false,model=null,dirty=false,page=1,tab='leads',training=null,contentDirty=false,accessDirty=false;
   const workspace=root.querySelector('#site-workspace'),status=root.querySelector('#site-status');
   const node=(tag,text='',className='')=>{const n=document.createElement(tag);n.textContent=text;if(className)n.className=className;return n;};
   const listen=(n,event,fn)=>n.addEventListener(event,fn,{signal:abort.signal});
@@ -31,9 +31,9 @@ export function createSiteAdmin({root,getToken,hasScope,onError}) {
     listen(toolbar,'submit',e=>{e.preventDefault();page=1;void perform(load);});await load();
   }
   async function loadContent(){const data=await request('content');if(stopped)return;model=data;dirty=false;renderEditor();message('Conteúdo carregado. As mudanças ficam em rascunho até publicar.');}
-  function bind(parent,label,obj,key,options={}){const f=field(label,obj[key],options);f.input.disabled=!hasScope('communications:write');listen(f.input,'input',()=>{obj[key]=f.input.value;dirty=true;message('Alterações ainda não salvas.');});parent.append(f.wrap);return f.input;}
+  function bind(parent,label,obj,key,options={}){const f=field(label,obj[key],options);f.input.disabled=!hasScope('communications:write');listen(f.input,'input',()=>{obj[key]=f.input.value;dirty=true;contentDirty=true;message('Alterações ainda não salvas.');});parent.append(f.wrap);return f.input;}
   function upload(parent,label,kind,obj,key,render=renderEditor){const f=field(label,'',{type:'file'});f.input.removeAttribute('maxlength');f.input.accept=kind==='apk'?'.apk':'.png,.jpg,.jpeg,.webp';f.input.disabled=!hasScope('communications:write');const note=node('p',kind==='apk'?'APK até 150 MB. Envie a versão assinada para distribuição.':'PNG, JPEG ou WebP até 8 MB.');parent.append(f.wrap,note);
-    listen(f.input,'change',()=>void perform(async()=>{const file=f.input.files?.[0];if(!file)return;if(file.size>(kind==='apk'?150:8)*1024*1024)throw new Error('Arquivo maior que o limite.');const data=await request('uploads/'+kind,{method:'POST',file});obj[key]=data.path;dirty=true;render();message('Arquivo enviado para o rascunho. Salve e publique para disponibilizar.');}));
+    listen(f.input,'change',()=>void perform(async()=>{const file=f.input.files?.[0];if(!file)return;if(file.size>(kind==='apk'?150:8)*1024*1024)throw new Error('Arquivo maior que o limite.');const data=await request('uploads/'+kind,{method:'POST',file});obj[key]=data.path;dirty=true;contentDirty=true;render();message('Arquivo enviado para o rascunho. Salve e publique para disponibilizar.');}));
   }
   async function previewImage(img,path){if(!path.startsWith('/media/')){img.src='https://ramonessa.com.br'+path;return;}
     const response=await fetch(path,{headers:{authorization:'Bearer '+getToken()},credentials:'omit',cache:'no-store',signal:abort.signal});if(!response.ok)return;const u=URL.createObjectURL(await response.blob());if(stopped){URL.revokeObjectURL(u);return;}urls.add(u);img.src=u;
@@ -53,7 +53,7 @@ export function createSiteAdmin({root,getToken,hasScope,onError}) {
     const textCard=node('article','','site-admin-card');textCard.append(node('h2','Textos do site'));
     for(const [key,label,max]of [['heroTitle','Título principal',70],['heroAccent','Destaque do título',40],['heroDescription','Descrição principal',220],['driverTitle','Título para motoristas',70],['driverAccent','Destaque para motoristas',40],['driverDescription','Descrição para motoristas',250],['downloadTitle','Título dos downloads',80],['downloadAccent','Destaque dos downloads',50]])bind(textCard,label,c,key,{max,multiline:key.endsWith('Description')});workspace.append(textCard);
     const footer=node('article','','site-admin-card');footer.append(node('h2','Contato e CNPJ no rodapé'));
-    const visibility=node('label','','field'),toggle=node('input');toggle.type='checkbox';toggle.checked=c.footer.enabled;toggle.disabled=!allowed;visibility.append(toggle,node('span','Exibir contato e CNPJ no site'));listen(toggle,'change',()=>{c.footer.enabled=toggle.checked;dirty=true;message('Alterações ainda não salvas.');});footer.append(visibility);
+    const visibility=node('label','','field'),toggle=node('input');toggle.type='checkbox';toggle.checked=c.footer.enabled;toggle.disabled=!allowed;visibility.append(toggle,node('span','Exibir contato e CNPJ no site'));listen(toggle,'change',()=>{c.footer.enabled=toggle.checked;dirty=true;contentDirty=true;message('Alterações ainda não salvas.');});footer.append(visibility);
     bind(footer,'Nome da empresa',c.footer,'companyName',{max:120});bind(footer,'CNPJ',c.footer,'cnpj',{max:18});bind(footer,'E-mail de atendimento',c.footer,'email',{max:254,type:'email'});footer.append(node('p','Desligar oculta apenas este bloco e mantém os dados salvos. Salve o rascunho e publique para atualizar o site.'));workspace.append(footer);
     const images=node('article','','site-admin-card');images.append(node('h2','Imagens'));
     for(const [key,label]of [['heroImage','Foto principal'],['appIcon','Ícone passageiro'],['driverIcon','Ícone motorista']]){images.append(node('p',`${label}: ${c[key]}`));upload(images,'Trocar '+label.toLowerCase(),'image',c,key);}
@@ -63,14 +63,14 @@ export function createSiteAdmin({root,getToken,hasScope,onError}) {
     for(const release of model.releases)history.append(button('Restaurar versão '+release.id+' · '+new Date(release.created_at).toLocaleString('pt-BR'),async()=>{if(dirty&&!window.confirm('Descartar as alterações não salvas?'))return;await request('restore',{method:'POST',body:{id:release.id,expectedRevision:model.revision}});await loadContent();message('Versão recuperada no rascunho.');},allowed));workspace.append(history);
     const audit=node('details','','site-admin-card');audit.append(node('summary','Histórico de alterações'));for(const entry of model.audit)audit.append(node('p',`${new Date(entry.created_at).toLocaleString('pt-BR')} · ${entry.action} · usuário ${entry.actor}`));workspace.append(audit);
   }
-  async function loadTraining(){const data=await request('training');if(stopped)return;training=data;dirty=false;renderTraining();message('Central carregada. Salve e publique para disponibilizar as aulas.');}
+  async function loadTraining(){const data=await request('training');if(stopped)return;training=data;training.accessEdit={...data.access,password:''};dirty=false;contentDirty=false;accessDirty=false;renderTraining();message('Central carregada. Salve e publique para disponibilizar as aulas.');}
   function renderTraining(preview=false){
     clear();const c=training.draft,allowed=hasScope('communications:write');
     const toolbar=node('div','','site-admin-toolbar');
-    toolbar.append(button('Salvar rascunho das aulas',async()=>{await request('training/draft',{method:'PUT',body:{content:c,expectedRevision:training.revision}});await loadTraining();message('Rascunho das aulas salvo. Ainda não foi publicado.');},allowed),button(preview?'Voltar à edição':'Prévia das aulas',()=>renderTraining(!preview)),button('Publicar Central',async()=>{
+    toolbar.append(button('Salvar rascunho das aulas',async()=>{if(accessDirty)throw new Error('Salve o acesso à Central antes de salvar as aulas.');await request('training/draft',{method:'PUT',body:{content:c,expectedRevision:training.revision}});await loadTraining();message('Rascunho das aulas salvo. Ainda não foi publicado.');},allowed),button(preview?'Voltar à edição':'Prévia das aulas',()=>renderTraining(!preview)),button('Publicar Central',async()=>{
       if(dirty)throw new Error('Salve as alterações das aulas antes de publicar.');
       if(!window.confirm('Publicar as aulas e os avisos da Central do Motorista?'))return;
-      await request('training/publish',{method:'POST',body:{expectedRevision:training.revision}});await loadTraining();message('Central publicada. Acesse com uma conta de motorista para conferir.');
+      await request('training/publish',{method:'POST',body:{expectedRevision:training.revision}});await loadTraining();message('Central publicada. Confira pelo link da Central.');
     },allowed));workspace.append(toolbar);
     const link=node('a','Abrir Central do Motorista ↗','button button--ghost-dark');link.href='https://ramonessa.com.br/motoristas';link.target='_blank';link.rel='noopener noreferrer';workspace.append(link);
     if(preview){
@@ -79,10 +79,20 @@ export function createSiteAdmin({root,getToken,hasScope,onError}) {
       for(const module of c.modules){workspace.append(node('h2',module.title));for(const lesson of c.lessons.filter(l=>l.moduleId===module.id&&l.visible)){const card=node('article','','site-admin-card');card.append(node('h3',lesson.title),node('p',lesson.duration),node('p',lesson.description),node('p',lesson.youtubeUrl));if(lesson.cover){const img=node('img');img.alt='Capa da aula';img.style.maxWidth='320px';void previewImage(img,lesson.cover).catch(()=>{});card.append(img);}workspace.append(card);}}
       const notice=node('article','','site-admin-card');notice.append(node('h2',c.noticeTitle||'Avisos importantes'),node('p',c.notice||'Nenhum aviso.'));workspace.append(notice);return;
     }
+    const access=training.access,editAccess=training.accessEdit,accessCard=node('article','','site-admin-card');accessCard.append(node('h2','Acesso à Central'),node('p','Escolha quem pode entrar. As alterações de acesso entram em vigor ao salvar, sem precisar publicar as aulas.'));
+    const mode=node('select');mode.setAttribute('aria-label','Modo de acesso');mode.disabled=!allowed;
+    for(const [value,label]of [['individual','Login individual do motorista'],['shared','Login único para todos'],['public','Acesso livre — sem login e senha']]){const option=node('option',label);option.value=value;mode.append(option);}mode.value=editAccess.mode;
+    const username=field('Usuário compartilhado',editAccess.username,{max:100}),password=field(access.hasPassword?'Nova senha (vazio mantém a atual)':'Senha compartilhada (mínimo 10 caracteres)',editAccess.password,{type:'password',max:256});password.input.autocomplete='new-password';username.input.autocomplete='off';
+    function accessFields(){username.wrap.hidden=password.wrap.hidden=mode.value!=='shared';username.input.disabled=password.input.disabled=!allowed||mode.value!=='shared';}accessFields();listen(mode,'change',()=>{accessFields();editAccess.mode=mode.value;dirty=true;accessDirty=true;message('Modo de acesso ainda não salvo.');});
+    for(const input of [username.input,password.input])listen(input,'input',()=>{editAccess.username=username.input.value;editAccess.password=password.input.value;dirty=true;accessDirty=true;message('Acesso ainda não salvo.');});
+    accessCard.append(mode,username.wrap,password.wrap,node('p','No acesso livre ou compartilhado, as aulas concluídas ficam salvas no navegador de cada pessoa. Trocar o modo ou salvar o acesso encerra as sessões compartilhadas anteriores.'),button('Salvar acesso à Central',async()=>{
+      await request('training/access',{method:'PUT',body:{mode:mode.value,username:username.input.value,password:password.input.value,expectedRevision:access.revision}});
+      training.access=await request('training').then(data=>data.access);training.accessEdit={...training.access,password:''};accessDirty=false;password.input.value='';dirty=contentDirty;renderTraining();message('Acesso atualizado. A mudança já está valendo.');
+    },allowed));workspace.append(accessCard);
     const intro=node('article','','site-admin-card');intro.append(node('h2','Apresentação da Central'));
     bind(intro,'Título da página',c,'title',{max:90});bind(intro,'Descrição',c,'description',{max:250,multiline:true});
-    intro.append(node('p','Envie os vídeos para o YouTube como não listados e permita a incorporação. Cole somente o link, sem código HTML. Quem receber o link do YouTube também poderá assistir. O acesso à Central exige a conta individual do motorista.'));workspace.append(intro);
-    function changed(){dirty=true;renderTraining();message('Alterações ainda não salvas.');}
+    intro.append(node('p','Envie os vídeos para o YouTube como não listados e permita a incorporação. Cole somente o link, sem código HTML. Quem receber o link do YouTube também poderá assistir. O modo de acesso é configurado acima.'));workspace.append(intro);
+    function changed(){dirty=true;contentDirty=true;renderTraining();message('Alterações ainda não salvas.');}
     function move(items,index,delta){[items[index],items[index+delta]]=[items[index+delta],items[index]];changed();}
     const modules=node('article','','site-admin-card');modules.append(node('h2','Módulos'));
     c.modules.forEach((m,index)=>{const group=node('div','','site-admin-card');bind(group,'Nome do módulo',m,'title',{max:60});const actions=node('div','','site-admin-toolbar');
@@ -91,9 +101,9 @@ export function createSiteAdmin({root,getToken,hasScope,onError}) {
     const lessons=node('article','','site-admin-card');lessons.append(node('h2','Videoaulas'),node('p','A ordem abaixo define a sequência de aprendizado. A capa é opcional: sem upload, usamos a miniatura do próprio YouTube.'));
     c.lessons.forEach((lesson,index)=>{const card=node('article','','site-admin-card');card.append(node('h3',`Aula ${index+1} · ${lesson.title}`));
       bind(card,'Título da aula',lesson,'title',{max:100});const select=node('select');select.setAttribute('aria-label','Módulo da aula '+(index+1));select.disabled=!allowed;
-      for(const module of c.modules){const o=node('option',module.title);o.value=module.id;select.append(o);}select.value=lesson.moduleId;listen(select,'change',()=>{lesson.moduleId=select.value;dirty=true;message('Alterações ainda não salvas.');});card.append(node('span','Módulo'),select);
+      for(const module of c.modules){const o=node('option',module.title);o.value=module.id;select.append(o);}select.value=lesson.moduleId;listen(select,'change',()=>{lesson.moduleId=select.value;dirty=true;contentDirty=true;message('Alterações ainda não salvas.');});card.append(node('span','Módulo'),select);
       bind(card,'Link do vídeo no YouTube',lesson,'youtubeUrl',{max:2048,type:'url'});bind(card,'Duração (opcional, ex.: 3 min)',lesson,'duration',{max:24});bind(card,'Descrição e pontos de atenção',lesson,'description',{max:3000,multiline:true});
-      const visibility=node('label','','field'),toggle=node('input');toggle.type='checkbox';toggle.checked=lesson.visible;toggle.disabled=!allowed;visibility.append(toggle,node('span','Exibir esta aula após publicar'));listen(toggle,'change',()=>{lesson.visible=toggle.checked;dirty=true;message('Alterações ainda não salvas.');});card.append(visibility);
+      const visibility=node('label','','field'),toggle=node('input');toggle.type='checkbox';toggle.checked=lesson.visible;toggle.disabled=!allowed;visibility.append(toggle,node('span','Exibir esta aula após publicar'));listen(toggle,'change',()=>{lesson.visible=toggle.checked;dirty=true;contentDirty=true;message('Alterações ainda não salvas.');});card.append(visibility);
       if(lesson.cover){const img=node('img');img.alt='Capa da aula '+(index+1);img.style.maxWidth='240px';void previewImage(img,lesson.cover).catch(()=>{});card.append(img,button('Usar miniatura do YouTube',()=>{lesson.cover='';changed();},allowed));}
       upload(card,'Enviar capa (opcional)','image',lesson,'cover',renderTraining);
       const actions=node('div','','site-admin-toolbar');actions.append(button('Subir aula',()=>move(c.lessons,index,-1),allowed&&index>0),button('Descer aula',()=>move(c.lessons,index,1),allowed&&index<c.lessons.length-1),button('Excluir aula',()=>{if(!window.confirm('Excluir esta aula do rascunho?'))return;c.lessons.splice(index,1);changed();},allowed));card.append(actions);lessons.append(card);
