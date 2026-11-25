@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertKnownEditor, assertGatewayImage, prepareGatewayConfig } from './publish-driver-training.mjs';
+import { assertKnownEditor, assertGatewayImage, assertTrainingEnvironment, prepareGatewayConfig } from './publish-driver-training.mjs';
 const live='e9eb5d1904f0e5c90867004da96438e0d07d3315935a04c6706769e61675dc8b';
 const gateway='sha256:b305f39894ae35a548baeadc81cc03236fa150f821d56fdcf2b6e19247f8e991';
 test('accepts the two reviewed editors but rejects local/container drift and unknown code',()=>{
@@ -17,4 +17,14 @@ test('pinned gateway replacement preserves the active cash release and every oth
   const initial=structuredClone(config),id='sha256:'+'a'.repeat(64),result=prepareGatewayConfig(config,gateway,id);
   assert.equal(result.services.gateway.image,id);const restored=structuredClone(result);restored.services.gateway.image=gateway;assert.deepEqual(restored,initial);assert.deepEqual(config,initial);
   assert.throws(()=>prepareGatewayConfig(config,'another-image',id));assert.throws(()=>prepareGatewayConfig(config,gateway,'mutable:tag'));assert.throws(()=>prepareGatewayConfig({},gateway,id));
+});
+
+test('accepts live VPS configuration and exact documented defaults for omitted origins',()=>{
+  assert.doesNotThrow(()=>assertTrainingEnvironment({TRUST_PROXY:'true'},{PUBLIC_SITE_ORIGIN:'https://ramonessa.com.br'}));
+  assert.doesNotThrow(()=>assertTrainingEnvironment({TRUST_PROXY:'true'},{}));
+  assert.doesNotThrow(()=>assertTrainingEnvironment({TRUST_PROXY:'true'},{PUBLIC_SITE_ORIGIN:'https://ramonessa.com.br',ADMIN_SITE_ORIGIN:'https://app.ramonessa.com.br'}));
+});
+test('defaults never authorize foreign/empty origins or a missing/disabled Core proxy',()=>{
+  for(const env of [{},{TRUST_PROXY:'false'},{TRUST_PROXY:''}])assert.throws(()=>assertTrainingEnvironment(env,{}));
+  for(const site of [{PUBLIC_SITE_ORIGIN:''},{ADMIN_SITE_ORIGIN:''},{PUBLIC_SITE_ORIGIN:'https://foreign.test'},{ADMIN_SITE_ORIGIN:'https://foreign.test'},{PUBLIC_SITE_ORIGIN:'https://ramonessa.com.br/'}])assert.throws(()=>assertTrainingEnvironment({TRUST_PROXY:'true'},site));
 });

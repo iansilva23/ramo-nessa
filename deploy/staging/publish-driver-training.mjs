@@ -17,6 +17,13 @@ export function assertKnownEditor(localDigest,liveDigest) {
 export function assertGatewayImage(image) {
   if(!['ramo-nessa-admin-gateway:staging',observedGatewayImage].includes(image))throw new Error('Gateway diferente das versões verificadas.');
 }
+export function assertTrainingEnvironment(coreEnv,siteEnv) {
+  // Match the exact nullish defaults used by the site's request/auth handlers.
+  // Empty strings and explicit foreign origins must still be rejected.
+  if(coreEnv.TRUST_PROXY!=='true')throw new Error('O Core precisa manter TRUST_PROXY=true.');
+  if((siteEnv.PUBLIC_SITE_ORIGIN??'https://ramonessa.com.br')!=='https://ramonessa.com.br')throw new Error('A origem pública do site difere do domínio esperado.');
+  if((siteEnv.ADMIN_SITE_ORIGIN??'https://app.ramonessa.com.br')!=='https://app.ramonessa.com.br')throw new Error('A origem administrativa do site difere do domínio esperado.');
+}
 export function prepareGatewayConfig(config,activeImage,candidateImage) {
   if(!config||typeof config!=='object'||!config.services?.gateway||config.services.gateway.image!==activeImage)throw new Error('A configuração Compose não corresponde à imagem ativa do gateway.');
   if(!/^sha256:[a-f0-9]{64}$/.test(candidateImage))throw new Error('A imagem candidata precisa estar fixada pelo ID.');
@@ -60,7 +67,7 @@ async function main() {
   const envMap=container=>Object.fromEntries(container.Config.Env.map(v=>{const i=v.indexOf('=');return[v.slice(0,i),v.slice(i+1)];}));
   const liveGatewayEnv=envMap(before.gateway);
   if(Object.entries(resolvedGatewayConfig.services.gateway.environment??{}).some(([key,value])=>value!==null&&String(value)!==liveGatewayEnv[key]))throw new Error('O ambiente do Compose não corresponde ao gateway ativo.');
-  if(envMap(before.core).TRUST_PROXY!=='true'||envMap(before.site).PUBLIC_SITE_ORIGIN!=='https://ramonessa.com.br'||envMap(before.site).ADMIN_SITE_ORIGIN!=='https://app.ramonessa.com.br')throw new Error('Confira as origens e a configuração de proxy existentes.');
+  assertTrainingEnvironment(envMap(before.core),envMap(before.site));
   const file='apps/admin/src/site-admin.js',currentSource=readFileSync(join(repo,file),'utf8');
   assertKnownEditor(digest(currentSource),digest(run('docker',['exec',names.gateway,'cat','/srv/admin/src/site-admin.js'])));
   if(existsSync(backup)||existsSync(release))throw new Error('Esta atualização já foi preparada. Confira o backup existente.');
