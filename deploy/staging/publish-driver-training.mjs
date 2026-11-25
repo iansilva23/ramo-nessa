@@ -24,6 +24,16 @@ export function assertTrainingEnvironment(coreEnv,siteEnv) {
   if((siteEnv.PUBLIC_SITE_ORIGIN??'https://ramonessa.com.br')!=='https://ramonessa.com.br')throw new Error('A origem pública do site difere do domínio esperado.');
   if((siteEnv.ADMIN_SITE_ORIGIN??'https://app.ramonessa.com.br')!=='https://app.ramonessa.com.br')throw new Error('A origem administrativa do site difere do domínio esperado.');
 }
+export function assertComposeLocation({project,composeFile,projectDir},pathExists=existsSync) {
+  const canonical=path=>typeof path==='string'&&!path.includes(String.fromCharCode(0))&&resolve(path)===path;
+  const parts=typeof composeFile==='string'?composeFile.split('/'):[];
+  const recoverySnapshot=parts.length===6&&parts[0]===''&&parts[1]==='var'&&parts[2]==='backups'&&parts[3]==='ramo-nessa-training'&&/^[a-f0-9]{12}$/.test(parts[4])&&/^gateway[.](before|candidate)[.]json$/.test(parts[5]);
+  if(project!=='ramo-nessa-staging')throw new Error('Projeto Compose do gateway diferente do esperado.');
+  if(!canonical(composeFile)||composeFile.includes(',')||(!composeFile.startsWith('/opt/')&&!recoverySnapshot))throw new Error('Caminho do Compose ativo fora dos locais verificados.');
+  if(!canonical(projectDir)||!projectDir.startsWith('/opt/'))throw new Error('Diretório de trabalho do Compose diferente do esperado.');
+  if(!pathExists(composeFile))throw new Error('Arquivo Compose ativo não encontrado: '+composeFile);
+  if(!pathExists(projectDir))throw new Error('Diretório de trabalho do Compose não encontrado: '+projectDir);
+}
 export function prepareGatewayConfig(config,activeImage,candidateImage) {
   if(!config||typeof config!=='object'||!config.services?.gateway||config.services.gateway.image!==activeImage)throw new Error('A configuração Compose não corresponde à imagem ativa do gateway.');
   if(!/^sha256:[a-f0-9]{64}$/.test(candidateImage))throw new Error('A imagem candidata precisa estar fixada pelo ID.');
@@ -81,7 +91,7 @@ async function main() {
   if(before.gateway.Mounts.some(m=>m.Destination==='/srv/admin'||m.Destination.startsWith('/srv/admin/')))throw new Error('ADM com montagem própria. Confira a instalação antes de publicar.');
   const labels=before.gateway.Config.Labels??{},project=labels['com.docker.compose.project'];
   const composeFile=labels['com.docker.compose.project.config_files'],projectDir=labels['com.docker.compose.project.working_dir'];
-  if(project!=='ramo-nessa-staging'||typeof composeFile!=='string'||composeFile.includes(',')||!composeFile.startsWith('/opt/')||!existsSync(composeFile)||typeof projectDir!=='string'||!projectDir.startsWith('/opt/')||!existsSync(projectDir))throw new Error('Não foi possível identificar o Compose ativo do gateway.');
+  assertComposeLocation({project,composeFile,projectDir});
   // Copy the actual JSON release snapshot, preserving literal interpolation escapes.
   // Normalization is used only for validation; never reserialize resolved secrets
   // into a new Compose input. Never print either JSON: it may contain credentials.

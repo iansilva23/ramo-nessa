@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertKnownEditor, assertGatewayImage, assertTrainingEnvironment, prepareGatewayConfig, fetchChecked, isTransientFetchError } from './publish-driver-training.mjs';
+import { assertKnownEditor, assertGatewayImage, assertComposeLocation, assertTrainingEnvironment, prepareGatewayConfig, fetchChecked, isTransientFetchError } from './publish-driver-training.mjs';
 const live='e9eb5d1904f0e5c90867004da96438e0d07d3315935a04c6706769e61675dc8b';
 const gateway='sha256:b305f39894ae35a548baeadc81cc03236fa150f821d56fdcf2b6e19247f8e991';
 test('accepts the two reviewed editors but rejects local/container drift and unknown code',()=>{
@@ -75,4 +75,17 @@ test('wrong authorization status and unsafe TLS failures do not retry',async()=>
     /ERR_TLS_CERT_ALTNAME_INVALID/
   );
   assert.equal(calls,1);
+});
+
+test('accepts the observed recovery snapshot and original gateway release paths',()=>{
+  const base={project:'ramo-nessa-staging',projectDir:'/opt/ramo-nessa-security/prepared-08d1aa34a384611d'};
+  for(const composeFile of ['/var/backups/ramo-nessa-training/44fddaa88935/gateway.before.json','/var/backups/ramo-nessa-training/be8124bfab0d/gateway.candidate.json','/opt/ramo-nessa-security/troco-web-1fd614b34bb8-3nmg3dhl/after.json'])assert.doesNotThrow(()=>assertComposeLocation({...base,composeFile},()=>true));
+});
+test('recovery path support never permits traversal, unrelated paths, other projects or missing inputs',()=>{
+  const base={project:'ramo-nessa-staging',projectDir:'/opt/ramo-nessa-security/prepared-08d1aa34a384611d',composeFile:'/var/backups/ramo-nessa-training/44fddaa88935/gateway.before.json'};
+  for(const composeFile of ['/var/backups/other/44fddaa88935/gateway.before.json','/var/backups/ramo-nessa-training/not-a-sha/gateway.before.json','/var/backups/ramo-nessa-training/44fddaa88935/unrelated.json','/opt/../etc/compose.json','/var/backups/ramo-nessa-training/44fddaa88935/../44fddaa88935/gateway.before.json','/tmp/gateway.json','/opt/one.json,/opt/two.json',undefined])assert.throws(()=>assertComposeLocation({...base,composeFile},()=>true));
+  assert.throws(()=>assertComposeLocation({...base,project:'another-project'},()=>true));
+  assert.throws(()=>assertComposeLocation({...base,projectDir:'/tmp/work'},()=>true));
+  assert.throws(()=>assertComposeLocation(base,p=>p!==base.composeFile),/Arquivo Compose ativo não encontrado/);
+  assert.throws(()=>assertComposeLocation(base,p=>p!==base.projectDir),/Diretório de trabalho do Compose não encontrado/);
 });
